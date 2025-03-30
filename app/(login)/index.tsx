@@ -2,6 +2,7 @@ import { CenteredView } from "@/components/views/CenteredView";
 import { client } from "@/lib/http";
 import { AxiosError } from "axios";
 import { Link, router } from "expo-router";
+import { setItemAsync } from "expo-secure-store";
 import { trim } from "lodash";
 import { useState } from "react";
 import { Button, StyleSheet, Text, TextInput, View } from "react-native";
@@ -86,8 +87,8 @@ export default function LoginScreen() {
         email,
         password,
       });
-
       console.log(data.token);
+      await setItemAsync("token", data.token);
       router.push("/(tabs)");
     } catch (e) {
       console.debug(process.env.EXPO_PUBLIC_API_URL, e);
