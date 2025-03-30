@@ -1,5 +1,8 @@
 import { CenteredView } from "@/components/views/CenteredView";
+import { client } from "@/lib/http";
+import { AxiosError } from "axios";
 import { Link, router } from "expo-router";
+import { trim } from "lodash";
 import { useState } from "react";
 import { Button, StyleSheet, Text, TextInput, View } from "react-native";
 
@@ -43,21 +46,6 @@ const styles = StyleSheet.create({
   },
 });
 
-const postForJSON = async (url: string, payload: {}) => {
-  // TODO: use axios
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-  if (!res.headers.get("Content-Type")?.includes("application/json")) {
-    throw new Error("Invalid response");
-  }
-  const data = await res.json();
-  return data;
-};
 type LoginError = {
   email?: string;
   password?: string;
@@ -83,32 +71,39 @@ export default function LoginScreen() {
     try {
       setLoading(true);
       setError(undefined);
-      if (!email || !password) {
+      if (!trim(email) || !trim(password)) {
         const errors: LoginError = { message: "Please fill all fields" };
-        if (!email) {
+        if (!trim(email)) {
           errors.email = "Email is required";
         }
-        if (!password) {
+        if (!trim(password)) {
           errors.password = "Password is required";
         }
         setError(errors);
         return;
       }
-      // TODO: extract endpoint to env
-      const data = await postForJSON("https://reqres.in/api/login", {
+      const { data } = await client.post("/login", {
         email,
         password,
       });
-      if (data.error) {
-        setError(data.error);
-        return;
-      }
+
       console.log(data.token);
       router.push("/(tabs)");
     } catch (e) {
-      console.error(e);
-      setError({ message: "Something went wrong" });
-      return;
+      console.debug(process.env.EXPO_PUBLIC_API_URL, e);
+      // let message : string;
+      // if (e instanceof AxiosError && e.response) {
+      //   message=  e.response.data.error;
+      // } else {
+      //   message= "Something went wrong";
+      // }
+      // setError({ message });
+      setError({
+        message:
+          e instanceof AxiosError && e.response
+            ? e.response.data.error
+            : "Something went wrong",
+      });
     } finally {
       setLoading(false);
     }
