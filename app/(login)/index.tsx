@@ -1,4 +1,5 @@
 import { CenteredView } from "@/components/views/CenteredView";
+import { useSession } from "@/contexts/session";
 import { client } from "@/lib/http";
 import { AxiosError } from "axios";
 import { Link, router } from "expo-router";
@@ -60,6 +61,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<LoginError | undefined>(undefined);
   const [loading, setLoading] = useState(false);
+  const { signInWithPassword } = useSession();
   const handleChangePassword = (text: string) => {
     setPassword(text);
     setError(undefined);
@@ -83,13 +85,7 @@ export default function LoginScreen() {
         setError(errors);
         return;
       }
-      const { data } = await client.post("/login", {
-        email,
-        password,
-      });
-      console.log(data.token);
-      await setItemAsync("token", data.token);
-      router.push("/(tabs)");
+      await signInWithPassword(email, password);
     } catch (e) {
       console.debug(process.env.EXPO_PUBLIC_API_URL, e);
       // let message : string;
