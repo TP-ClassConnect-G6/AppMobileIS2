@@ -38,7 +38,7 @@ export default function HomeScreen() {
           <Pressable
             onPress={() =>
               router.navigate({
-                pathname: "/(details)/[id]",
+                pathname: "/(tabs)/(details)/[id]",
                 params: { id },
               })
             }

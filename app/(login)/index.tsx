@@ -1,12 +1,12 @@
 import { CenteredView } from "@/components/views/CenteredView";
 import { useSession } from "@/contexts/session";
-import { client } from "@/lib/http";
 import { AxiosError } from "axios";
 import { Link, router } from "expo-router";
-import { setItemAsync } from "expo-secure-store";
-import { trim } from "lodash";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { Button, StyleSheet, Text, TextInput, View } from "react-native";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 const styles = StyleSheet.create({
   text: {
@@ -48,97 +48,91 @@ const styles = StyleSheet.create({
   },
 });
 
-type LoginError = {
-  email?: string;
-  password?: string;
-  message?: string;
-};
+const zodSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+});
 
 export default function LoginScreen() {
-  // TODO: extract to a custom hook
-  // TODO: use react-hook-form
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<LoginError | undefined>(undefined);
-  const [loading, setLoading] = useState(false);
+  const {
+    control,
+    handleSubmit,
+    formState: { errors, isLoading },
+  } = useForm({
+    resolver: zodResolver(zodSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+    },
+  });
+
+  const [error, setError] = useState<string | undefined>(undefined);
   const { signInWithPassword } = useSession();
-  const handleChangePassword = (text: string) => {
-    setPassword(text);
-    setError(undefined);
-  };
-  const handleChangeEmail = (text: string) => {
-    setEmail(text);
-    setError(undefined);
-  };
-  const handleLogin = async () => {
+
+  const handleLogin = async ({
+    email,
+    password,
+  }: {
+    email: string;
+    password: string;
+  }) => {
     try {
-      setLoading(true);
-      setError(undefined);
-      if (!trim(email) || !trim(password)) {
-        const errors: LoginError = { message: "Please fill all fields" };
-        if (!trim(email)) {
-          errors.email = "Email is required";
-        }
-        if (!trim(password)) {
-          errors.password = "Password is required";
-        }
-        setError(errors);
-        return;
-      }
+      console.log(email, password);
       await signInWithPassword(email, password);
     } catch (e) {
-      console.debug(process.env.EXPO_PUBLIC_API_URL, e);
-      // let message : string;
-      // if (e instanceof AxiosError && e.response) {
-      //   message=  e.response.data.error;
-      // } else {
-      //   message= "Something went wrong";
-      // }
-      // setError({ message });
-      setError({
-        message:
-          e instanceof AxiosError && e.response
-            ? e.response.data.error
-            : "Something went wrong",
-      });
-    } finally {
-      setLoading(false);
+      setError(
+        e instanceof AxiosError && e.response
+          ? e.response.data.error
+          : "Something went wrong"
+      );
     }
   };
   return (
     <CenteredView>
       <Text style={styles.text}>Login</Text>
-      {error?.message && (
-        <Text style={{ backgroundColor: "red" }}>{error?.message}</Text>
-      )}
+      {error && <Text style={{ backgroundColor: "red" }}>{error}</Text>}
       <View style={{ width: "100%" }}>
-        <TextInput
-          style={[styles.input, error?.email ? styles.error : {}]}
-          placeholder="Username..."
-          editable={!loading}
-          value={email}
-          onChangeText={handleChangeEmail}
+        <Controller
+          control={control}
+          render={({ field: { onChange, onBlur, value } }) => (
+            <TextInput
+              style={[styles.input, errors?.email ? styles.error : {}]}
+              placeholder="Username..."
+              editable={!isLoading}
+              onBlur={onBlur}
+              onChangeText={onChange}
+              value={value}
+            />
+          )}
+          name="email"
         />
-        <Text style={styles.helperText}>{error?.email}</Text>
+        <Text style={styles.helperText}>{errors?.email?.message}</Text>
       </View>
 
       <View style={{ width: "100%" }}>
-        <TextInput
-          style={[styles.input, error?.password ? styles.error : {}]}
-          placeholder="Password..."
-          editable={!loading}
-          value={password}
-          onChangeText={handleChangePassword}
-          secureTextEntry
+        <Controller
+          control={control}
+          render={({ field: { onChange, onBlur, value } }) => (
+            <TextInput
+              style={[styles.input, errors?.password ? styles.error : {}]}
+              placeholder="Password..."
+              editable={!isLoading}
+              onBlur={onBlur}
+              onChangeText={onChange}
+              value={value}
+              secureTextEntry
+            />
+          )}
+          name="password"
         />
-        <Text style={styles.helperText}>{error?.password}</Text>
+        <Text style={styles.helperText}>{errors?.password?.message}</Text>
       </View>
       <View style={{ width: "100%" }}>
         <Button
           color="green"
-          disabled={loading}
-          title={loading ? "Loading..." : "Login"}
-          onPress={handleLogin}
+          disabled={isLoading}
+          title={isLoading ? "Loading..." : "Login"}
+          onPress={handleSubmit(handleLogin)}
         />
       </View>
       <Link href="./register">Register</Link>
