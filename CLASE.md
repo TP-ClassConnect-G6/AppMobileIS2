@@ -2,7 +2,7 @@
 marp: true
 ---
 
-# 0. Distribución de aplicaciones 1
+# 0. Distribución de aplicaciones
 
 1. Web sites: Arquitectura browser -> server
 
@@ -62,3 +62,42 @@ Extras:
 - Android, Web
 - File Based Routing
 - Deep Linking
+
+# 3.2 Navegación y Login
+
+- se agrega (login) para las pantallas de login
+- (login)/\_layout.tsx uso de `<Slot>`
+- (login)/index.tsx navegación con Link, y router
+- Formularios: loading, validation, error handling
+- File Base Routing siempre entre por index
+
+# 3.3 Axios
+
+- npm i axios
+- .env
+- pegarle al backend en localhost
+- axios.create http.ts
+- manejo de errores con axios
+- npm i lodash @types/lodash (por pinto)
+
+# 3.4 Local Storage
+
+- npx expo install expo-secure-store
+  [secure-store](https://docs.expo.dev/versions/latest/sdk/securestore/)
+  alternativa (sin encriptar): @react-native-async-storage/async-storage
+  ver que se actualizo app.json
+- mostrar como entra a la app y pasa a la home
+- mostrar como limpiar "cache y storage data"
+- getItem vs async?
+
+# 3.5 Session Context
+
+- Context for session
+- SplashScreen & initial load
+- Route Protection
+
+# 3.6 React Query
+
+- minimal
+
+# 3.7 React Hook Form
