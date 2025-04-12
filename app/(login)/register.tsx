@@ -614,7 +614,7 @@ export default function RegisterScreen() {
       </Button>
       <Button
         mode="text"
-        onPress={() => router.push("/login")}
+        onPress={() => router.back()}
         style={styles.goBackButton}
       >
         Go Back
