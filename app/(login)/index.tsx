@@ -468,6 +468,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useSession } from "@/contexts/session";
 import { router } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 
 const zodSchema = z.object({
   email: z.string().email(),
@@ -505,6 +506,28 @@ export default function LoginScreen() {
       setError(
         e instanceof Error ? e.message : "Something went wrong"
       );
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      const result = await WebBrowser.openBrowserAsync(
+        "https://usuariosis2-production.up.railway.app/login/google"
+      );
+      console.log("Google Login Result:", result);
+    } catch (e) {
+      console.error("Error during Google login:", e);
+    }
+  };
+
+  const handleFacebookLogin = async () => {
+    try {
+      const result = await WebBrowser.openBrowserAsync(
+        "https://usuariosis2-production.up.railway.app/login/facebook"
+      );
+      console.log("Facebook Login Result:", result);
+    } catch (e) {
+      console.error("Error during Facebook login:", e);
     }
   };
 
@@ -563,6 +586,23 @@ export default function LoginScreen() {
       >
         Login
       </Button>
+
+      <Button
+        mode="contained"
+        onPress={handleGoogleLogin}
+        style={[styles.button, { backgroundColor: "#DB4437" }]}
+      >
+        Login with Google
+      </Button>
+
+      <Button
+        mode="contained"
+        onPress={handleFacebookLogin}
+        style={[styles.button, { backgroundColor: "#4267B2" }]}
+      >
+        Login with Facebook
+      </Button>
+      
       <Button
         mode="text"
         onPress={() => router.push("/register")}
