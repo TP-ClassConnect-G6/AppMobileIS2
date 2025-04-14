@@ -469,6 +469,7 @@ import { z } from "zod";
 import { useSession } from "@/contexts/session";
 import { router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
+import axios from "axios";
 
 const zodSchema = z.object({
   email: z.string().email(),
@@ -503,9 +504,22 @@ export default function LoginScreen() {
       await signInWithPassword(email, password);
     } catch (e) {
       //console.error("Ocurrió un error:", e);
-      setError(
-        e instanceof Error ? e.message : "Something went wrong"
-      );
+      // setError(
+      //   e instanceof Error ? e.message : "Something went wrong"
+      // );
+      if (axios.isAxiosError(e)) {
+        if (e.code === "ECONNREFUSED") {
+          setError("No se pudo conectar al servidor. Verifica tu conexión.");
+        } else if (e.response?.status === 401) {
+          setError("Credenciales inválidas. Inténtalo de nuevo.");
+        } else if (e.response?.status === 404) {
+          setError("El usuario no está registrado. Por favor, regístrate.");
+        } else {
+          setError(e.response?.data?.error || "Error en el inicio de sesión");
+        }
+      } else {
+        setError("Something went wrong");
+      }
     }
   };
 

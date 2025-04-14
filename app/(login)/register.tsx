@@ -534,12 +534,13 @@ export default function RegisterScreen() {
     email: string;
     password: string;
   }) => {
+    setError(undefined);
     try {
       const apiUrl = process.env.EXPO_PUBLIC_API_URL; // Leer la URL desde .env
       if (!apiUrl) {
         throw new Error("API URL is not defined in .env");
       }
-
+  
       const response = await axios.post(`${apiUrl}/register`, {
         email,
         password,
@@ -548,12 +549,18 @@ export default function RegisterScreen() {
       console.log("Registro exitoso:", response.data);
       router.push("./"); // Redirigir al login
     } catch (e) {
-      //console.error("Ocurrió un error:", e);
-      setError(
-        axios.isAxiosError(e) && e.response
-          ? e.response.data.error || "Error en el registro"
-          : "Something went wrong"
-      );
+      if (axios.isAxiosError(e)) {
+        if (e.response?.status === 409) {
+          setError("El usuario ya está registrado.");
+        } else if (e.code === "ECONNREFUSED") {
+            setError("No se pudo conectar al servidor. Verifica tu conexión.");
+        } else {
+          setError(e.response?.data?.error || "Error en el registro");
+        }
+      } else {
+        console.error("Error desconocido:", e);
+        setError(e instanceof Error ? e.message : "Something went wrong");
+      }
     }
   };
 
