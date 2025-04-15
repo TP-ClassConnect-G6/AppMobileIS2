@@ -76,8 +76,10 @@
 import { router } from "expo-router";
 import { Button, View, Text } from "react-native";
 import { CenteredView } from "@/components/views/CenteredView";
+import { useSession } from "@/contexts/session";
 
 export default function HomeScreen() {
+  const { signOut } = useSession();
   return (
     <CenteredView>
       <Button
@@ -85,6 +87,13 @@ export default function HomeScreen() {
         onPress={() => router.push("/(tabs)/profile")}
       />
       <Text>Bienvenido a la pantalla principal</Text>
+      <View style={{ marginTop: 16 }}>
+        <Button
+          title="Sign Out"
+          onPress={signOut} // Llama a la función signOut al presionar el botón
+          color="red" // Opcional: Cambia el color del botón para destacarlo
+        />
+      </View>
     </CenteredView>
   );
 }
