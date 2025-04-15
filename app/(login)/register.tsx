@@ -51,13 +51,22 @@ export default function RegisterScreen() {
 
       console.log("Registro exitoso:", response.data);
 
-      // Mostrar mensaje de éxito
-      setSuccessMessage("Registro exitoso. Redirigiendo al login...");
+      // // Mostrar mensaje de éxito
+      // setSuccessMessage("Registro exitoso. Redirigiendo al login...");
       
-      // Redirigir al login después de 2 segundos
+      // // Redirigir al login después de 2 segundos
+      // setTimeout(() => {
+      //   router.push("./");
+      // }, 2000);
+
+      // Dentro de handleRegister
+      setSuccessMessage("Registro exitoso. Redirigiendo para solicitar ubicación...");
+
+      // Redirigir a la pantalla de solicitud de ubicación después de 2 segundos
       setTimeout(() => {
-        router.push("./");
+        router.push("./requestLocation");
       }, 2000);
+
     } catch (e) {
       if (axios.isAxiosError(e)) {
         if (e.response?.status === 409) {
