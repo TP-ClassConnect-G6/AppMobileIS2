@@ -8,6 +8,7 @@ import {
 import { client } from "@/lib/http";
 import { router } from "expo-router";
 import { deleteItemAsync, getItemAsync, setItemAsync } from "@/lib/storage";
+import jwtDecode from "jwt-decode";
 
 type Session = {
   token: string;
@@ -48,6 +49,7 @@ export function useSession() {
   return useContext(SessionContext)!;
 }
 
+// Se guarda la sesion en el storage y se agrega el token al header de las peticiones
 async function startSession(sessionData: Session) {
   await setItemAsync("session", JSON.stringify(sessionData));//key, value almaceno en el storage
   client.defaults.headers.common["Authorization"] = `Bearer ${sessionData.token}`;// agrego el token a los headers de la peticion
@@ -59,21 +61,31 @@ async function endSession() {
   delete client.defaults.headers.common["Authorization"]; //elimino el token de los headers de la peticion
 }
 
+
 export async function recoverSession() {
-  const sessionString = await getItemAsync("session");//key, obtengo la sesion del storage
-  if (!sessionString) // si no hay sesion guardada, retorno undefined
-    return undefined;
+  const sessionString = await getItemAsync("session"); // Obtengo la sesión del storage
+  if (!sessionString) 
+    return undefined; // Si no hay sesión guardada, retorno undefined
 
-  const session: Session = JSON.parse(sessionString); //parseo la sesion guardada
+  const session: Session = JSON.parse(sessionString); // Parseo la sesión guardada
 
-  // Validar si el token ha expirado
-  const now = new Date().getTime();
-  if (now > new Date(session.expirationTime).getTime()) {
-    await endSession(); // Eliminar la sesión si ha expirado
+  // Decodificar el token JWT
+  try {
+    const decodedToken: { exp: number } = jwtDecode(session.token);
+
+    // Validar si el token ha expirado
+    const now = Math.floor(Date.now() / 1000); 
+    if (now > decodedToken.exp) {
+      await endSession(); 
+      return undefined;
+    }
+  } catch (error) {
+    console.error("Error decoding JWT:", error);
+    await endSession(); // Eliminar la sesión si el token no es válido
     return undefined;
   }
 
-  return await startSession(session); 
+  return await startSession(session); // Si el token es válido, inicio la sesión
 }
 
 export function useInitializeSessionService() {
@@ -115,4 +127,5 @@ export function useInitializeSessionService() {
 
   return isLoading ? undefined : { session, signInWithPassword, signOut };
 }
+
 
