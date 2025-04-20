@@ -64,8 +64,10 @@ async function endSession() {
 
 export async function recoverSession() {
   const sessionString = await getItemAsync("session"); // Obtengo la sesión del storage
-  if (!sessionString) 
+  if (!sessionString){
+    router.push("./");
     return undefined; // Si no hay sesión guardada, retorno undefined
+  }
 
   const session: Session = JSON.parse(sessionString); // Parseo la sesión guardada
 
@@ -75,8 +77,11 @@ export async function recoverSession() {
 
     // Validar si el token ha expirado
     const now = Math.floor(Date.now() / 1000); 
+    const remainingTime = decodedToken.exp - now;
+    console.log(`Tiempo restante para que el token expire: ${remainingTime} segundos`);
     if (now > decodedToken.exp) {
       await endSession(); 
+      router.push("./");
       return undefined;
     }
   } catch (error) {
