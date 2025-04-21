@@ -29,6 +29,7 @@ export default function LoginScreen() {
 
   const [error, setError] = useState<string | undefined>(undefined);
   const { signInWithPassword } = useSession();
+  const { signInWithGoogle } = useSession();
   const theme = useTheme();
 
   const handleLogin = async ({
@@ -61,14 +62,12 @@ export default function LoginScreen() {
     }
   };
 
+
   const handleGoogleLogin = async () => {
     try {
-      const result = await WebBrowser.openBrowserAsync(
-        "https://usuariosis2-production.up.railway.app/login/google"
-      );
-      console.log("Google Login Result:", result);
+      await signInWithGoogle(); // Llama a la función del contexto
     } catch (e) {
-      console.error("Error during Google login:", e);
+      console.error("Error durante el login con Google:", e);
     }
   };
 

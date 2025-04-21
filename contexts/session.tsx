@@ -8,7 +8,9 @@ import {
 import { client } from "@/lib/http";
 import { router } from "expo-router";
 import { deleteItemAsync, getItemAsync, setItemAsync } from "@/lib/storage";
+import * as WebBrowser from "expo-web-browser";
 import jwtDecode from "jwt-decode";
+
 
 type Session = {
   token: string;
@@ -20,8 +22,10 @@ type Session = {
 // Funciones que va a consumir el contexto
 interface SessionService {
   signInWithPassword: (email: string, password: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   session?: Session;
+  setSession: React.Dispatch<React.SetStateAction<Session | undefined>>; 
 }
 
 //Creo el contexto
@@ -130,7 +134,47 @@ export function useInitializeSessionService() {
     router.navigate("/(login)");
   };
 
-  return isLoading ? undefined : { session, signInWithPassword, signOut };
+  return isLoading ? undefined : { session, signInWithPassword,signInWithGoogle, signOut };
 }
 
+// export async function signInWithGoogle() {
+//   try {
+//     // Llamada al endpoint de login con Google
+//     const result = await WebBrowser.openBrowserAsync(
+//       "https://usuariosis2-production.up.railway.app/login/google"
+//     ); 
 
+    
+//     console.log("Resultado del navegador:", result);
+//   } catch (error) {
+//     console.error("Error al iniciar sesión con Google:", error);
+//     throw error;
+//   }
+// }
+
+
+export async function signInWithGoogle() {
+  // Configura el redirect URL para que el servidor sepa dónde enviar el token JWT
+  
+  
+  try {
+    const result = await WebBrowser.openAuthSessionAsync(
+      `https://usuariosis2-production.up.railway.app/login/google`
+    );
+    
+    console.warn("Resultado del navegador:", result);
+    
+    if (result.type === 'success') {
+      // Extrae el JWT de la URL 
+      // const { url } = result;
+      // const params = new URLSearchParams(url.split('?')[1]);
+      // const jwtToken = params.get('token') || params.get('jwt');
+      router.push("/(tabs)"); // Redirige a la página principal después de iniciar sesión
+    } else {
+      throw new Error("Autenticación cancelada o no exitosa");
+    }
+  } catch (error) {
+    console.error("Error al iniciar sesión con Google:", error);
+    throw error;
+  }
+}
