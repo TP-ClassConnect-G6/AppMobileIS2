@@ -65,7 +65,6 @@ async function endSession() {
 export async function recoverSession() {
   const sessionString = await getItemAsync("session"); // Obtengo la sesión del storage
   if (!sessionString){
-    router.push("./");
     return undefined; // Si no hay sesión guardada, retorno undefined
   }
 
