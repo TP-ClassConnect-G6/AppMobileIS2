@@ -64,28 +64,6 @@ export default function LoginScreen() {
 
   const handleGoogleLogin = async () => {
     try {
-      
-      // const result = await WebBrowser.openBrowserAsync(
-      //   'https://usuariosis2-production.up.railway.app/login/google'
-      // );
-      // // console.error("Google Login Result:", result);
-      // const params = new URLSearchParams(result);
-      
-      // console.error(params);
-      // if (result.type) {
-      //   router.push("/(tabs)");
-      // }
-
-      // console.log("Google Login Result:", result);
-
-      // Construí la URI de redirección automáticamente:
-      console.log('antes');
-      // const redirectUri = Linking.createURL('redirect'); // genera: "myapp://redirect"
-
-      // const result = await WebBrowser.openAuthSessionAsync(
-      //   'https://usuariosis2-production.up.railway.app/login/google',
-      //   redirectUri
-      // );
 
       const redirectUri = Linking.createURL('redirect'); // Ej: myapp://redirect
 
@@ -105,34 +83,17 @@ export default function LoginScreen() {
         // Guardá lo que necesites en storage o contexto
       }
 
-      // Abrir el navegador para iniciar sesión con Google
-      // const result = await WebBrowser.openBrowserAsync(
-      //   'https://usuariosis2-production.up.railway.app/login/google'
-      // );
-      console.error("Resultado del navegador:", result);
-      // console.error("faloparesult:", result);
-
-      console.log("falopatype:", result.type);
       
       if (result.type === 'success' && result.url) {
         //const urlParams = new URLSearchParams(new URL(result.url).search);
         const params = new URLSearchParams(result.url.split("?")[1]);
         const token = params.get("token");
-        // const token = urlParams.get('token');
-        // console.error("Token recibido:", token);
-        console.error("falopaurl:", result.url);
 
         if (!token) {
           throw new Error("No se recibió un token JWT en la redirección");
         }
-        
-        console.error("Token JWT recibido:", token);
-  
-        // Redirigir al usuario a la pantalla principal
         router.push("/(tabs)");
-        console.error("Token JWT recibido:", token);
-
-        // Ahora podés guardarlo o usarlo para autenticar al usuario
+   
       } else {
         console.warn("El login fue cancelado o no se recibió el token.");
       }
