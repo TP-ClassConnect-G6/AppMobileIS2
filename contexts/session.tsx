@@ -9,6 +9,8 @@ import { client } from "@/lib/http";
 import { router } from "expo-router";
 import { deleteItemAsync, getItemAsync, setItemAsync } from "@/lib/storage";
 import jwtDecode from "jwt-decode";
+import * as Linking from 'expo-linking';
+import * as WebBrowser from "expo-web-browser";
 
 type Session = {
   token: string;
@@ -20,6 +22,7 @@ type Session = {
 // Funciones que va a consumir el contexto
 interface SessionService {
   signInWithPassword: (email: string, password: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   session?: Session;
 }
@@ -122,6 +125,45 @@ export function useInitializeSessionService() {
     router.push("/(tabs)");
   };
 
+  const signInWithGoogle = async () => {
+    try {
+      const redirectUri = Linking.createURL('redirect');
+      const loginUrl = `https://usuariosis2-production.up.railway.app/login/google?redirect_uri=${encodeURIComponent(redirectUri)}`;
+  
+      const result = await WebBrowser.openAuthSessionAsync(loginUrl, redirectUri);
+  
+      if (result.type === 'success' && result.url) {
+        const params = new URLSearchParams(result.url.split("?")[1]);
+        const token = params.get("token");
+        const expiresIn = params.get("expires_in");
+        const userId = params.get("user_id");
+        const userType = params.get("user_type");
+  
+        if (!token) {
+          throw new Error("No se recibió un token JWT en la redirección");
+        }
+  
+        // Crear objeto de sesión
+        const session: Session = {
+          token,
+          expirationTime: expiresIn || "",
+          userId: userId || "",
+          userType: userType || ""
+        };
+  
+        // Usar el startSession que ya está disponible en este contexto
+        const savedSession = await startSession(session);
+        setSession(savedSession);
+        router.push("/(tabs)");
+      } else {
+        console.warn("El login fue cancelado o no se recibió el token.");
+      }
+    } catch (error) {
+      console.error("Error durante el inicio de sesión con Google:", error);
+      throw error; // Relanza el error para que se maneje en el componente
+    }
+  };
+
   // se tiene q llamar a la funcion de signOut para cerrar sesion
   const signOut = async () => {
     await endSession();//elimino la sesion del storage
@@ -129,7 +171,7 @@ export function useInitializeSessionService() {
     router.navigate("/(login)");
   };
 
-  return isLoading ? undefined : { session, signInWithPassword, signOut };
+  return isLoading ? undefined : { session, signInWithPassword, signInWithGoogle, signOut };
 }
 
 

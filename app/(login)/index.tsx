@@ -29,7 +29,7 @@ export default function LoginScreen() {
   });
 
   const [error, setError] = useState<string | undefined>(undefined);
-  const { signInWithPassword } = useSession();
+  const { signInWithPassword, signInWithGoogle } = useSession();
   const theme = useTheme();
 
   const handleLogin = async ({
@@ -42,10 +42,7 @@ export default function LoginScreen() {
     try {
       await signInWithPassword(email, password);
     } catch (e) {
-      //console.error("Ocurrió un error:", e);
-      // setError(
-      //   e instanceof Error ? e.message : "Something went wrong"
-      // );
+     
       if (axios.isAxiosError(e)) {
         if (e.code === "ECONNREFUSED") {
           setError("No se pudo conectar al servidor. Verifica tu conexión.");
@@ -62,44 +59,14 @@ export default function LoginScreen() {
     }
   };
 
+  // Y luego llamarla directamente:
   const handleGoogleLogin = async () => {
     try {
-
-      const redirectUri = Linking.createURL('redirect'); // Ej: myapp://redirect
-
-      const loginUrl = `https://usuariosis2-production.up.railway.app/login/google?redirect_uri=${encodeURIComponent(redirectUri)}`;
-
-      const result = await WebBrowser.openAuthSessionAsync(loginUrl, redirectUri);
-
-      console.log('despues', result);
-
-      // Luego, si result.url tiene el token, podés procesarlo así:
-      if (result.type === 'success' && result.url) {
-        const params = new URLSearchParams(result.url.split('?')[1]);
-        const token = params.get('token');
-        const expiresIn = params.get('expires_in');
-        const userId = params.get('user_id');
-        const userType = params.get('user_type');
-        // Guardá lo que necesites en storage o contexto
-      }
-
-      
-      if (result.type === 'success' && result.url) {
-        //const urlParams = new URLSearchParams(new URL(result.url).search);
-        const params = new URLSearchParams(result.url.split("?")[1]);
-        const token = params.get("token");
-
-        if (!token) {
-          throw new Error("No se recibió un token JWT en la redirección");
-        }
-        router.push("/(tabs)");
-   
-      } else {
-        console.warn("El login fue cancelado o no se recibió el token.");
-      }
-
+        await signInWithGoogle();
     } catch (e) {
-      console.error("Error during Google login:", e);
+      // Manejo de errores
+      console.error("Error en el inicio de sesión con Google:", e);
+      setError("Error al iniciar sesión con Google");
     }
   };
 
