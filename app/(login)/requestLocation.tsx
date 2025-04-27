@@ -3,31 +3,46 @@ import { StyleSheet, View, Alert } from "react-native";
 import { Button, Text } from "react-native-paper";
 import * as Location from "expo-location";
 import { router } from "expo-router";
+import axios from "axios";
+import { useSession } from "@/contexts/session";
+import { client } from "@/lib/http";
 
 export default function RequestLocationScreen() {
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleRequestLocation = async () => {
+
     try {
-      // Solicitar permisos de ubicación
+      // console.log("Headers de autorización:", client.defaults.headers.common["Authorization"]);
+      // console.log("URL base del cliente:", client.defaults.baseURL);
+
+      //Solicitar permisos de ubicación
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
         setErrorMsg("Permiso de ubicación denegado.");
         Alert.alert("Permiso denegado", "No podemos continuar sin tu ubicación.");
         return;
       }
-
-      // Obtener la ubicación actual
+      //Obtener la ubicación actual
       const currentLocation = await Location.getCurrentPositionAsync({});
       setLocation(currentLocation);
 
-      Alert.alert("Ubicación obtenida", "Gracias por compartir tu ubicación.");
-      // Redirigir al usuario al login
-      router.push("./");
+      console.log("Ubicación actual:", currentLocation);
+      console.log("Url completa:", client.defaults.baseURL + "/profile");
+
+      
+      const response = await client.patch("/profile", {
+        location: {
+          latitude: currentLocation.coords.latitude,
+          longitude: currentLocation.coords.longitude,
+        },
+      });
+
+      router.push("/(tabs)");
+
     } catch (error) {
-      console.error("Error al obtener la ubicación:", error);
-      setErrorMsg("No se pudo obtener la ubicación.");
+      console.error("Error al hacer el patch", error);
     }
   };
 
@@ -47,13 +62,14 @@ export default function RequestLocationScreen() {
       >
         Compartir mi ubicación
       </Button>
-      <Button
+      
+      {/* <Button
         mode="text"
         onPress={() => router.push("./")} // Omitir y continuar
         style={styles.skipButton}
       >
         Omitir este paso
-      </Button>
+      </Button> */}
     </View>
   );
 }
@@ -78,9 +94,9 @@ const styles = StyleSheet.create({
   button: {
     marginTop: 16,
   },
-  skipButton: {
-    marginTop: 8,
-  },
+  // skipButton: {
+  //   marginTop: 8,
+  // },
   error: {
     color: "red",
     textAlign: "center",

@@ -122,7 +122,7 @@ export function useInitializeSessionService() {
 
     const savedSession = await startSession(session);//guardo la sesion en el storage
     setSession(savedSession);
-    router.push("/(tabs)");
+    router.push("/requestLocation"); // Redirijo a la pantalla de solicitud de ubicación
   };
 
   const signInWithGoogle = async () => {
@@ -154,7 +154,7 @@ export function useInitializeSessionService() {
         // Usar el startSession que ya está disponible en este contexto
         const savedSession = await startSession(session);
         setSession(savedSession);
-        router.push("/(tabs)");
+        router.push("/requestLocation"); // Redirijo a la pantalla de solicitud de ubicación
       } else {
         console.warn("El login fue cancelado o no se recibió el token.");
       }

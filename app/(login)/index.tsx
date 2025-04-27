@@ -71,7 +71,6 @@ export default function LoginScreen() {
   };
 
 
-
   const handleFacebookLogin = async () => {
     try {
       const result = await WebBrowser.openBrowserAsync(

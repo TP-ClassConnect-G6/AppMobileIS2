@@ -64,7 +64,7 @@ export default function RegisterScreen() {
 
       // Redirigir a la pantalla de solicitud de ubicación después de 2 segundos
       setTimeout(() => {
-        router.push("./requestLocation");
+        router.push("./login");
       }, 2000);
 
     } catch (e) {
