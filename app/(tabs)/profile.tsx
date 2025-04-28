@@ -1,20 +1,32 @@
 import React, { useEffect, useState } from "react";
-import { StyleSheet, View, Text, Image, ScrollView, ActivityIndicator, Alert, TouchableOpacity } from "react-native";
+import { StyleSheet, View, Text, Image, ScrollView, ActivityIndicator, Alert } from "react-native";
 import { Button, TextInput } from "react-native-paper";
 import { client } from "@/lib/http";
 import { useSession } from "@/contexts/session";
+import { useForm, Controller } from "react-hook-form";
+
 
 // Definición del tipo para el perfil de usuario
 type UserProfile = {
-  avatar?: string;
+  user_id?: string;
   name?: string;
   email: string;
-  phone?: string;
   bio?: string;
   location?: {
     latitude: number;
     longitude: number;
   };
+  user_type: string;
+  avatar?: string;
+}
+
+// Tipo para los valores del formulario
+type FormValues = {
+  name: string;
+  email: string;
+  bio: string;
+  latitude: string;
+  longitude: string;
   user_type: string;
 }
 
@@ -23,14 +35,26 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
-  const [updatedProfile, setUpdatedProfile] = useState<Partial<UserProfile>>({});
   const { session } = useSession();
+
+  // Configurar React Hook Form
+  const { control, handleSubmit, reset } = useForm<FormValues>({
+    defaultValues: {
+      name: "",
+      email: "",
+      bio: "",
+      latitude: "",
+      longitude: "",
+      user_type: "student"
+    }
+  });
 
   // Función para cargar el perfil del usuario
   const fetchUserProfile = async () => {
     setLoading(true);
     try {
       const response = await client.get('/profile');
+      console.log("Perfil recibido:", response.data);
       setProfile(response.data);
       setError(null);
     } catch (err) {
@@ -42,11 +66,26 @@ export default function ProfileScreen() {
   };
 
   // Función para actualizar el perfil del usuario
-  const updateUserProfile = async () => {
-    
+  const onSubmit = async (data: FormValues) => {
     setLoading(true);
+    
+    // Convertir los datos del formulario al formato esperado por la API
+    const updatedProfile: Partial<UserProfile> = {
+      name: data.name,
+      email: data.email,
+      bio: data.bio,
+      user_type: data.user_type,
+      location: {
+        latitude: parseFloat(data.latitude),
+        longitude: parseFloat(data.longitude)
+      }
+    };
+    
+    console.log("Enviando actualización:", updatedProfile);
+    
     try {
       const response = await client.patch('/profile', updatedProfile);
+      console.log("Respuesta de actualización:", response.data);
       setProfile(response.data);
       setEditing(false);
       setError(null);
@@ -64,30 +103,20 @@ export default function ProfileScreen() {
     fetchUserProfile();
   }, []);
 
-  // Manejar cambios en los campos de edición
-   
-  const handleInputChange = (field: keyof UserProfile, value: string) => {
-    // Mejor explicado: 
-    // Crear una copia del perfil actualizado
-    //  const newUpdatedProfile = Object.assign({}, updatedProfile);
-      
-    //  // Actualizar el campo específico con el nuevo valor
-    //  if (field === 'name') {
-    //    newUpdatedProfile.name = value;
-    //  } else if (field === 'phone') {
-    //    newUpdatedProfile.phone = value;
-    //  } else if (field === 'bio') {
-    //    newUpdatedProfile.bio = value;
-    //  }
+  // Actualizar los valores predeterminados del formulario cuando se carga el perfil
+  useEffect(() => {
+    if (profile && editing) {
+      reset({
+        name: profile.name || "",
+        email: profile.email || "",
+        bio: profile.bio || "",
+        latitude: profile.location ? String(profile.location.latitude) : "",
+        longitude: profile.location ? String(profile.location.longitude) : "",
+        user_type: profile.user_type || "student"
+      });
+    }
+  }, [profile, editing, reset]);
 
-    //Si la sintaxis hubiese dejado: 
-    //const newUpdatedProfile = { ...updatedProfile};
-    //newUpdatedProfile.field= value;
-
-    // Forma sr je:
-    const newUpdatedProfile = { ...updatedProfile, [field]: value };
-    setUpdatedProfile(newUpdatedProfile);
-  };
 
   // Si está cargando, mostrar un indicador de carga
   if (loading && !profile) {
@@ -121,14 +150,14 @@ export default function ProfileScreen() {
       />
       
       {!editing ? (
-        // Modo de visualización
+        // Modo de visualización - muestra todos los campos
         <View style={styles.profileInfo}>
           <Text style={styles.name}>{profile?.name || 'Usuario'}</Text>
           <Text style={styles.email}>{profile?.email || session?.userId}</Text>
           
-          {profile?.phone && <Text style={styles.info}>Teléfono: {profile.phone}</Text>}
-          
-          {profile?.bio && <Text style={styles.bio}>Bio: {profile.bio}</Text>}
+          {profile?.bio && (
+            <Text style={styles.bio}>{profile.bio}</Text>
+          )}
           
           {profile?.location && (
             <Text style={styles.info}>
@@ -140,41 +169,96 @@ export default function ProfileScreen() {
           
           <Button 
             mode="contained" 
-            onPress={() => {
-              setUpdatedProfile({});
-              setEditing(true);
-            }}
+            onPress={() => setEditing(true)}
             style={styles.editButton}
           >
             Editar Perfil
           </Button>
         </View>
       ) : (
-        // Modo de edición
+        // Modo de edición usando React Hook Form
         <View style={styles.editForm}>
-          <TextInput
-            label="Nombre"
-            value={updatedProfile.name !== undefined ? updatedProfile.name : profile?.name || ''}
-            onChangeText={(text) => handleInputChange('name', text)}
-            style={styles.input}
+          {/* Campo de Nombre */}
+          <Controller
+            control={control}
+            name="name"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Nombre"
+                value={value}
+                onChangeText={onChange}
+                onBlur={onBlur}
+                style={styles.input}
+              />
+            )}
           />
           
-          <TextInput
-            label="Teléfono"
-            value={updatedProfile.phone !== undefined ? updatedProfile.phone : profile?.phone || ''}
-            onChangeText={(text) => handleInputChange('phone', text)}
-            style={styles.input}
-            keyboardType="phone-pad"
+          {/* Campo de Email
+          <Controller
+            control={control}
+            name="email"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Correo Electrónico"
+                value={value}
+                onChangeText={onChange}
+                onBlur={onBlur}
+                style={styles.input}
+                keyboardType="email-address"
+              />
+            )}
+          /> */}
+          
+          {/* Campo de Biografía */}
+          <Controller
+            control={control}
+            name="bio"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Biografía"
+                value={value}
+                onChangeText={onChange}
+                onBlur={onBlur}
+                style={styles.input}
+                multiline
+                numberOfLines={3}
+              />
+            )}
           />
           
-          <TextInput
-            label="Bio"
-            value={updatedProfile.bio !== undefined ? updatedProfile.bio : profile?.bio || ''}
-            onChangeText={(text) => handleInputChange('bio', text)}
-            style={styles.input}
-            multiline
-            numberOfLines={3}
-          />
+          {/* Campos para la ubicación */}
+          <Text style={styles.sectionTitle}>Ubicación</Text>
+          <View style={styles.locationContainer}>
+            <Controller
+              control={control}
+              name="latitude"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Latitud"
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  style={styles.locationInput}
+                  keyboardType="numeric"
+                />
+              )}
+            />
+            <Controller
+              control={control}
+              name="longitude"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Longitud"
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  style={styles.locationInput}
+                  keyboardType="numeric"
+                />
+              )}
+            />
+          </View>
+          
           
           <View style={styles.buttonGroup}>
             <Button 
@@ -187,7 +271,7 @@ export default function ProfileScreen() {
             
             <Button 
               mode="contained" 
-              onPress={updateUserProfile}
+              onPress={handleSubmit(onSubmit)}
               style={styles.saveButton}
             >
               Guardar
@@ -304,5 +388,30 @@ const styles = StyleSheet.create({
   saveButton: {
     flex: 1,
     marginLeft: 5,
+  },
+  locationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 15,
+  },
+  locationInput: {
+    flex: 1,
+    marginRight: 5,
+    backgroundColor: "#f5f5f5",
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  userTypeContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  userTypeButton: {
+    flex: 1,
+    marginRight: 5,
   },
 });
