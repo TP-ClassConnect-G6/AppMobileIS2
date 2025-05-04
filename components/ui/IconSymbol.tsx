@@ -15,7 +15,7 @@ const MAPPING = {
   'chevron.right': 'chevron-right',
   'person.fill': 'person',
   'book.fill': 'book',
-  'plus.circle.fill': 'add-circle',
+  //'plus.circle.fill': 'add-circle',
   'book-plus.fill': 'post-add',
 } as const;
 
