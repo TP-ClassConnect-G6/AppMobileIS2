@@ -72,6 +72,15 @@ export default function TabLayout() {
             ),
           }}
         />
+        <Tabs.Screen
+          name="create-course"
+          options={{
+            title: "Crear Curso",
+            tabBarIcon: ({ color }: { color: string }) => (
+              <IconSymbol size={28} name="book-plus.fill" color={color} />
+            ),
+          }}
+        />
       </Tabs>
     </QueryClientProvider>
   );
