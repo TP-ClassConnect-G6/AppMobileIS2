@@ -7,6 +7,7 @@ import { courseClient } from "@/lib/http";
 import { useSession } from "@/contexts/session";
 import { format } from "date-fns";
 import { router } from "expo-router";
+import jwtDecode from "jwt-decode";
 
 // Definición del tipo para la solicitud de creación de curso
 type ScheduleItem = {
@@ -130,17 +131,27 @@ export default function CreateCourseScreen() {
       return;
     }
 
-    // Solo profesores y administradores pueden crear cursos
-    if (session.userType !== "teacher" && session.userType !== "admin") {
-      Alert.alert("Error", "Solo los profesores y administradores pueden crear cursos");
-      setLoading(false);
-      return;
-    }
-
     try {
+      // Extraer el email del token JWT
+      let userEmail = "";
+      try {
+        const decodedToken: any = jwtDecode(session.token);
+        userEmail = decodedToken.email || "";
+        console.log("Email extraído del token:", userEmail);
+      } catch (error) {
+        console.error("Error al decodificar token:", error);
+      }
+
+      // Verificar que tenemos un email válido
+      if (!userEmail) {
+        Alert.alert("Error", "No se pudo obtener el email del usuario");
+        setLoading(false);
+        return;
+      }
+
       // Preparar la solicitud
       const request: CreateCourseRequest = {
-        user_login: session.userId, // Usando el ID de usuario como login
+        user_login: userEmail, // Usar el email como user_login
         role: session.userType,
         ...data,
       };

@@ -12,6 +12,7 @@ type UserProfile = {
   name?: string;
   email: string;
   bio?: string;
+  phone_number?: string;
   location?: {
     latitude: number;
     longitude: number;
@@ -25,6 +26,7 @@ type FormValues = {
   name: string;
   email: string;
   bio: string;
+  phone_number: string;
   latitude: string;
   longitude: string;
   user_type: string;
@@ -43,6 +45,7 @@ export default function ProfileScreen() {
       name: "",
       email: "",
       bio: "",
+      phone_number: "",
       latitude: "",
       longitude: "",
       user_type: "student"
@@ -74,6 +77,7 @@ export default function ProfileScreen() {
       name: data.name,
       email: data.email,
       bio: data.bio,
+      phone_number: data.phone_number,
       user_type: data.user_type,
       location: {
         latitude: parseFloat(data.latitude),
@@ -110,6 +114,7 @@ export default function ProfileScreen() {
         name: profile.name || "",
         email: profile.email || "",
         bio: profile.bio || "",
+        phone_number: profile.phone_number || "",
         latitude: profile.location ? String(profile.location.latitude) : "",
         longitude: profile.location ? String(profile.location.longitude) : "",
         user_type: profile.user_type || "student"
@@ -157,6 +162,10 @@ export default function ProfileScreen() {
           
           {profile?.bio && (
             <Text style={styles.bio}>{profile.bio}</Text>
+          )}
+
+          {profile?.phone_number && (
+            <Text style={styles.info}>Teléfono: {profile.phone_number}</Text>
           )}
           
           {profile?.location && (
@@ -222,6 +231,22 @@ export default function ProfileScreen() {
                 style={styles.input}
                 multiline
                 numberOfLines={3}
+              />
+            )}
+          />
+
+          {/* Campo de Teléfono */}
+          <Controller
+            control={control}
+            name="phone_number"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Teléfono"
+                value={value}
+                onChangeText={onChange}
+                onBlur={onBlur}
+                style={styles.input}
+                keyboardType="phone-pad"
               />
             )}
           />
