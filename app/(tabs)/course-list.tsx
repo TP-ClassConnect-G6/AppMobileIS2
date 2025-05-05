@@ -139,11 +139,11 @@ export default function CourseListScreen() {
     const matchesName =
       course.course_name.toLowerCase().includes(nameFilter.toLowerCase());
 
-      const courseStartDate = new Date(course.date_init);
-      courseStartDate.setHours(courseStartDate.getHours() + 2); //Ajuste de hora por casteo
-      
-      const courseEndDate = new Date(course.date_end);
-      courseEndDate.setHours(courseEndDate.getHours() + 2); //Ajuste de hora por casteo
+    const courseStartDate = new Date(course.date_init);
+    courseStartDate.setHours(courseStartDate.getHours() + 2); //Ajuste de hora por casteo
+
+    const courseEndDate = new Date(course.date_end);
+    courseEndDate.setHours(courseEndDate.getHours() + 2); //Ajuste de hora por casteo
 
     const matchesStartDate = !startDateFilter || courseStartDate >= startDateFilter;
     const matchesEndDate = !endDateFilter || courseEndDate <= endDateFilter;
@@ -178,15 +178,15 @@ export default function CourseListScreen() {
         value={nameFilter}
         onChangeText={setNameFilter}
         mode="outlined"
-        style={{ marginBottom: 16 }} 
+        style={{ marginBottom: 16 }}
       />
 
       <View style={styles.dateFilterContainer}>
         <Button mode="outlined" onPress={() => setShowStartDatePicker(true)}>
-          {startDateFilter ? `Desde: ${format(startDateFilter, 'dd/MM/yyyy')}` : "Seleccionar fecha de inicio"}
+          {startDateFilter ? `Desde: ${format(startDateFilter, 'dd/MM/yyyy')}` : "Fecha de inicio"}
         </Button>
         <Button mode="outlined" onPress={() => setShowEndDatePicker(true)}>
-          {endDateFilter ? `Hasta: ${format(endDateFilter, 'dd/MM/yyyy')}` : "Seleccionar fecha de fin"}
+          {endDateFilter ? `Hasta: ${format(endDateFilter, 'dd/MM/yyyy')}` : "Fecha de fin"}
         </Button>
       </View>
 
@@ -221,7 +221,18 @@ export default function CourseListScreen() {
         />
       )}
 
-
+      <Button
+        mode="contained"
+        onPress={() => {
+          setNameFilter('');
+          setSelectedCategory(null);
+          setStartDateFilter(null);
+          setEndDateFilter(null);
+        }}
+        style={{ marginTop: 16 }}
+      >
+        Limpiar filtros
+      </Button>
 
       <FlatList
         data={filteredCourses}
