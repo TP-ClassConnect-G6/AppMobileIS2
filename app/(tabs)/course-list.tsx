@@ -7,6 +7,8 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { TextInput } from "react-native-paper";
 import { Picker } from '@react-native-picker/picker';
+import DateTimePicker from '@react-native-community/datetimepicker';
+
 
 // Definición del tipo para los cursos
 type Course = {
@@ -29,6 +31,11 @@ const fetchCourses = async (): Promise<Course[]> => {
 export default function CourseListScreen() {
   const [nameFilter, setNameFilter] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [startDateFilter, setStartDateFilter] = useState<Date | null>(null);
+  const [endDateFilter, setEndDateFilter] = useState<Date | null>(null);
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+
 
   // Usar React Query para manejar el estado de la petición
   const { data: courses, isLoading, error, refetch } = useQuery({
@@ -118,13 +125,32 @@ export default function CourseListScreen() {
     );
   }
 
+  // const filteredCourses = courses?.filter((course) => {
+  //   const matchesCategory =
+  //     !selectedCategory || course.category === selectedCategory;
+  //   const matchesName =
+  //     course.course_name.toLowerCase().includes(nameFilter.toLowerCase());
+  //   return matchesCategory && matchesName;
+  // });
+
   const filteredCourses = courses?.filter((course) => {
     const matchesCategory =
       !selectedCategory || course.category === selectedCategory;
     const matchesName =
       course.course_name.toLowerCase().includes(nameFilter.toLowerCase());
-    return matchesCategory && matchesName;
+
+      const courseStartDate = new Date(course.date_init);
+      courseStartDate.setHours(courseStartDate.getHours() + 2); //Ajuste de hora por casteo
+      
+      const courseEndDate = new Date(course.date_end);
+      courseEndDate.setHours(courseEndDate.getHours() + 2); //Ajuste de hora por casteo
+
+    const matchesStartDate = !startDateFilter || courseStartDate >= startDateFilter;
+    const matchesEndDate = !endDateFilter || courseEndDate <= endDateFilter;
+
+    return matchesCategory && matchesName && matchesStartDate && matchesEndDate;
   });
+
 
   // Renderizar la lista de cursos
   return (
@@ -152,7 +178,50 @@ export default function CourseListScreen() {
         value={nameFilter}
         onChangeText={setNameFilter}
         mode="outlined"
+        style={{ marginBottom: 16 }} 
       />
+
+      <View style={styles.dateFilterContainer}>
+        <Button mode="outlined" onPress={() => setShowStartDatePicker(true)}>
+          {startDateFilter ? `Desde: ${format(startDateFilter, 'dd/MM/yyyy')}` : "Seleccionar fecha de inicio"}
+        </Button>
+        <Button mode="outlined" onPress={() => setShowEndDatePicker(true)}>
+          {endDateFilter ? `Hasta: ${format(endDateFilter, 'dd/MM/yyyy')}` : "Seleccionar fecha de fin"}
+        </Button>
+      </View>
+
+      {showStartDatePicker && (
+        <DateTimePicker
+          value={startDateFilter || new Date()}
+          mode="date"
+          display="default"
+          onChange={(event, selectedDate) => {
+            setShowStartDatePicker(false);
+            if (selectedDate) {
+              const dateWithInitOfDay = new Date(selectedDate);
+              dateWithInitOfDay.setHours(0, 0, 0, 0);
+              setStartDateFilter(dateWithInitOfDay);
+            }
+          }}
+        />
+      )}
+      {showEndDatePicker && (
+        <DateTimePicker
+          value={endDateFilter || new Date()}
+          mode="date"
+          display="default"
+          onChange={(event, selectedDate) => {
+            setShowEndDatePicker(false);
+            if (selectedDate) {
+              const dateWithEndOfDay = new Date(selectedDate);
+              dateWithEndOfDay.setHours(23, 59, 59, 999);
+              setEndDateFilter(dateWithEndOfDay);
+            }
+          }}
+        />
+      )}
+
+
 
       <FlatList
         data={filteredCourses}
@@ -276,4 +345,11 @@ const styles = StyleSheet.create({
     height: 50,
     width: '100%',
   },
+  dateFilterContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginHorizontal: 16,
+    marginBottom: 16,
+  },
+
 });
