@@ -6,7 +6,7 @@ import { courseClient } from "@/lib/http";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { TextInput } from "react-native-paper";
-
+import { Picker } from '@react-native-picker/picker';
 
 // Definición del tipo para los cursos
 type Course = {
@@ -28,6 +28,7 @@ const fetchCourses = async (): Promise<Course[]> => {
 // Componente principal para mostrar la lista de cursos
 export default function CourseListScreen() {
   const [nameFilter, setNameFilter] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   // Usar React Query para manejar el estado de la petición
   const { data: courses, isLoading, error, refetch } = useQuery({
@@ -51,33 +52,33 @@ export default function CourseListScreen() {
       <Card.Content>
         <Title>{item.course_name}</Title>
         <Paragraph>{item.description}</Paragraph>
-        
+
         <View style={styles.infoContainer}>
           <View style={styles.infoItem}>
             <Text style={styles.infoLabel}>Inicio:</Text>
             <Text style={styles.infoValue}>{formatDate(item.date_init)}</Text>
           </View>
-          
+
           <View style={styles.infoItem}>
             <Text style={styles.infoLabel}>Fin:</Text>
             <Text style={styles.infoValue}>{formatDate(item.date_end)}</Text>
           </View>
-          
+
           <View style={styles.infoItem}>
             <Text style={styles.infoLabel}>Cupos:</Text>
             <Text style={styles.infoValue}>{item.quota}</Text>
           </View>
         </View>
-        
+
         <Divider style={styles.divider} />
-        
+
         <View style={styles.footerContainer}>
           {item.category && (
             <Chip mode="outlined" style={styles.categoryChip}>
               {item.category}
             </Chip>
           )}
-          
+
           {item.message && (
             <View style={styles.messageContainer}>
               <Text style={styles.messageText}>{item.message}</Text>
@@ -85,7 +86,7 @@ export default function CourseListScreen() {
           )}
         </View>
       </Card.Content>
-      
+
       <Card.Actions>
         <Button mode="contained">Inscribirse</Button>
         <Button>Más información</Button>
@@ -118,17 +119,33 @@ export default function CourseListScreen() {
   }
 
   const filteredCourses = courses?.filter((course) => {
-    // const matchesCategory =
-    //   !selectedCategory || course.category === selectedCategory;
+    const matchesCategory =
+      !selectedCategory || course.category === selectedCategory;
     const matchesName =
       course.course_name.toLowerCase().includes(nameFilter.toLowerCase());
-    return /*matchesCategory &&*/ matchesName;
+    return matchesCategory && matchesName;
   });
 
   // Renderizar la lista de cursos
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>Cursos Disponibless</Text>
+      <Text style={styles.header}>Cursos Disponibles</Text>
+
+
+      <View style={styles.dropdownContainer}>
+        <Picker
+          selectedValue={selectedCategory}
+          onValueChange={(itemValue) => setSelectedCategory(itemValue)}
+          style={styles.picker}
+        >
+          <Picker.Item label="Todas las categorías" value={null} />
+          <Picker.Item label="Art" value="Art" />
+          {/* <Picker.Item label="Diseño" value="Diseño" />
+          <Picker.Item label="Marketing" value="Marketing" />
+          <Picker.Item label="Negocios" value="Negocios" /> */}
+        </Picker>
+      </View>
+
 
       <TextInput
         label="Buscar por nombre"
@@ -246,5 +263,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#666",
     fontStyle: "italic",
+  },
+  dropdownContainer: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  picker: {
+    height: 50,
+    width: '100%',
   },
 });
