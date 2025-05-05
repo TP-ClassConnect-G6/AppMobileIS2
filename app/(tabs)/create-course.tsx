@@ -68,9 +68,13 @@ const DAYS_OF_WEEK = [
 
 // Niveles académicos disponibles
 const ACADEMIC_LEVELS = [
-  "Basic",
-  "Intermediate",
-  "Advanced",
+  "Primary School", 
+  "Middle School", 
+  "High School degree", 
+  "Associate Degree", 
+  "Bachelors degree", 
+  "Masters degree", 
+  "Doctorate",
 ];
 
 export default function CreateCourseScreen() {
