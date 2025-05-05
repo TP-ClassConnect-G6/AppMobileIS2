@@ -1,10 +1,12 @@
-import React from "react";
+import React, { useState } from "react";
 import { StyleSheet, View, Text, FlatList, ActivityIndicator, RefreshControl } from "react-native";
 import { Card, Title, Paragraph, Chip, Divider, Button } from "react-native-paper";
 import { useQuery } from "@tanstack/react-query";
 import { courseClient } from "@/lib/http";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { TextInput } from "react-native-paper";
+
 
 // Definición del tipo para los cursos
 type Course = {
@@ -25,6 +27,8 @@ const fetchCourses = async (): Promise<Course[]> => {
 
 // Componente principal para mostrar la lista de cursos
 export default function CourseListScreen() {
+  const [nameFilter, setNameFilter] = useState("");
+
   // Usar React Query para manejar el estado de la petición
   const { data: courses, isLoading, error, refetch } = useQuery({
     queryKey: ['courses'],
@@ -113,13 +117,28 @@ export default function CourseListScreen() {
     );
   }
 
+  const filteredCourses = courses?.filter((course) => {
+    // const matchesCategory =
+    //   !selectedCategory || course.category === selectedCategory;
+    const matchesName =
+      course.course_name.toLowerCase().includes(nameFilter.toLowerCase());
+    return /*matchesCategory &&*/ matchesName;
+  });
+
   // Renderizar la lista de cursos
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>Cursos Disponibles</Text>
-      
+      <Text style={styles.header}>Cursos Disponibless</Text>
+
+      <TextInput
+        label="Buscar por nombre"
+        value={nameFilter}
+        onChangeText={setNameFilter}
+        mode="outlined"
+      />
+
       <FlatList
-        data={courses}
+        data={filteredCourses}
         keyExtractor={(item, index) => `${item.course_name}-${index}`}
         renderItem={renderCourseCard}
         contentContainerStyle={styles.listContent}
