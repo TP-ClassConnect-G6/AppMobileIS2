@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { StyleSheet, View, Text, FlatList, ActivityIndicator, RefreshControl } from "react-native";
+import { StyleSheet, View, Text, FlatList, ActivityIndicator, RefreshControl, TouchableOpacity } from "react-native";
 import { Card, Title, Paragraph, Chip, Divider, Button } from "react-native-paper";
 import { useQuery } from "@tanstack/react-query";
 import { courseClient } from "@/lib/http";
@@ -35,6 +35,7 @@ export default function CourseListScreen() {
   const [endDateFilter, setEndDateFilter] = useState<Date | null>(null);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  const [filtersVisible, setFiltersVisible] = useState(false);
 
 
   // Usar React Query para manejar el estado de la petición
@@ -158,82 +159,91 @@ export default function CourseListScreen() {
       <Text style={styles.header}>Cursos Disponibles</Text>
 
 
-      <View style={styles.dropdownContainer}>
-        <Picker
-          selectedValue={selectedCategory}
-          onValueChange={(itemValue) => setSelectedCategory(itemValue)}
-          style={styles.picker}
-        >
-          <Picker.Item label="Todas las categorías" value={null} />
-          <Picker.Item label="Art" value="Art" />
-          {/* <Picker.Item label="Diseño" value="Diseño" />
+      <TouchableOpacity onPress={() => setFiltersVisible(!filtersVisible)} style={{ marginBottom: 16 }}>
+        <Text style={{ fontSize: 18, fontWeight: 'bold' }}>
+          {filtersVisible ? "Ocultar filtros ▲" : "Mostrar filtros ▼"}
+        </Text>
+      </TouchableOpacity>
+
+      {filtersVisible && (
+        <>
+          <View style={styles.dropdownContainer}>
+            <Picker
+              selectedValue={selectedCategory}
+              onValueChange={(itemValue) => setSelectedCategory(itemValue)}
+              style={styles.picker}
+            >
+              <Picker.Item label="Todas las categorías" value={null} />
+              <Picker.Item label="Art" value="Art" />
+              {/* <Picker.Item label="Diseño" value="Diseño" />
           <Picker.Item label="Marketing" value="Marketing" />
           <Picker.Item label="Negocios" value="Negocios" /> */}
-        </Picker>
-      </View>
+            </Picker>
+          </View>
 
 
-      <TextInput
-        label="Buscar por nombre"
-        value={nameFilter}
-        onChangeText={setNameFilter}
-        mode="outlined"
-        style={{ marginBottom: 16 }}
-      />
+          <TextInput
+            label="Buscar por nombre"
+            value={nameFilter}
+            onChangeText={setNameFilter}
+            mode="outlined"
+            style={{ marginBottom: 16 }}
+          />
 
-      <View style={styles.dateFilterContainer}>
-        <Button mode="outlined" onPress={() => setShowStartDatePicker(true)}>
-          {startDateFilter ? `Desde: ${format(startDateFilter, 'dd/MM/yyyy')}` : "Fecha de inicio"}
-        </Button>
-        <Button mode="outlined" onPress={() => setShowEndDatePicker(true)}>
-          {endDateFilter ? `Hasta: ${format(endDateFilter, 'dd/MM/yyyy')}` : "Fecha de fin"}
-        </Button>
-      </View>
+          <View style={styles.dateFilterContainer}>
+            <Button mode="outlined" onPress={() => setShowStartDatePicker(true)}>
+              {startDateFilter ? `Desde: ${format(startDateFilter, 'dd/MM/yyyy')}` : "Fecha de inicio"}
+            </Button>
+            <Button mode="outlined" onPress={() => setShowEndDatePicker(true)}>
+              {endDateFilter ? `Hasta: ${format(endDateFilter, 'dd/MM/yyyy')}` : "Fecha de fin"}
+            </Button>
+          </View>
 
-      {showStartDatePicker && (
-        <DateTimePicker
-          value={startDateFilter || new Date()}
-          mode="date"
-          display="default"
-          onChange={(event, selectedDate) => {
-            setShowStartDatePicker(false);
-            if (selectedDate) {
-              const dateWithInitOfDay = new Date(selectedDate);
-              dateWithInitOfDay.setHours(0, 0, 0, 0);
-              setStartDateFilter(dateWithInitOfDay);
-            }
-          }}
-        />
+          {showStartDatePicker && (
+            <DateTimePicker
+              value={startDateFilter || new Date()}
+              mode="date"
+              display="default"
+              onChange={(event, selectedDate) => {
+                setShowStartDatePicker(false);
+                if (selectedDate) {
+                  const dateWithInitOfDay = new Date(selectedDate);
+                  dateWithInitOfDay.setHours(0, 0, 0, 0);
+                  setStartDateFilter(dateWithInitOfDay);
+                }
+              }}
+            />
+          )}
+          {showEndDatePicker && (
+            <DateTimePicker
+              value={endDateFilter || new Date()}
+              mode="date"
+              display="default"
+              onChange={(event, selectedDate) => {
+                setShowEndDatePicker(false);
+                if (selectedDate) {
+                  const dateWithEndOfDay = new Date(selectedDate);
+                  dateWithEndOfDay.setHours(23, 59, 59, 999);
+                  setEndDateFilter(dateWithEndOfDay);
+                }
+              }}
+            />
+          )}
+
+          <Button
+            mode="contained"
+            onPress={() => {
+              setNameFilter('');
+              setSelectedCategory(null);
+              setStartDateFilter(null);
+              setEndDateFilter(null);
+            }}
+            style={{ marginTop: 16 }}
+          >
+            Limpiar filtros
+          </Button>
+        </>
       )}
-      {showEndDatePicker && (
-        <DateTimePicker
-          value={endDateFilter || new Date()}
-          mode="date"
-          display="default"
-          onChange={(event, selectedDate) => {
-            setShowEndDatePicker(false);
-            if (selectedDate) {
-              const dateWithEndOfDay = new Date(selectedDate);
-              dateWithEndOfDay.setHours(23, 59, 59, 999);
-              setEndDateFilter(dateWithEndOfDay);
-            }
-          }}
-        />
-      )}
-
-      <Button
-        mode="contained"
-        onPress={() => {
-          setNameFilter('');
-          setSelectedCategory(null);
-          setStartDateFilter(null);
-          setEndDateFilter(null);
-        }}
-        style={{ marginTop: 16 }}
-      >
-        Limpiar filtros
-      </Button>
-
       <FlatList
         data={filteredCourses}
         keyExtractor={(item, index) => `${item.course_name}-${index}`}
