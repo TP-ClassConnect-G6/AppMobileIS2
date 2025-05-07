@@ -13,10 +13,7 @@ type UserProfile = {
   email: string;
   bio?: string;
   phone_number?: string;
-  location?: {
-    latitude: number;
-    longitude: number;
-  };
+  location?: string; // Cambiado a string en lugar de objeto con coordenadas
   user_type: string;
   avatar?: string;
 }
@@ -27,8 +24,7 @@ type FormValues = {
   email: string;
   bio: string;
   phone_number: string;
-  latitude: string;
-  longitude: string;
+  location: string;
   user_type: string;
 }
 
@@ -46,8 +42,7 @@ export default function ProfileScreen() {
       email: "",
       bio: "",
       phone_number: "",
-      latitude: "",
-      longitude: "",
+      location: "",
       user_type: "student"
     }
   });
@@ -79,10 +74,7 @@ export default function ProfileScreen() {
       bio: data.bio,
       phone_number: data.phone_number,
       user_type: data.user_type,
-      location: {
-        latitude: parseFloat(data.latitude),
-        longitude: parseFloat(data.longitude)
-      }
+      location: data.location
     };
     
     console.log("Enviando actualización:", updatedProfile);
@@ -115,8 +107,7 @@ export default function ProfileScreen() {
         email: profile.email || "",
         bio: profile.bio || "",
         phone_number: profile.phone_number || "",
-        latitude: profile.location ? String(profile.location.latitude) : "",
-        longitude: profile.location ? String(profile.location.longitude) : "",
+        location: profile.location || "",
         user_type: profile.user_type || "student"
       });
     }
@@ -170,7 +161,7 @@ export default function ProfileScreen() {
           
           {profile?.location && (
             <Text style={styles.info}>
-              Ubicación: {profile.location.latitude.toFixed(4)}, {profile.location.longitude.toFixed(4)}
+              Ubicación: {profile.location}
             </Text>
           )}
           
@@ -251,39 +242,22 @@ export default function ProfileScreen() {
             )}
           />
           
-          {/* Campos para la ubicación */}
+          {/* Campos para la ubicación - Ahora como un único campo de texto */}
           <Text style={styles.sectionTitle}>Ubicación</Text>
-          <View style={styles.locationContainer}>
-            <Controller
-              control={control}
-              name="latitude"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  label="Latitud"
-                  value={value}
-                  onChangeText={onChange}
-                  onBlur={onBlur}
-                  style={styles.locationInput}
-                  keyboardType="numeric"
-                />
-              )}
-            />
-            <Controller
-              control={control}
-              name="longitude"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  label="Longitud"
-                  value={value}
-                  onChangeText={onChange}
-                  onBlur={onBlur}
-                  style={styles.locationInput}
-                  keyboardType="numeric"
-                />
-              )}
-            />
-          </View>
-          
+          <Controller
+            control={control}
+            name="location"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Ubicación"
+                value={value}
+                onChangeText={onChange}
+                onBlur={onBlur}
+                style={styles.input}
+                placeholder="Ej. Ciudad, Región, País"
+              />
+            )}
+          />
           
           <View style={styles.buttonGroup}>
             <Button 

@@ -31,12 +31,28 @@ export default function RequestLocationScreen() {
       console.log("Ubicación actual:", currentLocation);
       console.log("Url completa:", client.defaults.baseURL + "/profile");
 
-      
-      const response = await client.patch("/profile", {
-        location: {
+      // Obtener ciudad y país usando geocodificación inversa
+      let locationString = "";
+      try {
+        const geocode = await Location.reverseGeocodeAsync({
           latitude: currentLocation.coords.latitude,
           longitude: currentLocation.coords.longitude,
-        },
+        });
+
+        if (geocode.length > 0) {
+          const { city, region, country } = geocode[0];
+          locationString = [city, region, country].filter(Boolean).join(", ");
+          console.log("Ubicación convertida:", locationString);
+        }
+      } catch (geocodeError) {
+        console.error("Error al convertir coordenadas:", geocodeError);
+        // Si falla la geocodificación, continuamos con las coordenadas
+        locationString = `${currentLocation.coords.latitude}, ${currentLocation.coords.longitude}`;
+      }
+      
+      // ToDo: Enviar solo el string de ubicación en lugar del objeto con coordenadas
+      const response = await client.patch("/profile", {
+        location: locationString || "Ubicación desconocida"
       });
 
       router.push("/(tabs)");
