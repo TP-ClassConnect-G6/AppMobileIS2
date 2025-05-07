@@ -44,9 +44,6 @@ const fetchCourses = async (filters?: { course_name?: string; category?: string;
 
 // Componente principal para mostrar la lista de cursos
 export default function CourseListScreen() {
-  // const [nameFilter, setNameFilter] = useState("");
-  // const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-
   const [filters, setFilters] = useState({ 
     course_name: '', 
     category: '', 
@@ -61,8 +58,6 @@ export default function CourseListScreen() {
     date_end: null as Date | null 
   });
 
-  // const [startDateFilter, setStartDateFilter] = useState<Date | null>(null);
-  // const [endDateFilter, setEndDateFilter] = useState<Date | null>(null);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [filtersVisible, setFiltersVisible] = useState(false);
@@ -156,33 +151,6 @@ export default function CourseListScreen() {
     );
   }
 
-  // const filteredCourses = courses?.filter((course) => {
-  //   const matchesCategory =
-  //     !selectedCategory || course.category === selectedCategory;
-  //   const matchesName =
-  //     course.course_name.toLowerCase().includes(nameFilter.toLowerCase());
-  //   return matchesCategory && matchesName;
-  // });
-
-  // const filteredCourses = courses?.filter((course) => {
-  //   const matchesCategory =
-  //     !selectedCategory || course.category === selectedCategory;
-  //   const matchesName =
-  //     course.course_name.toLowerCase().includes(nameFilter.toLowerCase());
-
-  //   const courseStartDate = new Date(course.date_init);
-  //   courseStartDate.setHours(courseStartDate.getHours() + 2); //Ajuste de hora por casteo
-
-  //   const courseEndDate = new Date(course.date_end);
-  //   courseEndDate.setHours(courseEndDate.getHours() + 2); //Ajuste de hora por casteo
-
-  //   const matchesStartDate = !startDateFilter || courseStartDate >= startDateFilter;
-  //   const matchesEndDate = !endDateFilter || courseEndDate <= endDateFilter;
-
-  //   return matchesCategory && matchesName && matchesStartDate && matchesEndDate;
-  // });
-
-
   // Renderizar la lista de cursos
   return (
     <View style={styles.container}>
@@ -260,19 +228,6 @@ export default function CourseListScreen() {
               }}
             />
           )}
-
-          {/* <Button
-            mode="contained"
-            onPress={() => {
-              setNameFilter('');
-              setSelectedCategory(null);
-              setStartDateFilter(null);
-              setEndDateFilter(null);
-            }}
-            style={{ marginTop: 16 }}
-          >
-            Limpiar filtros
-          </Button> */}
 
           <Button
             mode="contained"
