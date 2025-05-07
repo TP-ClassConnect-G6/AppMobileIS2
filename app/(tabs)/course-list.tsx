@@ -3,7 +3,7 @@ import { StyleSheet, View, Text, FlatList, ActivityIndicator, RefreshControl, To
 import { Card, Title, Paragraph, Chip, Divider, Button } from "react-native-paper";
 import { useQuery } from "@tanstack/react-query";
 import { courseClient } from "@/lib/http";
-import { format } from "date-fns";
+import { format, formatDate } from "date-fns";
 import { es } from "date-fns/locale";
 import { TextInput } from "react-native-paper";
 import { Picker } from '@react-native-picker/picker';
@@ -22,7 +22,7 @@ type Course = {
 };
 
 // Función para obtener los cursos desde la API
-const fetchCourses = async (filters?: { course_name?: string; category?: string }): Promise<Course[]> => {
+const fetchCourses = async (filters?: { course_name?: string; category?: string; date_init?: Date | null; date_end?: Date | null }): Promise<Course[]> => {
   const params: Record<string, string> = {};
 
   if (filters?.course_name) {
@@ -31,22 +31,38 @@ const fetchCourses = async (filters?: { course_name?: string; category?: string 
   if (filters?.category) {
     params.category = filters.category;
   }
+  if (filters?.date_init) {
+    params.date_init = formatDate(filters.date_init, 'yyyy-MM-dd');
+  }
+  if (filters?.date_end) {
+    params.date_end = formatDate(filters.date_end, 'yyyy-MM-dd');
+  }
 
   const response = await courseClient.get('/courses', { params });
   return response.data.courses;
 };
-
 
 // Componente principal para mostrar la lista de cursos
 export default function CourseListScreen() {
   // const [nameFilter, setNameFilter] = useState("");
   // const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
-  const [filters, setFilters] = useState({ course_name: '', category: '' });
-  const [searchFilters, setSearchFilters] = useState({ course_name: '', category: '' });
+  const [filters, setFilters] = useState({ 
+    course_name: '', 
+    category: '', 
+    date_init: null as Date | null, 
+    date_end: null as Date | null 
+  });
+  
+  const [searchFilters, setSearchFilters] = useState({ 
+    course_name: '', 
+    category: '', 
+    date_init: null as Date | null, 
+    date_end: null as Date | null 
+  });
 
-  const [startDateFilter, setStartDateFilter] = useState<Date | null>(null);
-  const [endDateFilter, setEndDateFilter] = useState<Date | null>(null);
+  // const [startDateFilter, setStartDateFilter] = useState<Date | null>(null);
+  // const [endDateFilter, setEndDateFilter] = useState<Date | null>(null);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [filtersVisible, setFiltersVisible] = useState(false);
@@ -206,16 +222,16 @@ export default function CourseListScreen() {
 
           <View style={styles.dateFilterContainer}>
             <Button mode="outlined" onPress={() => setShowStartDatePicker(true)}>
-              {startDateFilter ? `Desde: ${format(startDateFilter, 'dd/MM/yyyy')}` : "Fecha de inicio"}
+              {filters.date_init ? `Desde: ${format(filters.date_init, 'dd/MM/yyyy')}` : "Fecha de inicio"}
             </Button>
             <Button mode="outlined" onPress={() => setShowEndDatePicker(true)}>
-              {endDateFilter ? `Hasta: ${format(endDateFilter, 'dd/MM/yyyy')}` : "Fecha de fin"}
+              {filters.date_end ? `Hasta: ${format(filters.date_end, 'dd/MM/yyyy')}` : "Fecha de fin"}
             </Button>
           </View>
 
           {showStartDatePicker && (
             <DateTimePicker
-              value={startDateFilter || new Date()}
+              value={filters.date_init || new Date()}
               mode="date"
               display="default"
               onChange={(event, selectedDate) => {
@@ -223,14 +239,15 @@ export default function CourseListScreen() {
                 if (selectedDate) {
                   const dateWithInitOfDay = new Date(selectedDate);
                   dateWithInitOfDay.setHours(0, 0, 0, 0);
-                  setStartDateFilter(dateWithInitOfDay);
+                  setFilters((prev) => ({ ...prev, date_init: dateWithInitOfDay }));
                 }
               }}
             />
           )}
+
           {showEndDatePicker && (
             <DateTimePicker
-              value={endDateFilter || new Date()}
+              value={filters.date_end || new Date()}
               mode="date"
               display="default"
               onChange={(event, selectedDate) => {
@@ -238,7 +255,7 @@ export default function CourseListScreen() {
                 if (selectedDate) {
                   const dateWithEndOfDay = new Date(selectedDate);
                   dateWithEndOfDay.setHours(23, 59, 59, 999);
-                  setEndDateFilter(dateWithEndOfDay);
+                  setFilters((prev) => ({ ...prev, date_end: dateWithEndOfDay }));
                 }
               }}
             />
@@ -265,7 +282,27 @@ export default function CourseListScreen() {
             Buscar
           </Button>
 
-          
+          <Button
+            mode="outlined"
+            onPress={() => {
+              setFilters({
+                course_name: '',
+                category: '',
+                date_init: null,
+                date_end: null
+              });
+              setSearchFilters({
+                course_name: '',
+                category: '',
+                date_init: null,
+                date_end: null
+              });
+            }
+          }
+          style={{ marginTop: 16 }}
+          >
+            Limpiar Filtros
+          </Button>
         </>
       )}
       <FlatList
