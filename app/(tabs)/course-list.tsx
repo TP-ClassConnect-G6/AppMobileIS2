@@ -22,15 +22,29 @@ type Course = {
 };
 
 // Función para obtener los cursos desde la API
-const fetchCourses = async (): Promise<Course[]> => {
-  const response = await courseClient.get('/courses');
+const fetchCourses = async (filters?: { course_name?: string; category?: string }): Promise<Course[]> => {
+  const params: Record<string, string> = {};
+
+  if (filters?.course_name) {
+    params.course_name = filters.course_name;
+  }
+  if (filters?.category) {
+    params.category = filters.category;
+  }
+
+  const response = await courseClient.get('/courses', { params });
   return response.data.courses;
 };
 
+
 // Componente principal para mostrar la lista de cursos
 export default function CourseListScreen() {
-  const [nameFilter, setNameFilter] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  // const [nameFilter, setNameFilter] = useState("");
+  // const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  const [filters, setFilters] = useState({ course_name: '', category: '' });
+  const [searchFilters, setSearchFilters] = useState({ course_name: '', category: '' });
+
   const [startDateFilter, setStartDateFilter] = useState<Date | null>(null);
   const [endDateFilter, setEndDateFilter] = useState<Date | null>(null);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
@@ -40,8 +54,8 @@ export default function CourseListScreen() {
 
   // Usar React Query para manejar el estado de la petición
   const { data: courses, isLoading, error, refetch } = useQuery({
-    queryKey: ['courses'],
-    queryFn: fetchCourses,
+    queryKey: ['courses', searchFilters], 
+    queryFn: () => fetchCourses(searchFilters),
   });
 
   // Función para formatear fechas
@@ -134,23 +148,23 @@ export default function CourseListScreen() {
   //   return matchesCategory && matchesName;
   // });
 
-  const filteredCourses = courses?.filter((course) => {
-    const matchesCategory =
-      !selectedCategory || course.category === selectedCategory;
-    const matchesName =
-      course.course_name.toLowerCase().includes(nameFilter.toLowerCase());
+  // const filteredCourses = courses?.filter((course) => {
+  //   const matchesCategory =
+  //     !selectedCategory || course.category === selectedCategory;
+  //   const matchesName =
+  //     course.course_name.toLowerCase().includes(nameFilter.toLowerCase());
 
-    const courseStartDate = new Date(course.date_init);
-    courseStartDate.setHours(courseStartDate.getHours() + 2); //Ajuste de hora por casteo
+  //   const courseStartDate = new Date(course.date_init);
+  //   courseStartDate.setHours(courseStartDate.getHours() + 2); //Ajuste de hora por casteo
 
-    const courseEndDate = new Date(course.date_end);
-    courseEndDate.setHours(courseEndDate.getHours() + 2); //Ajuste de hora por casteo
+  //   const courseEndDate = new Date(course.date_end);
+  //   courseEndDate.setHours(courseEndDate.getHours() + 2); //Ajuste de hora por casteo
 
-    const matchesStartDate = !startDateFilter || courseStartDate >= startDateFilter;
-    const matchesEndDate = !endDateFilter || courseEndDate <= endDateFilter;
+  //   const matchesStartDate = !startDateFilter || courseStartDate >= startDateFilter;
+  //   const matchesEndDate = !endDateFilter || courseEndDate <= endDateFilter;
 
-    return matchesCategory && matchesName && matchesStartDate && matchesEndDate;
-  });
+  //   return matchesCategory && matchesName && matchesStartDate && matchesEndDate;
+  // });
 
 
   // Renderizar la lista de cursos
@@ -169,8 +183,8 @@ export default function CourseListScreen() {
         <>
           <View style={styles.dropdownContainer}>
             <Picker
-              selectedValue={selectedCategory}
-              onValueChange={(itemValue) => setSelectedCategory(itemValue)}
+              selectedValue={filters.category}
+              onValueChange={(text) => setFilters((prev) => ({ ...prev, category: text }))}
               style={styles.picker}
             >
               <Picker.Item label="Todas las categorías" value={null} />
@@ -184,8 +198,8 @@ export default function CourseListScreen() {
 
           <TextInput
             label="Buscar por nombre"
-            value={nameFilter}
-            onChangeText={setNameFilter}
+            value={filters.course_name}
+            onChangeText={(text) => setFilters((prev) => ({ ...prev, course_name: text }))}
             mode="outlined"
             style={{ marginBottom: 16 }}
           />
@@ -230,7 +244,7 @@ export default function CourseListScreen() {
             />
           )}
 
-          <Button
+          {/* <Button
             mode="contained"
             onPress={() => {
               setNameFilter('');
@@ -241,11 +255,21 @@ export default function CourseListScreen() {
             style={{ marginTop: 16 }}
           >
             Limpiar filtros
+          </Button> */}
+
+          <Button
+            mode="contained"
+            onPress={() => setSearchFilters(filters)}
+            style={{ marginTop: 16 }}
+          >
+            Buscar
           </Button>
+
+          
         </>
       )}
       <FlatList
-        data={filteredCourses}
+        data={courses}
         keyExtractor={(item, index) => `${item.course_name}-${index}`}
         renderItem={renderCourseCard}
         contentContainerStyle={styles.listContent}
