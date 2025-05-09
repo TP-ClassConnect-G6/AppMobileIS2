@@ -115,12 +115,14 @@ export function useInitializeSessionService() {
 
     const session: Session = {
       token: data.token,
-      expirationTime: data.expirationTime,
-      userId: data.userId,
-      userType: data.userType,
+      expirationTime: data.expires_in,
+      userId: data.user_id,
+      userType: data.user_type,
     };
 
     const savedSession = await startSession(session);//guardo la sesion en el storage
+    console.log("Usertype: ", session.userType);
+    console.log("Session: ", session);
     setSession(savedSession);
     router.push("/requestLocation"); // Redirijo a la pantalla de solicitud de ubicación
   };

@@ -74,26 +74,65 @@
 
 
 import { router } from "expo-router";
-import { Button, View, Text } from "react-native";
+import { StyleSheet, View, Text } from "react-native";
+import { Button } from "react-native-paper";
 import { CenteredView } from "@/components/views/CenteredView";
 import { useSession } from "@/contexts/session";
 
 export default function HomeScreen() {
   const { signOut } = useSession();
   return (
-    <CenteredView>
+    <CenteredView style={styles.container}>
+      <Text style={styles.welcomeText}>Bienvenido a la pantalla principal</Text>
+      
       <Button
-        title="Mi Perfil"
+        mode="contained"
+        icon="account"
         onPress={() => router.push("/(tabs)/profile")}
-      />
-      <Text>Bienvenido a la pantalla principal</Text>
-      <View style={{ marginTop: 16 }}>
-        <Button
-          title="Sign Out"
-          onPress={signOut} // Llama a la función signOut al presionar el botón
-          color="red" // Opcional: Cambia el color del botón para destacarlo
-        />
-      </View>
+        style={styles.profileButton}
+        contentStyle={styles.buttonContent}
+      >
+        Mi Perfil
+      </Button>
+      
+      <View style={styles.spacer} />
+      
+      <Button
+        mode="contained"
+        icon="logout"
+        onPress={signOut}
+        style={styles.signOutButton}
+        contentStyle={styles.buttonContent}
+      >
+        Cerrar Sesión
+      </Button>
     </CenteredView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    padding: 16,
+    backgroundColor: "#fff",
+  },
+  welcomeText: {
+    fontSize: 22,
+    fontWeight: "bold",
+    textAlign: "center",
+    color: "#333",
+    marginBottom: 32,
+  },
+  profileButton: {
+    backgroundColor: "#4A6572",
+    marginBottom: 16,
+  },
+  signOutButton: {
+    backgroundColor: "#F44336",
+  },
+  buttonContent: {
+    height: 50,
+  },
+  spacer: {
+    flex: 1,
+  },
+});
