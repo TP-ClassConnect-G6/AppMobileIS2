@@ -8,7 +8,7 @@ import { es } from "date-fns/locale";
 import { TextInput } from "react-native-paper";
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
-
+import { useSession } from "@/contexts/session";
 
 // Definición del tipo para los cursos
 type Course = {
@@ -44,6 +44,9 @@ const fetchCourses = async (filters?: { course_name?: string; category?: string;
 
 // Componente principal para mostrar la lista de cursos
 export default function CourseListScreen() {
+  const { session } = useSession();
+  const isTeacher = session?.userType === "teacher" || session?.userType === "administrator";
+
   const [filters, setFilters] = useState({ 
     course_name: '', 
     category: '', 
@@ -61,7 +64,6 @@ export default function CourseListScreen() {
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [filtersVisible, setFiltersVisible] = useState(false);
-
 
   // Usar React Query para manejar el estado de la petición
   const { data: courses, isLoading, error, refetch } = useQuery({
@@ -123,6 +125,15 @@ export default function CourseListScreen() {
       <Card.Actions>
         <Button mode="contained">Inscribirse</Button>
         <Button>Más información</Button>
+        {isTeacher && (
+          <Button 
+            mode="outlined" 
+            icon="pencil"
+            style={styles.editButton}
+          >
+            Editar
+          </Button>
+        )}
       </Card.Actions>
     </Card>
   );
@@ -156,7 +167,6 @@ export default function CourseListScreen() {
     <View style={styles.container}>
       <Text style={styles.header}>Cursos Disponibles</Text>
 
-
       <TouchableOpacity onPress={() => setFiltersVisible(!filtersVisible)} style={{ marginBottom: 16 }}>
         <Text style={{ fontSize: 18, fontWeight: 'bold' }}>
           {filtersVisible ? "Ocultar filtros ▲" : "Mostrar filtros ▼"}
@@ -178,7 +188,6 @@ export default function CourseListScreen() {
           <Picker.Item label="Negocios" value="Negocios" /> */}
             </Picker>
           </View>
-
 
           <TextInput
             label="Buscar por nombre"
@@ -388,5 +397,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginBottom: 16,
   },
-
+  editButton: {
+    marginLeft: 8,
+  },
 });
