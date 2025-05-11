@@ -213,6 +213,15 @@ function TeacherTabLayout() {
             ),
           }}
         />
+        <Tabs.Screen
+          name="create-exam"
+          options={{
+            title: "Crear Examen",
+            tabBarIcon: ({ color }: { color: string }) => (
+              <IconSymbol size={28} name="doc.text.fill" color={color} />
+            ),
+          }}
+        />
       </Tabs>
     </QueryClientProvider>
   );
@@ -283,6 +292,17 @@ function StudentTabLayout() {
             tabBarButton: () => null,
           }}
         />
+        <Tabs.Screen
+          name="create-exam"
+          options={{
+            title: "Crear Examen",
+            tabBarIcon: ({ color }: { color: string }) => (
+              <IconSymbol size={28} name="doc.text.fill" color={color} />
+            ),
+            tabBarButton: () => null,
+          }}
+        />
+
       </Tabs>
     </QueryClientProvider>
   );
