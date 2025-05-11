@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { StyleSheet, View, Text, FlatList, ActivityIndicator, RefreshControl, TouchableOpacity } from "react-native";
+import { StyleSheet, View, Text, FlatList, ActivityIndicator, RefreshControl, TouchableOpacity, Alert } from "react-native";
 import { Card, Title, Paragraph, Chip, Divider, Button, Provider } from "react-native-paper";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { courseClient } from "@/lib/http";
@@ -43,6 +43,11 @@ const fetchCourses = async (filters?: { course_name?: string; category?: string;
 
   const response = await courseClient.get('/courses', { params });
   return response.data.courses;
+};
+
+// Función para eliminar un curso
+const deleteCourse = async (courseId: string): Promise<void> => {
+  await courseClient.delete(`/courses/${courseId}`);
 };
 
 // Componente principal para mostrar la lista de cursos
@@ -107,6 +112,39 @@ export default function CourseListScreen() {
     refetch();
   };
 
+  // Función para manejar la eliminación de un curso
+  const handleDeleteCourse = (courseId: string, courseName: string) => {
+    Alert.alert(
+      "Confirmar eliminación",
+      `¿Estás seguro de que deseas eliminar el curso "${courseName}"?`,
+      [
+        {
+          text: "Cancelar",
+          style: "cancel"
+        },
+        { 
+          text: "Eliminar", 
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteCourse(courseId);
+              // Actualizamos la caché tras eliminar
+              queryClient.invalidateQueries({ queryKey: ['courses'] });
+              refetch();
+              Alert.alert("Éxito", "Curso eliminado correctamente");
+            } catch (error) {
+              console.error("Error al eliminar el curso:", error);
+              Alert.alert(
+                "Error", 
+                "No se pudo eliminar el curso. Inténtalo de nuevo."
+              );
+            }
+          }
+        }
+      ]
+    );
+  };
+
   // Función para formatear fechas
   const formatDate = (dateString: string) => {
     try {
@@ -162,17 +200,27 @@ export default function CourseListScreen() {
         <Button mode="contained">Inscribirse</Button>
         <Button>Más información</Button>
         {isTeacher && (
-          <Button 
-            mode="outlined" 
-            icon="pencil"
-            style={styles.editButton}
-            onPress={() => {
-              setSelectedCourse(item);
-              setEditModalVisible(true);
-            }}
-          >
-            Editar
-          </Button>
+          <>
+            <Button 
+              mode="outlined" 
+              icon="pencil"
+              style={styles.actionButton}
+              onPress={() => {
+                setSelectedCourse(item);
+                setEditModalVisible(true);
+              }}
+            >
+              Editar
+            </Button>
+            <Button 
+              mode="outlined" 
+              icon="delete"
+              style={[styles.actionButton, styles.deleteButton]}
+              onPress={() => handleDeleteCourse(item.course_id, item.course_name)}
+            >
+              Eliminar
+            </Button>
+          </>
         )}
       </Card.Actions>
     </Card>
@@ -447,7 +495,11 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginBottom: 16,
   },
-  editButton: {
+  actionButton: {
     marginLeft: 8,
+  },
+  deleteButton: {
+    backgroundColor: "#ffebee",
+    borderColor: "#f44336",
   },
 });
