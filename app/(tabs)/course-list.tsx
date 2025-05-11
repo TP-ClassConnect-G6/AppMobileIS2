@@ -12,6 +12,7 @@ import { useSession } from "@/contexts/session";
 
 // Definición del tipo para los cursos
 type Course = {
+  course_id: string;  // Agregado el campo course_id
   course_name: string;
   description: string;
   date_init: string;
@@ -271,7 +272,7 @@ export default function CourseListScreen() {
       )}
       <FlatList
         data={courses}
-        keyExtractor={(item, index) => `${item.course_name}-${index}`}
+        keyExtractor={(item) => item.course_id}
         renderItem={renderCourseCard}
         contentContainerStyle={styles.listContent}
         refreshControl={

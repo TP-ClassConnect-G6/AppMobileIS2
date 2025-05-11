@@ -19,6 +19,26 @@ type RequiredCourse = {
   course_name: string;
 };
 
+// Respuesta del servidor al crear un curso
+type CreateCourseResponse = {
+  course_id: string;
+  name: string;
+  description: string;
+  date_init: string;
+};
+
+// Tipo para los cursos en la lista
+type CourseItem = {
+  course_id: string;
+  course_name: string;
+  description: string;
+  date_init: string;
+  date_end: string;
+  quota: number;
+  category?: string;
+  message?: string;
+};
+
 type CreateCourseRequest = {
   user_login: string;
   role: string;
