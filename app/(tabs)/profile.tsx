@@ -5,7 +5,6 @@ import { client } from "@/lib/http";
 import { useSession } from "@/contexts/session";
 import { useForm, Controller } from "react-hook-form";
 
-
 // Definición del tipo para el perfil de usuario
 type UserProfile = {
   user_id?: string;
@@ -16,7 +15,7 @@ type UserProfile = {
   location?: string; // Cambiado a string en lugar de objeto con coordenadas
   user_type: string;
   avatar?: string;
-}
+};
 
 // Tipo para los valores del formulario
 type FormValues = {
@@ -26,13 +25,15 @@ type FormValues = {
   phone_number: string;
   location: string;
   user_type: string;
-}
+};
 
 export default function ProfileScreen() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null);
+  const [loadingPhoto, setLoadingPhoto] = useState(false);
   const { session } = useSession();
 
   // Configurar React Hook Form
@@ -43,30 +44,76 @@ export default function ProfileScreen() {
       bio: "",
       phone_number: "",
       location: "",
-      user_type: "student"
-    }
+      user_type: "student",
+    },
   });
 
   // Función para cargar el perfil del usuario
   const fetchUserProfile = async () => {
     setLoading(true);
     try {
-      const response = await client.get('/profile');
+      const response = await client.get("/profile");
       console.log("Perfil recibido:", response.data);
       setProfile(response.data);
       setError(null);
+
+      // Una vez que tenemos el perfil, intentamos cargar la foto
+      fetchProfilePhoto();
     } catch (err) {
-      console.error('Error al obtener el perfil:', err);
-      setError('No se pudo cargar el perfil. Por favor, intenta nuevamente.');
+      console.error("Error al obtener el perfil:", err);
+      setError("No se pudo cargar el perfil. Por favor, intenta nuevamente.");
     } finally {
       setLoading(false);
     }
   };
 
+  // Función para obtener la foto de perfil
+  const fetchProfilePhoto = async () => {
+    if (!session?.token) return;
+
+    setLoadingPhoto(true);
+    try {
+      // Hacemos una petición para obtener la foto de perfil con responseType: 'arraybuffer'
+      console.log("Headers de autorización:", `Bearer ${session.token}`);
+      const response = await client.get("/profile/photo", {
+        responseType: "arraybuffer",
+        headers: {
+          "Authorization": `Bearer ${session.token}`
+        }
+      });
+
+      // Convertimos los datos binarios a base64 usando una función compatible con React Native
+      const base64String = arrayBufferToBase64(response.data);
+      const base64Image = `data:image/jpeg;base64,${base64String}`;
+      setProfilePhotoUrl(base64Image);
+      console.log("Foto de perfil cargada correctamente");
+    } catch (err: any) {
+      console.error("Error al obtener la foto de perfil:", err);
+      // Si es un 404, simplemente no hay foto, no mostramos error
+      if (err.response && err.response.status !== 404) {
+        setError("No se pudo cargar la foto de perfil.");
+      }
+    } finally {
+      setLoadingPhoto(false);
+    }
+  };
+
+  // Función auxiliar para convertir ArrayBuffer a base64 en React Native
+  const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    // Usamos btoa que está disponible en React Native para convertir a base64
+    return btoa(binary);
+  };
+
   // Función para actualizar el perfil del usuario
   const onSubmit = async (data: FormValues) => {
     setLoading(true);
-    
+
     // Convertir los datos del formulario al formato esperado por la API
     const updatedProfile: Partial<UserProfile> = {
       name: data.name,
@@ -74,21 +121,21 @@ export default function ProfileScreen() {
       bio: data.bio,
       phone_number: data.phone_number,
       user_type: data.user_type,
-      location: data.location
+      location: data.location,
     };
-    
+
     console.log("Enviando actualización:", updatedProfile);
-    
+
     try {
-      const response = await client.patch('/profile', updatedProfile);
+      const response = await client.patch("/profile", updatedProfile);
       console.log("Respuesta de actualización:", response.data);
       setProfile(response.data);
       setEditing(false);
       setError(null);
-      Alert.alert('Éxito', 'Perfil actualizado correctamente');
+      Alert.alert("Éxito", "Perfil actualizado correctamente");
     } catch (err) {
-      console.error('Error al actualizar el perfil:', err);
-      setError('No se pudo actualizar el perfil. Por favor, intenta nuevamente.');
+      console.error("Error al actualizar el perfil:", err);
+      setError("No se pudo actualizar el perfil. Por favor, intenta nuevamente.");
     } finally {
       setLoading(false);
     }
@@ -108,11 +155,10 @@ export default function ProfileScreen() {
         bio: profile.bio || "",
         phone_number: profile.phone_number || "",
         location: profile.location || "",
-        user_type: profile.user_type || "student"
+        user_type: profile.user_type || "student",
       });
     }
   }, [profile, editing, reset]);
-
 
   // Si está cargando, mostrar un indicador de carga
   if (loading && !profile) {
@@ -139,39 +185,37 @@ export default function ProfileScreen() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       {loading && <ActivityIndicator style={styles.loadingOverlay} size="small" color="#0000ff" />}
-      
-      <Image 
-        source={{ uri: profile?.avatar || 'https://via.placeholder.com/100' }} 
-        style={styles.avatar} 
-      />
-      
+
+      <View style={styles.avatarContainer}>
+        {loadingPhoto ? (
+          <View style={[styles.avatar, styles.avatarLoading]}>
+            <ActivityIndicator size="small" color="#0000ff" />
+          </View>
+        ) : (
+          <Image
+            source={{
+              uri: profilePhotoUrl || profile?.avatar || "https://via.placeholder.com/100",
+            }}
+            style={styles.avatar}
+          />
+        )}
+      </View>
+
       {!editing ? (
         // Modo de visualización - muestra todos los campos
         <View style={styles.profileInfo}>
-          <Text style={styles.name}>{profile?.name || 'Usuario'}</Text>
+          <Text style={styles.name}>{profile?.name || "Usuario"}</Text>
           <Text style={styles.email}>{profile?.email || session?.userId}</Text>
-          
-          {profile?.bio && (
-            <Text style={styles.bio}>{profile.bio}</Text>
-          )}
 
-          {profile?.phone_number && (
-            <Text style={styles.info}>Teléfono: {profile.phone_number}</Text>
-          )}
-          
-          {profile?.location && (
-            <Text style={styles.info}>
-              Ubicación: {profile.location}
-            </Text>
-          )}
-          
+          {profile?.bio && <Text style={styles.bio}>{profile.bio}</Text>}
+
+          {profile?.phone_number && <Text style={styles.info}>Teléfono: {profile.phone_number}</Text>}
+
+          {profile?.location && <Text style={styles.info}>Ubicación: {profile.location}</Text>}
+
           <Text style={styles.info}>Tipo de usuario: {profile?.user_type || session?.userType}</Text>
-          
-          <Button 
-            mode="contained" 
-            onPress={() => setEditing(true)}
-            style={styles.editButton}
-          >
+
+          <Button mode="contained" onPress={() => setEditing(true)} style={styles.editButton}>
             Editar Perfil
           </Button>
         </View>
@@ -192,23 +236,7 @@ export default function ProfileScreen() {
               />
             )}
           />
-          
-          {/* Campo de Email
-          <Controller
-            control={control}
-            name="email"
-            render={({ field: { onChange, onBlur, value } }) => (
-              <TextInput
-                label="Correo Electrónico"
-                value={value}
-                onChangeText={onChange}
-                onBlur={onBlur}
-                style={styles.input}
-                keyboardType="email-address"
-              />
-            )}
-          /> */}
-          
+
           {/* Campo de Biografía */}
           <Controller
             control={control}
@@ -241,7 +269,7 @@ export default function ProfileScreen() {
               />
             )}
           />
-          
+
           {/* Campos para la ubicación - Ahora como un único campo de texto */}
           <Text style={styles.sectionTitle}>Ubicación</Text>
           <Controller
@@ -258,27 +286,19 @@ export default function ProfileScreen() {
               />
             )}
           />
-          
+
           <View style={styles.buttonGroup}>
-            <Button 
-              mode="outlined" 
-              onPress={() => setEditing(false)}
-              style={styles.cancelButton}
-            >
+            <Button mode="outlined" onPress={() => setEditing(false)} style={styles.cancelButton}>
               Cancelar
             </Button>
-            
-            <Button 
-              mode="contained" 
-              onPress={handleSubmit(onSubmit)}
-              style={styles.saveButton}
-            >
+
+            <Button mode="contained" onPress={handleSubmit(onSubmit)} style={styles.saveButton}>
               Guardar
             </Button>
           </View>
         </View>
       )}
-      
+
       {error && <Text style={styles.errorMessage}>{error}</Text>}
     </ScrollView>
   );
@@ -301,7 +321,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   loadingOverlay: {
-    position: 'absolute',
+    position: "absolute",
     top: 10,
     right: 10,
   },
@@ -327,17 +347,24 @@ const styles = StyleSheet.create({
   retryButton: {
     marginTop: 10,
   },
+  avatarContainer: {
+    alignSelf: "center",
+    marginBottom: 16,
+    marginTop: 20,
+  },
   avatar: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    alignSelf: 'center',
-    marginBottom: 16,
-    marginTop: 20,
+  },
+  avatarLoading: {
+    backgroundColor: "#e0e0e0",
+    justifyContent: "center",
+    alignItems: "center",
   },
   profileInfo: {
-    alignItems: 'center',
-    width: '100%',
+    alignItems: "center",
+    width: "100%",
   },
   name: {
     fontSize: 24,
@@ -365,10 +392,10 @@ const styles = StyleSheet.create({
   },
   editButton: {
     marginTop: 20,
-    width: '80%',
+    width: "80%",
   },
   editForm: {
-    width: '100%',
+    width: "100%",
     paddingHorizontal: 10,
   },
   input: {
@@ -376,8 +403,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#f5f5f5",
   },
   buttonGroup: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginTop: 10,
   },
   cancelButton: {
@@ -389,8 +416,8 @@ const styles = StyleSheet.create({
     marginLeft: 5,
   },
   locationContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginBottom: 15,
   },
   locationInput: {
@@ -400,13 +427,13 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginTop: 10,
     marginBottom: 10,
   },
   userTypeContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginBottom: 20,
   },
   userTypeButton: {
