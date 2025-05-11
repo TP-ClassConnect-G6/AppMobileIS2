@@ -14,14 +14,22 @@ import EditCourseModal from "@/components/EditCourseModal";
 
 // Definición del tipo para los cursos
 export type Course = {
-  course_id: string;  // Agregado el campo course_id
+  course_id: string;
   course_name: string;
   description: string;
   date_init: string;
   date_end: string;
   quota: number;
   category: string | null;
-  message: string;
+  academic_level?: string;
+  objetives?: string | string[];
+  syllabus?: string;
+  content?: string;
+  required_courses?: string[] | { course_name: string }[];
+  instructor_profile?: string;
+  modality?: string;
+  schedule?: { day: string; time: string }[];
+  message?: string;
 };
 
 // Función para obtener los cursos desde la API

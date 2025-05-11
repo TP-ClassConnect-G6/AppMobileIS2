@@ -9,30 +9,21 @@ import jwtDecode from "jwt-decode";
 import { Course } from "@/app/(tabs)/course-list";
 
 // Definición del tipo para la solicitud de edición de curso
-type RequiredCourse = {
-  course_name: string;
+type ScheduleItem = {
+  day: string;
+  time: string;
 };
 
 type EditCourseRequest = {
-  user_login: string;
   role: string;
-  course_data: [
-    {
-      course_name: string;
-      description: string;
-      date_init: string;
-      date_end: string;
-      schedule: string;
-      quota: number;
-      modality: string;
-      content: string;
-      objetives: string;
-      syllabus: string;
-      instructor_profile: string;
-      academic_level: string;
-      required_course_name: RequiredCourse[];
-    }
-  ];
+  course_name: string;
+  description: string;
+  objetives: string[];
+  syllabus: string;
+  required_courses: string[];
+  instructor_profile: string;
+  modality: string;
+  schedule: ScheduleItem[];
 };
 
 // Esquema de validación con Zod
@@ -158,23 +149,18 @@ export default function EditCourseModal({ visible, onDismiss, course, onSuccess 
 
       // Preparar la solicitud
       const request: EditCourseRequest = {
-        user_login: userEmail,
         role: session.userType,
-        course_data: [
+        course_name: data.course_name,
+        description: data.description,
+        objetives: ["string"],
+        syllabus: "Unit 1: colours, Unit 2: ...",
+        required_courses: data.required_course_name.map(course => course.course_name),
+        instructor_profile: "Engineer",
+        modality: "virtual",
+        schedule: [
           {
-            course_name: data.course_name,
-            description: data.description,
-            date_init: data.date_init,
-            date_end: data.date_end,
-            schedule: data.schedule,
-            quota: data.quota,
-            modality: "virtual", // Campo hardcodeado por ahora
-            content: "Unit 1 ... Unit 2", // Campo hardcodeado por ahora
-            objetives: "Objetive 1: ... Objetive 2: ", // Campo hardcodeado por ahora
-            syllabus: "course syllabus", // Campo hardcodeado por ahora
-            instructor_profile: "Engineer", // Campo hardcodeado por ahora
-            academic_level: data.academic_level,
-            required_course_name: data.required_course_name,
+            day: "Monday",
+            time: "18:00"
           }
         ]
       };
@@ -192,9 +178,11 @@ export default function EditCourseModal({ visible, onDismiss, course, onSuccess 
       const updatedCourseData: Partial<Course> = {
         course_name: data.course_name,
         description: data.description,
-        date_init: data.date_init,
-        date_end: data.date_end,
-        quota: data.quota
+        objetives: response.data?.objetives || "string",
+        syllabus: response.data?.syllabus || "Unit 1: colours, Unit 2: ...",
+        instructor_profile: response.data?.instructor_profile || "Engineer",
+        modality: response.data?.modality || "virtual",
+        schedule: response.data?.schedule || [{day: "Monday", time: "18:00"}]
       };
       
       // Llamamos a onSuccess con los datos actualizados para actualizar manualmente la caché
