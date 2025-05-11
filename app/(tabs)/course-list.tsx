@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { StyleSheet, View, Text, FlatList, ActivityIndicator, RefreshControl, TouchableOpacity } from "react-native";
-import { Card, Title, Paragraph, Chip, Divider, Button } from "react-native-paper";
-import { useQuery } from "@tanstack/react-query";
+import { Card, Title, Paragraph, Chip, Divider, Button, Provider } from "react-native-paper";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { courseClient } from "@/lib/http";
 import { format, formatDate } from "date-fns";
 import { es } from "date-fns/locale";
@@ -9,9 +9,11 @@ import { TextInput } from "react-native-paper";
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSession } from "@/contexts/session";
+import { router } from "expo-router";
+import EditCourseModal from "@/components/EditCourseModal";
 
 // Definición del tipo para los cursos
-type Course = {
+export type Course = {
   course_id: string;  // Agregado el campo course_id
   course_name: string;
   description: string;
@@ -47,6 +49,7 @@ const fetchCourses = async (filters?: { course_name?: string; category?: string;
 export default function CourseListScreen() {
   const { session } = useSession();
   const isTeacher = session?.userType === "teacher" || session?.userType === "administrator";
+  const queryClient = useQueryClient();
 
   const [filters, setFilters] = useState({ 
     course_name: '', 
@@ -62,15 +65,47 @@ export default function CourseListScreen() {
     date_end: null as Date | null 
   });
 
+  // Estado para el modal de edición
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [filtersVisible, setFiltersVisible] = useState(false);
 
-  // Usar React Query para manejar el estado de la petición
+  // Configuración de la consulta de cursos para siempre buscar datos actualizados
   const { data: courses, isLoading, error, refetch } = useQuery({
     queryKey: ['courses', searchFilters], 
     queryFn: () => fetchCourses(searchFilters),
+    staleTime: 0, // Considera los datos obsoletos inmediatamente
+    gcTime: 0, // No guarda en caché los resultados (reemplaza a cacheTime)
+    refetchOnWindowFocus: true, // Actualiza al enfocar la ventana
   });
+
+  // Función para actualizar forzosamente la lista de cursos
+  const handleCourseUpdate = (updatedCourseData?: Partial<Course>) => {
+    // Si tenemos un curso seleccionado y datos para actualizar, actualizamos manualmente la caché
+    if (selectedCourse && updatedCourseData) {
+      // Obtener los datos actuales de la caché
+      const currentData = queryClient.getQueryData<Course[]>(['courses', searchFilters]);
+      
+      if (currentData) {
+        // Crear una nueva lista con el curso actualizado
+        const updatedData = currentData.map(course => 
+          course.course_id === selectedCourse.course_id 
+            ? { ...course, ...updatedCourseData } 
+            : course
+        );
+        
+        // Actualizar la caché con los nuevos datos
+        queryClient.setQueryData(['courses', searchFilters], updatedData);
+      }
+    }
+    
+    // Además invalidamos completamente la caché y forzamos un refetch
+    queryClient.invalidateQueries({ queryKey: ['courses'] });
+    refetch();
+  };
 
   // Función para formatear fechas
   const formatDate = (dateString: string) => {
@@ -131,6 +166,10 @@ export default function CourseListScreen() {
             mode="outlined" 
             icon="pencil"
             style={styles.editButton}
+            onPress={() => {
+              setSelectedCourse(item);
+              setEditModalVisible(true);
+            }}
           >
             Editar
           </Button>
@@ -165,126 +204,136 @@ export default function CourseListScreen() {
 
   // Renderizar la lista de cursos
   return (
-    <View style={styles.container}>
-      <Text style={styles.header}>Cursos Disponibles</Text>
+    <Provider>
+      <View style={styles.container}>
+        <Text style={styles.header}>Cursos Disponibles</Text>
 
-      <TouchableOpacity onPress={() => setFiltersVisible(!filtersVisible)} style={{ marginBottom: 16 }}>
-        <Text style={{ fontSize: 18, fontWeight: 'bold' }}>
-          {filtersVisible ? "Ocultar filtros ▲" : "Mostrar filtros ▼"}
-        </Text>
-      </TouchableOpacity>
+        <TouchableOpacity onPress={() => setFiltersVisible(!filtersVisible)} style={{ marginBottom: 16 }}>
+          <Text style={{ fontSize: 18, fontWeight: 'bold' }}>
+            {filtersVisible ? "Ocultar filtros ▲" : "Mostrar filtros ▼"}
+          </Text>
+        </TouchableOpacity>
 
-      {filtersVisible && (
-        <>
-          <View style={styles.dropdownContainer}>
-            <Picker
-              selectedValue={filters.category}
-              onValueChange={(text) => setFilters((prev) => ({ ...prev, category: text }))}
-              style={styles.picker}
+        {filtersVisible && (
+          <>
+            <View style={styles.dropdownContainer}>
+              <Picker
+                selectedValue={filters.category}
+                onValueChange={(text) => setFilters((prev) => ({ ...prev, category: text }))}
+                style={styles.picker}
+              >
+                <Picker.Item label="Todas las categorías" value={null} />
+                <Picker.Item label="Art" value="Art" />
+                {/* <Picker.Item label="Diseño" value="Diseño" />
+            <Picker.Item label="Marketing" value="Marketing" />
+            <Picker.Item label="Negocios" value="Negocios" /> */}
+              </Picker>
+            </View>
+
+            <TextInput
+              label="Buscar por nombre"
+              value={filters.course_name}
+              onChangeText={(text) => setFilters((prev) => ({ ...prev, course_name: text }))}
+              mode="outlined"
+              style={{ marginBottom: 16 }}
+            />
+
+            <View style={styles.dateFilterContainer}>
+              <Button mode="outlined" onPress={() => setShowStartDatePicker(true)}>
+                {filters.date_init ? `Desde: ${format(filters.date_init, 'dd/MM/yyyy')}` : "Fecha de inicio"}
+              </Button>
+              <Button mode="outlined" onPress={() => setShowEndDatePicker(true)}>
+                {filters.date_end ? `Hasta: ${format(filters.date_end, 'dd/MM/yyyy')}` : "Fecha de fin"}
+              </Button>
+            </View>
+
+            {showStartDatePicker && (
+              <DateTimePicker
+                value={filters.date_init || new Date()}
+                mode="date"
+                display="default"
+                onChange={(event, selectedDate) => {
+                  setShowStartDatePicker(false);
+                  if (selectedDate) {
+                    const dateWithInitOfDay = new Date(selectedDate);
+                    dateWithInitOfDay.setHours(0, 0, 0, 0);
+                    setFilters((prev) => ({ ...prev, date_init: dateWithInitOfDay }));
+                  }
+                }}
+              />
+            )}
+
+            {showEndDatePicker && (
+              <DateTimePicker
+                value={filters.date_end || new Date()}
+                mode="date"
+                display="default"
+                onChange={(event, selectedDate) => {
+                  setShowEndDatePicker(false);
+                  if (selectedDate) {
+                    const dateWithEndOfDay = new Date(selectedDate);
+                    dateWithEndOfDay.setHours(23, 59, 59, 999);
+                    setFilters((prev) => ({ ...prev, date_end: dateWithEndOfDay }));
+                  }
+                }}
+              />
+            )}
+
+            <Button
+              mode="contained"
+              onPress={() => setSearchFilters(filters)}
+              style={{ marginTop: 16 }}
             >
-              <Picker.Item label="Todas las categorías" value={null} />
-              <Picker.Item label="Art" value="Art" />
-              {/* <Picker.Item label="Diseño" value="Diseño" />
-          <Picker.Item label="Marketing" value="Marketing" />
-          <Picker.Item label="Negocios" value="Negocios" /> */}
-            </Picker>
-          </View>
-
-          <TextInput
-            label="Buscar por nombre"
-            value={filters.course_name}
-            onChangeText={(text) => setFilters((prev) => ({ ...prev, course_name: text }))}
-            mode="outlined"
-            style={{ marginBottom: 16 }}
-          />
-
-          <View style={styles.dateFilterContainer}>
-            <Button mode="outlined" onPress={() => setShowStartDatePicker(true)}>
-              {filters.date_init ? `Desde: ${format(filters.date_init, 'dd/MM/yyyy')}` : "Fecha de inicio"}
+              Buscar
             </Button>
-            <Button mode="outlined" onPress={() => setShowEndDatePicker(true)}>
-              {filters.date_end ? `Hasta: ${format(filters.date_end, 'dd/MM/yyyy')}` : "Fecha de fin"}
-            </Button>
-          </View>
 
-          {showStartDatePicker && (
-            <DateTimePicker
-              value={filters.date_init || new Date()}
-              mode="date"
-              display="default"
-              onChange={(event, selectedDate) => {
-                setShowStartDatePicker(false);
-                if (selectedDate) {
-                  const dateWithInitOfDay = new Date(selectedDate);
-                  dateWithInitOfDay.setHours(0, 0, 0, 0);
-                  setFilters((prev) => ({ ...prev, date_init: dateWithInitOfDay }));
-                }
-              }}
-            />
-          )}
-
-          {showEndDatePicker && (
-            <DateTimePicker
-              value={filters.date_end || new Date()}
-              mode="date"
-              display="default"
-              onChange={(event, selectedDate) => {
-                setShowEndDatePicker(false);
-                if (selectedDate) {
-                  const dateWithEndOfDay = new Date(selectedDate);
-                  dateWithEndOfDay.setHours(23, 59, 59, 999);
-                  setFilters((prev) => ({ ...prev, date_end: dateWithEndOfDay }));
-                }
-              }}
-            />
-          )}
-
-          <Button
-            mode="contained"
-            onPress={() => setSearchFilters(filters)}
-            style={{ marginTop: 16 }}
-          >
-            Buscar
-          </Button>
-
-          <Button
-            mode="outlined"
-            onPress={() => {
-              setFilters({
-                course_name: '',
-                category: '',
-                date_init: null,
-                date_end: null
-              });
-              setSearchFilters({
-                course_name: '',
-                category: '',
-                date_init: null,
-                date_end: null
-              });
+            <Button
+              mode="outlined"
+              onPress={() => {
+                setFilters({
+                  course_name: '',
+                  category: '',
+                  date_init: null,
+                  date_end: null
+                });
+                setSearchFilters({
+                  course_name: '',
+                  category: '',
+                  date_init: null,
+                  date_end: null
+                });
+              }
             }
+            style={{ marginTop: 16 }}
+            >
+              Limpiar Filtros
+            </Button>
+          </>
+        )}
+        <FlatList
+          data={courses}
+          keyExtractor={(item) => item.course_id}
+          renderItem={renderCourseCard}
+          contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl refreshing={isLoading} onRefresh={() => refetch()} />
           }
-          style={{ marginTop: 16 }}
-          >
-            Limpiar Filtros
-          </Button>
-        </>
-      )}
-      <FlatList
-        data={courses}
-        keyExtractor={(item) => item.course_id}
-        renderItem={renderCourseCard}
-        contentContainerStyle={styles.listContent}
-        refreshControl={
-          <RefreshControl refreshing={isLoading} onRefresh={() => refetch()} />
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No hay cursos disponibles</Text>
-          </View>
-        }
-      />
-    </View>
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No hay cursos disponibles</Text>
+            </View>
+          }
+        />
+
+        {/* Modal de edición de curso */}
+        <EditCourseModal
+          visible={editModalVisible}
+          onDismiss={() => setEditModalVisible(false)}
+          course={selectedCourse}
+          onSuccess={handleCourseUpdate}
+        />
+      </View>
+    </Provider>
   );
 }
 
