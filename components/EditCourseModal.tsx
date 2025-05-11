@@ -135,13 +135,49 @@ export default function EditCourseModal({ visible, onDismiss, course, onSuccess 
     name: "required_course_name",
   });
 
+  // Función para convertir cualquier formato de fecha a DD/MM/YYYY
+  const formatDateToStandard = (dateStr: string): string => {
+    if (!dateStr) return "";
+    
+    try {
+      // Intentar crear un objeto Date a partir de la cadena
+      const date = new Date(dateStr);
+      console.log("Fecha", date);
+      
+      // Verificar si es una fecha válida
+      if (isNaN(date.getTime())) {
+        // Si no es una fecha ISO, podría ser otro formato como DD/MM/YY
+        const parts = dateStr.split('/');
+        if (parts.length === 3) {
+          const day = parseInt(parts[0]);
+          const month = parseInt(parts[1]) - 1;
+          let year = parseInt(parts[2]);
+          
+          if (year < 100) year = 2000 + year;
+          
+          const newDate = new Date(year, month, day);
+          if (!isNaN(newDate.getTime())) {
+            return format(newDate, 'dd/MM/yyyy');
+          }
+        }
+        return dateStr; // Devolver la cadena original si no se pudo convertir
+      }
+      
+      // Formatear la fecha a DD/MM/YYYY
+      return format(date, 'dd/MM/yyyy');
+    } catch (e) {
+      console.error("Error al formatear fecha:", e);
+      return dateStr; // Devolver la cadena original en caso de error
+    }
+  };
+
   // Cargar los datos del curso cuando cambie
   useEffect(() => {
     if (course) {
       setValue("course_name", course.course_name || "");
       setValue("description", course.description || "");
-      setValue("date_init", course.date_init || "");
-      setValue("date_end", course.date_end || "");
+      setValue("date_init", formatDateToStandard(course.date_init || ""));
+      setValue("date_end", formatDateToStandard(course.date_end || ""));
       setValue("schedule", "08:00"); // Valor por defecto ya que no tenemos el horario en el objeto course
       setValue("quota", course.quota || 10);
       setValue("academic_level", "Primary School"); // Valor por defecto ya que no tenemos el nivel académico en el objeto course
