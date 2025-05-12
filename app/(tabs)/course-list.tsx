@@ -11,6 +11,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSession } from "@/contexts/session";
 import { router } from "expo-router";
 import EditCourseModal from "@/components/EditCourseModal";
+import CourseDetailModal from "@/components/CourseDetailModal";
 
 // Definición del tipo para los cursos
 export type Course = {
@@ -81,6 +82,10 @@ export default function CourseListScreen() {
   // Estado para el modal de edición
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+
+  // Estado para el modal de detalles del curso
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
 
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
@@ -206,7 +211,14 @@ export default function CourseListScreen() {
 
       <Card.Actions>
         <Button mode="contained">Inscribirse</Button>
-        <Button>Más información</Button>
+        <Button 
+          onPress={() => {
+            setSelectedCourseId(item.course_id);
+            setDetailModalVisible(true);
+          }}
+        >
+          Más información
+        </Button>
         {isTeacher && (
           <>
             <Button 
@@ -387,6 +399,13 @@ export default function CourseListScreen() {
           onDismiss={() => setEditModalVisible(false)}
           course={selectedCourse}
           onSuccess={handleCourseUpdate}
+        />
+        
+        {/* Modal de detalles del curso */}
+        <CourseDetailModal
+          visible={detailModalVisible}
+          onDismiss={() => setDetailModalVisible(false)}
+          courseId={selectedCourseId}
         />
       </View>
     </Provider>
