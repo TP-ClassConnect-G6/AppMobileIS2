@@ -196,14 +196,6 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
               )}
               
               <Button 
-                mode="contained" 
-                style={styles.inscriptionButton}
-                onPress={() => alert('Inscripción no implementada')}
-              >
-                Inscribirse
-              </Button>
-              
-              <Button 
                 mode="outlined" 
                 style={styles.closeButton} 
                 onPress={onDismiss}
