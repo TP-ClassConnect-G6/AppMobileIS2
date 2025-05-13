@@ -9,6 +9,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import "react-native-reanimated";
+import { Provider as PaperProvider } from 'react-native-paper';
 
 import { useColorScheme } from "@/hooks/useColorScheme";
 import {
@@ -37,8 +38,10 @@ export default function RootLayout() {
   return (
     <SessionProvider value={session}>
       <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-        <Slot />
-        <StatusBar style="auto" />
+        <PaperProvider>
+          <Slot />
+          <StatusBar style="auto" />
+        </PaperProvider>
       </ThemeProvider>
     </SessionProvider>
   );

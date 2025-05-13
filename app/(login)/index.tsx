@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { StyleSheet, View } from "react-native";
-import { Button, Text, TextInput, HelperText, useTheme } from "react-native-paper";
+import { Button, Text, TextInput, HelperText, useTheme, Dialog, Portal } from "react-native-paper";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -9,6 +9,7 @@ import { router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import axios from "axios";
 import * as Linking from 'expo-linking';
+import { client } from "@/lib/http";
 
 const zodSchema = z.object({
   email: z.string().email(),
@@ -29,6 +30,11 @@ export default function LoginScreen() {
   });
 
   const [error, setError] = useState<string | undefined>(undefined);
+  const [forgotPasswordVisible, setForgotPasswordVisible] = useState(false);
+  const [recoveryEmail, setRecoveryEmail] = useState("");
+  const [resetEmailSent, setResetEmailSent] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
   const { signInWithPassword, signInWithGoogle } = useSession();
   const theme = useTheme();
 
@@ -79,6 +85,46 @@ export default function LoginScreen() {
       console.log("Facebook Login Result:", result);
     } catch (e) {
       console.error("Error during Facebook login:", e);
+    }
+  };
+
+  // Función para solicitar cambio de contraseña
+  const handlePasswordReset = async () => {
+    if (!recoveryEmail || !recoveryEmail.includes('@')) {
+      setError("Por favor ingresa un correo electrónico válido");
+      return;
+    }
+    
+    setIsSubmitting(true);
+    setError(undefined);
+    
+    try {
+      const response = await client.post('/change_password/request_email', {
+        email: recoveryEmail
+      });
+      
+      console.log("Respuesta del servidor:", response.data);
+      setResetEmailSent(true);
+      
+      // Mostrar el mensaje exacto que envía el backend
+      setSuccessMessage(response.data?.message || "If the email exists, a password change link has been sent.");
+      
+      // Ya no cerramos el diálogo automáticamente
+      // El usuario debe cerrarlo manualmente
+      setIsSubmitting(false);
+      
+    } catch (error) {
+      console.error("Error al solicitar cambio de contraseña:", error);
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 404) {
+          setError("El correo electrónico no está registrado en el sistema");
+        } else {
+          setError(error.response?.data?.message || "Error al solicitar cambio de contraseña");
+        }
+      } else {
+        setError("Error de conexión. Inténtalo más tarde");
+      }
+      setIsSubmitting(false);
     }
   };
 
@@ -140,7 +186,7 @@ export default function LoginScreen() {
 
       <Button
         mode="text"
-        onPress={() => alert("Función de recuperación de contraseña no implementada aún")}
+        onPress={() => setForgotPasswordVisible(true)}
         style={styles.forgotPasswordButton}
       >
         Olvidé mi contraseña
@@ -169,6 +215,36 @@ export default function LoginScreen() {
       >
         Go to Register
       </Button>
+
+      <Portal>
+        <Dialog visible={forgotPasswordVisible} onDismiss={() => setForgotPasswordVisible(false)}>
+          <Dialog.Title>Recuperar contraseña</Dialog.Title>
+          <Dialog.Content>
+            <TextInput
+              label="Email de recuperación"
+              mode="outlined"
+              value={recoveryEmail}
+              onChangeText={setRecoveryEmail}
+              style={styles.input}
+            />
+            {resetEmailSent && (
+              <Text style={styles.successMessage}>
+                {successMessage}
+              </Text>
+            )}
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setForgotPasswordVisible(false)}>Cancelar</Button>
+            <Button
+              onPress={handlePasswordReset}
+              loading={isSubmitting}
+              disabled={isSubmitting}
+            >
+              Enviar
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </View>
   );
 }
@@ -200,5 +276,10 @@ const styles = StyleSheet.create({
     color: "red",
     textAlign: "center",
     marginBottom: 16,
+  },
+  successMessage: {
+    color: "green",
+    textAlign: "center",
+    marginTop: 16,
   },
 });
