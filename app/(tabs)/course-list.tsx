@@ -183,11 +183,17 @@ export default function CourseListScreen() {
     );
   };
 
-  // Función para formatear fechas
+  // Función para formatear fechas con manejo correcto de zonas horarias
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
-      return format(date, 'dd MMM yyyy', { locale: es });
+      // Ajustar la fecha para evitar problemas de zona horaria
+      // Al agregar 'T12:00:00' nos aseguramos de que la fecha se interprete en medio día
+      // para evitar que el cambio de zona horaria afecte el día mostrado
+      const dateWithoutTime = dateString.split('T')[0] + 'T12:00:00Z';
+      const adjustedDate = new Date(dateWithoutTime);
+      
+      return format(adjustedDate, 'dd MMM yyyy', { locale: es });
     } catch (e) {
       return dateString;
     }
