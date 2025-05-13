@@ -48,6 +48,7 @@ const editCourseSchema = z
     required_course_name: z.array(requiredCourseSchema),
     content: z.string().optional(),
     objetives: z.string().optional(),
+    instructor_profile: z.string().optional(),
     modality: z.string().min(1, "La modalidad es requerida"),
   })
   .refine(
@@ -135,6 +136,7 @@ export default function EditCourseModal({ visible, onDismiss, course, onSuccess 
       required_course_name: [],
       content: "",
       objetives: "",
+      instructor_profile: "",
       modality: "virtual", // Valor predeterminado para modalidad
     },
   });
@@ -197,6 +199,7 @@ export default function EditCourseModal({ visible, onDismiss, course, onSuccess 
       setValue("academic_level", course.academic_level || "Primary School");
       setValue("content", course.content || ""); // Cargar contenido del curso
       setValue("objetives", Array.isArray(course.objetives) ? course.objetives.join(", ") : (course.objetives || "")); // Convertir array a string
+      setValue("instructor_profile", course.instructor_profile || ""); // Cargar el perfil del instructor
       setValue("modality", course.modality || "virtual"); // Cargar la modalidad del curso
       
       // Configurar cursos requeridos si existen
@@ -266,9 +269,9 @@ export default function EditCourseModal({ visible, onDismiss, course, onSuccess 
         quota: data.quota,
         content: data.content || "Unit 1 ..... Unit 2",
         objetives: objetives,
-                required_course_name: data.required_course_name,
-        instructor_profile: "Engineer A",
-        modality: data.modality, // Usar la modalidad seleccionada por el usuario
+        required_course_name: data.required_course_name,
+        instructor_profile: data.instructor_profile || "Engineer A",
+        modality: data.modality,
         schedule: [
           {
             day: "Monday",
@@ -294,8 +297,8 @@ export default function EditCourseModal({ visible, onDismiss, course, onSuccess 
         quota: data.quota,
         content: data.content || "Unit 1 ..... Unit 2",
         objetives: objetives,
-        instructor_profile: "Engineer A",
-        modality: data.modality, // Usar la modalidad seleccionada
+        instructor_profile: data.instructor_profile || "Engineer A",
+        modality: data.modality,
         schedule: [
           {
             day: "Monday",
@@ -691,6 +694,24 @@ export default function EditCourseModal({ visible, onDismiss, course, onSuccess 
             )}
           />
 
+          {/* Perfil del Instructor */}
+          <Text style={styles.sectionTitle}>Perfil del Instructor</Text>
+          <Controller
+            control={control}
+            name="instructor_profile"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Perfil del Instructor"
+                value={value}
+                onChangeText={onChange}
+                onBlur={onBlur}
+                style={styles.input}
+                multiline
+                numberOfLines={3}
+                placeholder="Ej. Ingeniero con experiencia en..."
+              />
+            )}
+          />
 
           {/* Cursos requeridos */}
           <Text style={styles.sectionTitle}>Cursos Prerequisitos (Opcional)</Text>

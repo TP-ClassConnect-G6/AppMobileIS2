@@ -24,9 +24,9 @@ type CourseDetailResponse = {
     date_end: string;
     quota: number;
     category: string | null;
-    objetives: string | null;
+    objetives: string | string[];
     content: string | null;
-    required_courses: RequiredCourse[] | [];
+    required_courses: string[] | { course_name: string }[];
     instructor_profile: string | null;
     modality: string | null;
     schedule: ScheduleItem[] | [];
@@ -72,6 +72,50 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
     }
   };
 
+  // Función para formatear los objetivos, que pueden venir en varios formatos
+  const formatObjectives = (objectives: string | string[]) => {
+    // Si es un array, juntamos los elementos
+    if (Array.isArray(objectives)) {
+      return objectives.join(", ");
+    }
+    
+    // Si parece ser un string en formato JSON
+    if (typeof objectives === 'string' && (
+      objectives.startsWith('{') || 
+      objectives.startsWith('[') || 
+      objectives.includes('{"')
+    )) {
+      try {
+        // Intentar parsearlo como JSON
+        const parsed = JSON.parse(objectives.replace(/'/g, '"'));
+        if (Array.isArray(parsed)) {
+          return parsed.join(", ");
+        } else {
+          return String(parsed);
+        }
+      } catch (e) {
+        // Si hay error en el parse, mostrar el string original
+        console.log("Error parsing objectives:", e);
+      }
+    }
+    
+    // Caso default: devolver el string tal cual
+    return objectives;
+  };
+
+  // Función para formatear los cursos requeridos, que pueden venir como array de strings o array de objetos
+  const formatRequiredCourses = (courses: string[] | { course_name: string }[]) => {
+    if (!courses || courses.length === 0) return [];
+    
+    // Si es un array de strings
+    if (typeof courses[0] === 'string') {
+      return courses as string[];
+    }
+    
+    // Si es un array de objetos
+    return (courses as { course_name: string }[]).map(course => course.course_name);
+  };
+
   return (
     <Portal>
       <Modal
@@ -115,13 +159,6 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
               </View>
               
               <View style={styles.rowContainer}>
-                {/* {courseDetail.courses.academic_level && (
-                  <View style={styles.infoItem}>
-                    <Text style={styles.infoLabel}>Nivel académico:</Text>
-                    <Text style={styles.infoValue}>{courseDetail.courses.academic_level}</Text>
-                  </View>
-                )} */}
-                
                 {courseDetail.courses.modality && (
                   <View style={styles.infoItem}>
                     <Text style={styles.infoLabel}>Modalidad:</Text>
@@ -152,7 +189,7 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
               {courseDetail.courses.objetives && (
                 <View style={styles.sectionContainer}>
                   <Text style={styles.sectionTitle}>Objetivos</Text>
-                  <Paragraph style={styles.description}>{courseDetail.courses.objetives}</Paragraph>
+                  <Paragraph style={styles.description}>{formatObjectives(courseDetail.courses.objetives)}</Paragraph>
                 </View>
               )}
               
@@ -187,9 +224,9 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
               {courseDetail.courses.required_courses && courseDetail.courses.required_courses.length > 0 && (
                 <View style={styles.sectionContainer}>
                   <Text style={styles.sectionTitle}>Cursos prerequisitos</Text>
-                  {courseDetail.courses.required_courses.map((course, index) => (
+                  {formatRequiredCourses(courseDetail.courses.required_courses).map((courseName, index) => (
                     <Text key={index} style={styles.prerequisiteItem}>
-                      • {course.course_name}
+                      • {courseName}
                     </Text>
                   ))}
                 </View>
