@@ -139,6 +139,14 @@ export default function LoginScreen() {
       </Button>
 
       <Button
+        mode="text"
+        onPress={() => alert("Función de recuperación de contraseña no implementada aún")}
+        style={styles.forgotPasswordButton}
+      >
+        Olvidé mi contraseña
+      </Button>
+
+      <Button
         mode="contained"
         onPress={handleGoogleLogin}
         style={[styles.button, { backgroundColor: "#DB4437" }]}
@@ -181,6 +189,9 @@ const styles = StyleSheet.create({
   },
   button: {
     marginTop: 16,
+  },
+  forgotPasswordButton: {
+    marginTop: 8,
   },
   registerButton: {
     marginTop: 8,

@@ -145,11 +145,36 @@ export default function CourseListScreen() {
               queryClient.invalidateQueries({ queryKey: ['courses'] });
               refetch();
               Alert.alert("Éxito", "Curso eliminado correctamente");
-            } catch (error) {
+            } catch (error: any) {
               console.error("Error al eliminar el curso:", error);
+              
+              // Mejor manejo de errores con información detallada
+              let errorMessage = "No se pudo eliminar el curso. Inténtalo de nuevo.";
+              
+              if (error.response) {
+                console.log("Detalles del error:", {
+                  status: error.response.status,
+                  data: error.response.data
+                });
+                
+                // Mensajes específicos basados en el código o la respuesta
+                if (error.response.status === 500) {
+                  errorMessage = "Error en el servidor. Es posible que este curso tenga estudiantes inscritos u otros registros asociados que impiden su eliminación.";
+                } else if (error.response.status === 403) {
+                  errorMessage = "No tienes permisos para eliminar este curso.";
+                } else if (error.response.status === 404) {
+                  errorMessage = "El curso no se encontró en el servidor.";
+                }
+                
+                // Si el servidor devuelve un mensaje de error específico, úsalo
+                if (error.response.data && error.response.data.message) {
+                  errorMessage = error.response.data.message;
+                }
+              }
+              
               Alert.alert(
                 "Error", 
-                "No se pudo eliminar el curso. Inténtalo de nuevo."
+                errorMessage
               );
             }
           }

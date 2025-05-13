@@ -22,9 +22,10 @@ type EditCourseRequest = {
   description: string;
   date_init: string;
   date_end: string;
+  quota: number;
+  content?: string;
   objetives: string[];
-  syllabus: string;
-  required_courses: string[];
+  required_course_name?: { course_name: string }[];
   instructor_profile: string;
   modality: string;
   schedule: ScheduleItem[];
@@ -45,6 +46,9 @@ const editCourseSchema = z
     quota: z.number().min(1, "El cupo debe ser al menos 1"),
     academic_level: z.string().min(1, "El nivel académico es requerido"),
     required_course_name: z.array(requiredCourseSchema),
+    content: z.string().optional(),
+    objetives: z.string().optional(),
+    modality: z.string().min(1, "La modalidad es requerida"),
   })
   .refine(
     (data) => {
@@ -89,6 +93,13 @@ const ACADEMIC_LEVELS = [
   "Doctorate",
 ];
 
+// Modalidades disponibles para los cursos
+const MODALITY_OPTIONS = [
+  "virtual",
+  "present",
+  "hybrid"
+];
+
 type EditCourseModalProps = {
   visible: boolean;
   onDismiss: () => void;
@@ -122,6 +133,9 @@ export default function EditCourseModal({ visible, onDismiss, course, onSuccess 
       quota: 10,
       academic_level: "Primary School",
       required_course_name: [],
+      content: "",
+      objetives: "",
+      modality: "virtual", // Valor predeterminado para modalidad
     },
   });
 
@@ -178,11 +192,28 @@ export default function EditCourseModal({ visible, onDismiss, course, onSuccess 
       setValue("description", course.description || "");
       setValue("date_init", formatDateToStandard(course.date_init || ""));
       setValue("date_end", formatDateToStandard(course.date_end || ""));
-      setValue("schedule", "08:00"); // Valor por defecto ya que no tenemos el horario en el objeto course
-      setValue("quota", course.quota || 10);
-      setValue("academic_level", "Primary School"); // Valor por defecto ya que no tenemos el nivel académico en el objeto course
+      setValue("schedule", "18:00"); // Usar un valor por defecto para el horario
+      setValue("quota", course.quota || 2);
+      setValue("academic_level", course.academic_level || "Primary School");
+      setValue("content", course.content || ""); // Cargar contenido del curso
+      setValue("objetives", Array.isArray(course.objetives) ? course.objetives.join(", ") : (course.objetives || "")); // Convertir array a string
+      setValue("modality", course.modality || "virtual"); // Cargar la modalidad del curso
+      
+      // Configurar cursos requeridos si existen
+      if (Array.isArray(course.required_courses)) {
+        // El API puede devolver diferentes formatos, manejar ambos casos
+        if (typeof course.required_courses[0] === 'string') {
+          const requiredCourses = (course.required_courses as string[]).map(name => ({ course_name: name }));
+          reset(prevState => ({ ...prevState, required_course_name: requiredCourses }));
+        } else {
+          // Ya está en formato { course_name: string }
+          reset(prevState => ({ ...prevState, required_course_name: course.required_courses as { course_name: string }[] }));
+        }
+      } else {
+        reset(prevState => ({ ...prevState, required_course_name: [] }));
+      }
     }
-  }, [course, setValue]);
+  }, [course, setValue, reset]);
 
   // Resetear el formulario cuando se cierre el modal
   useEffect(() => {
@@ -205,33 +236,13 @@ export default function EditCourseModal({ visible, onDismiss, course, onSuccess 
     }
 
     try {
-      // Extraer el email del token JWT
-      let userEmail = "";
-      try {
-        const decodedToken: any = jwtDecode(session.token);
-        userEmail = decodedToken.email || "";
-        console.log("Email extraído del token:", userEmail);
-      } catch (error) {
-        console.error("Error al decodificar token:", error);
-      }
-
-      // Verificar que tenemos un email válido
-      if (!userEmail) {
-        alert("Error: No se pudo obtener el email del usuario");
-        setLoading(false);
-        return;
-      }
-
-      // Preparar la solicitud
-      // Convertir fechas del formato DD/MM/YYYY al formato ISO
+      // Preparar el objeto de la petición según la estructura exacta requerida
       const startDateParts = data.date_init.split('/');
       const endDateParts = data.date_end.split('/');
       
-      // Asumimos formato DD/MM/YYYY
       let startYear = startDateParts[2];
       let endYear = endDateParts[2];
       
-      // Para compatibilidad con formatos anteriores, si el año tiene 2 dígitos, asumimos 20XX
       if (startYear.length === 2) {
         startYear = `20${startYear}`;
       }
@@ -240,21 +251,24 @@ export default function EditCourseModal({ visible, onDismiss, course, onSuccess 
         endYear = `20${endYear}`;
       }
       
-      // Crear fechas como objetos Date y luego convertirlos a ISO string
       const startDate = new Date(`${startYear}-${startDateParts[1]}-${startDateParts[0]}T00:00:00.000Z`);
       const endDate = new Date(`${endYear}-${endDateParts[1]}-${endDateParts[0]}T00:00:00.000Z`);
       
-      const request: EditCourseRequest = {
+      // Preparar los objetivos como un array a partir del string ingresado por el usuario
+      const objetives = data.objetives ? data.objetives.split(',').map(obj => obj.trim()) : ["hola"];
+      
+      const request = {
         role: session.userType,
         course_name: data.course_name,
         description: data.description,
         date_init: startDate.toISOString(),
         date_end: endDate.toISOString(),
-        objetives: ["string"],
-        syllabus: "Unit 1: colours, Unit 2: ...",
-        required_courses: data.required_course_name.map(course => course.course_name),
-        instructor_profile: "Engineer",
-        modality: "virtual",
+        quota: data.quota,
+        content: data.content || "Unit 1 ..... Unit 2",
+        objetives: objetives,
+                required_course_name: data.required_course_name,
+        instructor_profile: "Engineer A",
+        modality: data.modality, // Usar la modalidad seleccionada por el usuario
         schedule: [
           {
             day: "Monday",
@@ -272,32 +286,33 @@ export default function EditCourseModal({ visible, onDismiss, course, onSuccess 
       // Mostrar mensaje de éxito
       alert("Curso actualizado exitosamente");
       
-      // Crear un objeto con los datos actualizados del curso para actualizar la caché
       const updatedCourseData: Partial<Course> = {
         course_name: data.course_name,
         description: data.description,
-        date_init: data.date_init,
-        date_end: data.date_end,
-        objetives: response.data?.objetives || ["string"],
-        syllabus: response.data?.syllabus || "Unit 1: colours, Unit 2: ...",
-        instructor_profile: response.data?.instructor_profile || "Engineer",
-        modality: response.data?.modality || "virtual",
-        schedule: response.data?.schedule || [{day: "Monday", time: "18:00"}]
+        date_init: startDate.toISOString(),
+        date_end: endDate.toISOString(),
+        quota: data.quota,
+        content: data.content || "Unit 1 ..... Unit 2",
+        objetives: objetives,
+        instructor_profile: "Engineer A",
+        modality: data.modality, // Usar la modalidad seleccionada
+        schedule: [
+          {
+            day: "Monday",
+            time: "18:00"
+          }
+        ]
       };
       
-      // Llamamos a onSuccess con los datos actualizados para actualizar manualmente la caché
       onSuccess(updatedCourseData);
       
-      // Esperar un poco más antes de cerrar el modal
       setTimeout(() => {
         onDismiss();
       }, 500);
     } catch (error: any) {
       console.error("Error al actualizar el curso:", error);
       
-      // Manejar diferentes tipos de errores
       if (error.response) {
-        // El servidor respondió con un código de error
         const status = error.response.status;
         let message = "Error al actualizar el curso";
 
@@ -317,7 +332,6 @@ export default function EditCourseModal({ visible, onDismiss, course, onSuccess 
 
         alert(`Error: ${message}`);
       } else {
-        // Error de red o de cliente
         alert("Error: No se pudo conectar con el servidor. Verifica tu conexión");
       }
     } finally {
@@ -401,33 +415,26 @@ export default function EditCourseModal({ visible, onDismiss, course, onSuccess 
           {showStartDatePicker && (
             <DateTimePicker
               value={(() => {
-                // Usar fecha actual como valor predeterminado
                 const defaultDate = new Date();
                 
                 if (!watch("date_init")) return defaultDate;
                 
                 try {
-                  // Si la fecha ya existe, intentar parsearla de manera segura
                   const dateStr = watch("date_init");
                   const dateParts = dateStr.split('/');
                   
-                  // Verificar que tenemos 3 partes (día, mes, año)
                   if (dateParts.length !== 3) return defaultDate;
                   
-                  // Convertir a números, asumiendo formato DD/MM/YYYY o DD/MM/YY
                   const day = parseInt(dateParts[0]);
-                  const month = parseInt(dateParts[1]) - 1; // Meses en JavaScript son 0-indexed
+                  const month = parseInt(dateParts[1]) - 1;
                   let year = parseInt(dateParts[2]);
                   
-                  // Manejar años de 2 dígitos
                   if (year < 100) {
                     year = 2000 + year;
                   }
                   
-                  // Crear y validar la fecha
                   const date = new Date(year, month, day);
                   
-                  // Verificar si es una fecha válida
                   if (isNaN(date.getTime())) return defaultDate;
                   
                   return date;
@@ -441,17 +448,14 @@ export default function EditCourseModal({ visible, onDismiss, course, onSuccess 
               onChange={(event, selectedDate) => {
                 setShowStartDatePicker(false);
                 if (selectedDate) {
-                  // Formatear la fecha al formato DD/MM/YYYY
                   const formattedDate = format(selectedDate, 'dd/MM/yyyy');
                   setValue("date_init", formattedDate);
                   
-                  // Verificar si la fecha seleccionada es posterior a la fecha de fin
                   const endDateValue = watch("date_end");
                   if (endDateValue) {
                     try {
                       const endDateParts = endDateValue.split('/');
                       
-                      // Verificar que hay 3 partes (día, mes, año)
                       if (endDateParts.length === 3) {
                         const day = parseInt(endDateParts[0]);
                         const month = parseInt(endDateParts[1]) - 1;
@@ -463,7 +467,6 @@ export default function EditCourseModal({ visible, onDismiss, course, onSuccess 
                         
                         const endDate = new Date(year, month, day);
                         
-                        // Si la fecha de inicio es posterior a la de fin, actualizar la de fin
                         if (selectedDate > endDate) {
                           const newEndDate = format(selectedDate, 'dd/MM/yyyy');
                           setValue("date_end", newEndDate);
@@ -481,33 +484,26 @@ export default function EditCourseModal({ visible, onDismiss, course, onSuccess 
           {showEndDatePicker && (
             <DateTimePicker
               value={(() => {
-                // Usar fecha actual como valor predeterminado
                 const defaultDate = new Date();
                 
                 if (!watch("date_end")) return defaultDate;
                 
                 try {
-                  // Si la fecha ya existe, intentar parsearla de manera segura
                   const dateStr = watch("date_end");
                   const dateParts = dateStr.split('/');
                   
-                  // Verificar que tenemos 3 partes (día, mes, año)
                   if (dateParts.length !== 3) return defaultDate;
                   
-                  // Convertir a números, asumiendo formato DD/MM/YYYY o DD/MM/YY
                   const day = parseInt(dateParts[0]);
-                  const month = parseInt(dateParts[1]) - 1; // Meses en JavaScript son 0-indexed
+                  const month = parseInt(dateParts[1]) - 1;
                   let year = parseInt(dateParts[2]);
                   
-                  // Manejar años de 2 dígitos
                   if (year < 100) {
                     year = 2000 + year;
                   }
                   
-                  // Crear y validar la fecha
                   const date = new Date(year, month, day);
                   
-                  // Verificar si es una fecha válida
                   if (isNaN(date.getTime())) return defaultDate;
                   
                   return date;
@@ -521,16 +517,13 @@ export default function EditCourseModal({ visible, onDismiss, course, onSuccess 
               onChange={(event, selectedDate) => {
                 setShowEndDatePicker(false);
                 if (selectedDate) {
-                  // Formatear la fecha al formato DD/MM/YYYY
                   const formattedDate = format(selectedDate, 'dd/MM/yyyy');
                   
-                  // Verificar si la fecha seleccionada es anterior a la fecha de inicio
                   const startDateValue = watch("date_init");
                   if (startDateValue) {
                     try {
                       const startDateParts = startDateValue.split('/');
                       
-                      // Verificar que hay 3 partes (día, mes, año)
                       if (startDateParts.length === 3) {
                         const day = parseInt(startDateParts[0]);
                         const month = parseInt(startDateParts[1]) - 1;
@@ -542,24 +535,19 @@ export default function EditCourseModal({ visible, onDismiss, course, onSuccess 
                         
                         const startDate = new Date(year, month, day);
                         
-                        // Solo actualizamos si la fecha de fin es igual o posterior a la de inicio
                         if (selectedDate >= startDate) {
                           setValue("date_end", formattedDate);
                         } else {
-                          // Mostrar mensaje de error y mantener la fecha anterior
                           alert("La fecha de fin debe ser igual o posterior a la fecha de inicio");
                         }
                       } else {
-                        // Si no hay un formato válido, simplemente actualizamos la fecha
                         setValue("date_end", formattedDate);
                       }
                     } catch (error) {
-                      // Si hay error al parsear la fecha, simplemente actualizamos la fecha
                       setValue("date_end", formattedDate);
                       console.error("Error al validar fechas:", error);
                     }
                   } else {
-                    // Si no hay fecha de inicio, simplemente actualizamos la fecha
                     setValue("date_end", formattedDate);
                   }
                 }
@@ -636,6 +624,73 @@ export default function EditCourseModal({ visible, onDismiss, course, onSuccess 
           )}
 
           <Divider style={styles.divider} />
+
+          {/* Modalidad del Curso */}
+          <Text style={styles.sectionTitle}>Modalidad del Curso *</Text>
+          <View style={styles.chipContainer}>
+            {MODALITY_OPTIONS.map((modalityOption) => (
+              <Controller
+                key={modalityOption}
+                control={control}
+                name="modality"
+                render={({ field: { onChange, value } }) => (
+                  <Chip
+                    selected={value === modalityOption}
+                    onPress={() => onChange(modalityOption)}
+                    style={[
+                      styles.chip,
+                      value === modalityOption && styles.selectedChip,
+                    ]}
+                    textStyle={value === modalityOption ? styles.selectedChipText : undefined}
+                  >
+                    {modalityOption}
+                  </Chip>
+                )}
+              />
+            ))}
+          </View>
+          {errors.modality && (
+            <HelperText type="error">{errors.modality.message}</HelperText>
+          )}
+
+          {/* Contenido del Curso */}
+          <Text style={styles.sectionTitle}>Contenido del Curso</Text>
+          <Controller
+            control={control}
+            name="content"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Contenido"
+                value={value}
+                onChangeText={onChange}
+                onBlur={onBlur}
+                style={styles.input}
+                multiline
+                numberOfLines={4}
+                placeholder="Ej. Unit 1: Introducción, Unit 2: Conceptos básicos..."
+              />
+            )}
+          />
+
+          {/* Objetivos del Curso */}
+          <Text style={styles.sectionTitle}>Objetivos del Curso</Text>
+          <Controller
+            control={control}
+            name="objetives"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Objetivos"
+                value={value}
+                onChangeText={onChange}
+                onBlur={onBlur}
+                style={styles.input}
+                multiline
+                numberOfLines={4}
+                placeholder="Ingrese los objetivos separados por comas"
+              />
+            )}
+          />
+
 
           {/* Cursos requeridos */}
           <Text style={styles.sectionTitle}>Cursos Prerequisitos (Opcional)</Text>
