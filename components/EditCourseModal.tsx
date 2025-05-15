@@ -190,6 +190,7 @@ export default function EditCourseModal({ visible, onDismiss, course, onSuccess 
   // Cargar los datos del curso cuando cambie
   useEffect(() => {
     if (course) {
+      console.log("course_name", course.course_name);
       setValue("course_name", course.course_name || "");
       setValue("description", course.description || "");
       setValue("date_init", formatDateToStandard(course.date_init || ""));
@@ -260,9 +261,9 @@ export default function EditCourseModal({ visible, onDismiss, course, onSuccess 
       // Preparar los objetivos como un array a partir del string ingresado por el usuario
       const objetives = data.objetives ? data.objetives.split(',').map(obj => obj.trim()) : ["hola"];
       
-      const request = {
+      const request:Partial<EditCourseRequest> = {
         role: session.userType,
-        course_name: data.course_name,
+        //course_name: data.course_name,
         description: data.description,
         date_init: startDate.toISOString(),
         date_end: endDate.toISOString(),
@@ -280,6 +281,11 @@ export default function EditCourseModal({ visible, onDismiss, course, onSuccess 
         ]
       };
 
+      // Solo incluir el course_name si ha cambiado respecto al original
+      if (data.course_name !== course.course_name) {
+        request.course_name = data.course_name;
+      }
+
       console.log("Enviando solicitud de edición:", request);
 
       // Enviar la solicitud al servidor
@@ -290,7 +296,7 @@ export default function EditCourseModal({ visible, onDismiss, course, onSuccess 
       alert("Curso actualizado exitosamente");
       
       const updatedCourseData: Partial<Course> = {
-        course_name: data.course_name,
+        //course_name: data.course_name,
         description: data.description,
         date_init: startDate.toISOString(),
         date_end: endDate.toISOString(),
@@ -306,6 +312,11 @@ export default function EditCourseModal({ visible, onDismiss, course, onSuccess 
           }
         ]
       };
+
+      // Solo incluir el course_name en los datos actualizados si cambió
+      if (data.course_name !== course.course_name) {
+        updatedCourseData.course_name = data.course_name;
+      }
       
       onSuccess(updatedCourseData);
       

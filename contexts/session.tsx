@@ -82,8 +82,9 @@ export async function recoverSession() {
     const remainingTime = decodedToken.exp - now;
     console.log(`Tiempo restante para que el token expire: ${remainingTime} segundos`);
     if (now > decodedToken.exp) {
+      console.log("Token expirado, finalizando sesión");
       await endSession(); 
-      router.push("./");
+      // No navegamos aquí para evitar problemas, solo terminamos la sesión
       return undefined;
     }
   } catch (error) {

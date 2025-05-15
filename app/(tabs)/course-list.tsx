@@ -33,6 +33,16 @@ export type Course = {
   message?: string;
 };
 
+// Tipo para la respuesta de registro en un curso
+type CourseRegistrationResponse = {
+  response: {
+    registration_id: string;
+    course_name: string;
+    registration_date: string;
+    course_date_init: string;
+  }
+};
+
 // Función para obtener los cursos desde la API
 const fetchCourses = async (filters?: { course_name?: string; category?: string; date_init?: Date | null; date_end?: Date | null }): Promise<Course[]> => {
   const params: Record<string, string> = {};
@@ -52,6 +62,18 @@ const fetchCourses = async (filters?: { course_name?: string; category?: string;
 
   const response = await courseClient.get('/courses', { params });
   return response.data.courses;
+};
+
+// Función para registrarse en un curso
+const registerInCourse = async (courseId: string, email: string, academicLevel: string): Promise<CourseRegistrationResponse> => {
+  console.log("Academic Level:", academicLevel);
+  const response = await courseClient.post(`/courses/${courseId}/registrations`, {
+    user_login: email,
+    role: "student",
+    user_academic_level: academicLevel
+  });
+  
+  return response.data;
 };
 
 // Función para eliminar un curso
@@ -241,7 +263,62 @@ export default function CourseListScreen() {
       </Card.Content>
 
       <Card.Actions>
-        <Button mode="contained">Inscribirse</Button>
+        <Button 
+          mode="contained"
+          onPress={() => {
+            // Verificar que el usuario está logueado
+            if (!session) {
+              Alert.alert("Error", "Necesitas iniciar sesión para inscribirte en este curso");
+              return;
+            }
+
+            // Obtener el email del usuario desde la sesión
+            let userEmail = session.userId;
+            // El nivel académico se puede pedir al usuario o usar un valor predeterminado
+            // Usaremos "Primary School" como nivel académico predeterminado o el del curso si está disponible
+            const academicLevel = item.academic_level || "Primary School";
+
+            Alert.alert(
+              "Confirmar inscripción",
+              `¿Estás seguro de que deseas inscribirte en el curso "${item.course_name}"?`,
+              [
+                { text: "Cancelar", style: "cancel" },
+                { 
+                  text: "Inscribirse", 
+                  onPress: async () => {
+                    try {
+                      const response = await registerInCourse(item.course_id, userEmail, academicLevel);
+                      Alert.alert(
+                        "Inscripción exitosa", 
+                        `Te has inscrito correctamente en el curso "${response.response.course_name}". \nFecha de inicio: ${formatDate(response.response.course_date_init)}`
+                      );
+                      // Refrescar la lista para mostrar cambios en el curso (como los cupos disponibles)
+                      refetch();
+                    } catch (error: any) {
+                      console.error("Error al inscribirse en el curso:", error);
+                      
+                      let errorMessage = "No se pudo completar la inscripción. Inténtalo de nuevo.";
+                      
+                      if (error.response) {
+                        if (error.response.status === 400) {
+                          errorMessage = "No se pudo inscribir. Verifica que cumplas con todos los requisitos del curso.";
+                        } else if (error.response.status === 409) {
+                          errorMessage = "Ya estás inscrito en este curso.";
+                        } else if (error.response.data && error.response.data.message) {
+                          errorMessage = error.response.data.message;
+                        }
+                      }
+                      
+                      Alert.alert("Error", errorMessage);
+                    }
+                  }
+                }
+              ]
+            );
+          }}
+        >
+          Inscribirse
+        </Button>
         <Button 
           onPress={() => {
             setSelectedCourseId(item.course_id);

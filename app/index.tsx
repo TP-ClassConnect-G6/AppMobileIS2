@@ -1,12 +1,30 @@
+import React, { useEffect } from "react";
 import { useSession } from "@/contexts/session";
-import { Redirect } from "expo-router";
+import { Redirect, router } from "expo-router";
+import { View, Text, ActivityIndicator } from "react-native";
 
 export default function App() {
   const { session } = useSession();
 
-  if (!session) {
-    return <Redirect href="/(login)" />;
-  }
+  // Usamos useEffect para navegar después de que el componente esté montado
+  useEffect(() => {
+    // Pequeño delay para asegurar que el Root Layout está montado
+    const timer = setTimeout(() => {
+      if (session) {
+        router.replace("/(tabs)");
+      } else {
+        router.replace("/(login)");
+      }
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, [session]);
 
-  return <Redirect href="/(tabs)" />;
+  // Mostramos un indicador de carga mientras se decide la ruta
+  return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <ActivityIndicator size="large" color="#0000ff" />
+      <Text style={{ marginTop: 10 }}>Cargando...</Text>
+    </View>
+  );
 }
