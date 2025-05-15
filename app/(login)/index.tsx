@@ -109,9 +109,20 @@ export default function LoginScreen() {
       // Mostrar el mensaje exacto que envía el backend
       setSuccessMessage(response.data?.message || "If the email exists, a password change link has been sent.");
       
-      // Ya no cerramos el diálogo automáticamente
-      // El usuario debe cerrarlo manualmente
-      setIsSubmitting(false);
+      // Mantener el estado de isSubmitting en true para mantener deshabilitados los botones
+      // hasta que el diálogo se cierre automáticamente
+      
+      // Configurar un timer más largo (8 segundos) para cerrar el diálogo automáticamente
+      setTimeout(() => {
+        setForgotPasswordVisible(false);
+        // Resetear estados para futuras solicitudes
+        setTimeout(() => {
+          setRecoveryEmail("");
+          setResetEmailSent(false);
+          setSuccessMessage("");
+          setIsSubmitting(false); // Restaurar el estado de los botones después de cerrar
+        }, 300); // Pequeño retraso para que el reset ocurra después de que el diálogo desaparezca
+      }, 8000);
       
     } catch (error) {
       console.error("Error al solicitar cambio de contraseña:", error);
@@ -234,7 +245,12 @@ export default function LoginScreen() {
             )}
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={() => setForgotPasswordVisible(false)}>Cancelar</Button>
+            <Button 
+              onPress={() => setForgotPasswordVisible(false)}
+              disabled={isSubmitting}
+            >
+              Cancelar
+            </Button>
             <Button
               onPress={handlePasswordReset}
               loading={isSubmitting}
