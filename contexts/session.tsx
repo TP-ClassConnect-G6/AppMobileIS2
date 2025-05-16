@@ -11,6 +11,8 @@ import { deleteItemAsync, getItemAsync, setItemAsync } from "@/lib/storage";
 import jwtDecode from "jwt-decode";
 import * as Linking from 'expo-linking';
 import * as WebBrowser from "expo-web-browser";
+import * as SecureStore from "expo-secure-store";
+
 
 type Session = {
   token: string;
@@ -23,6 +25,7 @@ type Session = {
 interface SessionService {
   signInWithPassword: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
+  signInWithBiometric: () => Promise<boolean>;
   signOut: () => Promise<void>;
   session?: Session;
 }
@@ -120,11 +123,36 @@ export function useInitializeSessionService() {
       userType: data.user_type,
     };
 
+    //Me guardo la session para el login biométrico
+    await SecureStore.setItemAsync("sessionBiometric", JSON.stringify(session));
+
     const savedSession = await startSession(session);//guardo la sesion en el storage
     console.log("Usertype: ", session.userType);
     console.log("Session: ", session);
     setSession(savedSession);
     router.push("/requestLocation"); // Redirijo a la pantalla de solicitud de ubicación
+  };
+
+  const signInWithBiometric = async () : Promise<boolean> => {
+    //Me guardo la session para el login biométrico
+    console.log("Entro a la funcion de biometrico");
+    const savedSessionStr = await SecureStore.getItemAsync("sessionBiometric");
+    console.log("Session guardada: ", savedSessionStr);
+    if (savedSessionStr) {
+      try {
+        const session: Session = JSON.parse(savedSessionStr);
+        const savedSession = await startSession(session);
+        setSession(session);
+        router.push("/requestLocation"); // Redirijo a la pantalla de solicitud de ubicación
+        return true;
+      } catch (error) {
+        console.error("Error al parsear la sesión:", error);
+        return false;
+      }
+    }
+    else{
+      return false;
+    }
   };
 
   const signInWithGoogle = async () => {
@@ -173,7 +201,7 @@ export function useInitializeSessionService() {
     router.navigate("/(login)");
   };
 
-  return isLoading ? undefined : { session, signInWithPassword, signInWithGoogle, signOut };
+  return isLoading ? undefined : { session, signInWithPassword, signInWithGoogle, signInWithBiometric, signOut };
 }
 
 

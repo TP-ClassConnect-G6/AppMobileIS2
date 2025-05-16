@@ -30,7 +30,7 @@ export default function LoginScreen() {
   });
 
   const [error, setError] = useState<string | undefined>(undefined);
-  const { signInWithPassword, signInWithGoogle } = useSession();
+  const { signInWithPassword, signInWithGoogle, signInWithBiometric } = useSession();
   const theme = useTheme();
 
   const handleLogin = async ({
@@ -102,7 +102,10 @@ export default function LoginScreen() {
 
       if (result.success) {
         console.log("Autenticación biométrica exitosa");
-        await signInWithGoogle(); // Temporalmente usando Google auth como ejemplo
+        const resultSession = await signInWithBiometric();
+        if (!resultSession) {
+          setError("Autenticación biométrica fallida");
+        }
       } else {
         setError("Autenticación biométrica fallida");
       }
