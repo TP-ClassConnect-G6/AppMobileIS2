@@ -44,7 +44,7 @@ type CourseRegistrationResponse = {
 };
 
 // Función para obtener los cursos desde la API
-const fetchCourses = async (filters?: { course_name?: string; category?: string; date_init?: Date | null; date_end?: Date | null }): Promise<Course[]> => {
+const fetchCourses = async (filters?: { course_name?: string; category?: string; date_init?: Date | null; date_end?: Date | null }, userId?: string): Promise<Course[]> => {
   const params: Record<string, string> = {};
 
   if (filters?.course_name) {
@@ -58,6 +58,11 @@ const fetchCourses = async (filters?: { course_name?: string; category?: string;
   }
   if (filters?.date_end) {
     params.date_end = formatDate(filters.date_end, 'yyyy-MM-dd');
+  }
+   console.log("userId", userId);
+
+  if (userId) {
+    params.user_login = userId;  
   }
 
   const response = await courseClient.get('/courses', { params });
@@ -116,7 +121,7 @@ export default function CourseListScreen() {
   // Configuración de la consulta de cursos para siempre buscar datos actualizados
   const { data: courses, isLoading, error, refetch } = useQuery({
     queryKey: ['courses', searchFilters], 
-    queryFn: () => fetchCourses(searchFilters),
+    queryFn: () => fetchCourses(searchFilters,session?.userId),
     staleTime: 0, // Considera los datos obsoletos inmediatamente
     gcTime: 0, // No guarda en caché los resultados (reemplaza a cacheTime)
     refetchOnWindowFocus: true, // Actualiza al enfocar la ventana
@@ -265,6 +270,8 @@ export default function CourseListScreen() {
       <Card.Actions>
         <Button 
           mode="contained"
+          disabled={item.message === "Enrolled in course"|| item.quota === 0}
+          style={item.message === "Enrolled in course" ? styles.enrolledButton : {}}
           onPress={() => {
             // Verificar que el usuario está logueado
             if (!session) {
@@ -317,7 +324,7 @@ export default function CourseListScreen() {
             );
           }}
         >
-          Inscribirse
+          {item.message === "enrolled in course" ? "Ya inscrito" : "Inscribirse"}
         </Button>
         <Button 
           onPress={() => {
@@ -636,5 +643,8 @@ const styles = StyleSheet.create({
   deleteButton: {
     backgroundColor: "#ffebee",
     borderColor: "#f44336",
+  },
+  enrolledButton: {
+    backgroundColor: "#e0e0e0",
   },
 });
