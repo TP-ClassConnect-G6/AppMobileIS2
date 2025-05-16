@@ -1,11 +1,10 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import { StyleSheet, View, Text, Image, ScrollView, ActivityIndicator, Alert, TouchableOpacity, Platform } from "react-native";
 import { Button, TextInput } from "react-native-paper";
 import { client } from "@/lib/http";
 import { useSession } from "@/contexts/session";
 import { useForm, Controller } from "react-hook-form";
 import * as ImagePicker from 'expo-image-picker';
-import { searchCities } from "@/lib/geocoding";
 
 // Definición del tipo para el perfil de usuario
 type UserProfile = {
@@ -38,33 +37,9 @@ export default function ProfileScreen() {
   const [loadingPhoto, setLoadingPhoto] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const { session } = useSession();
-  
-  // Estados para el autocompletado de ubicación
-  const [locationSuggestions, setLocationSuggestions] = useState<string[]>([]);
-  const [searchingLocations, setSearchingLocations] = useState(false);
-  const [locationInputValue, setLocationInputValue] = useState("");
-
-  // Función para buscar ubicaciones
-  const handleLocationSearch = async (text: string) => {
-    setLocationInputValue(text);
-    if (text.length < 2) {
-      setLocationSuggestions([]);
-      return;
-    }
-    
-    setSearchingLocations(true);
-    try {
-      const cities = await searchCities(text);
-      setLocationSuggestions(cities);
-    } catch (error) {
-      console.error("Error buscando ciudades:", error);
-    } finally {
-      setSearchingLocations(false);
-    }
-  };
 
   // Configurar React Hook Form
-  const { control, handleSubmit, reset, setValue } = useForm<FormValues>({
+  const { control, handleSubmit, reset } = useForm<FormValues>({
     defaultValues: {
       name: "",
       email: "",
@@ -336,196 +311,154 @@ export default function ProfileScreen() {
     );
   }
 
-  // Renderizado condicional de las sugerencias de ubicación fuera del ScrollView
-  const renderLocationSuggestions = () => {
-    if (!editing || locationSuggestions.length === 0) return null;
-
-    return (
-      <View style={[styles.suggestionsContainer, {
-        position: 'absolute',
-        top: 320, // Posición aproximada debajo del campo de ubicación
-        left: 16,
-        right: 16,
-        zIndex: 2000,
-      }]}>
-        {searchingLocations ? (
-          <ActivityIndicator size="small" color="#0000ff" style={{padding: 10}} />
-        ) : (
-          locationSuggestions.map((item, index) => (
-            <TouchableOpacity 
-              key={index}
-              onPress={() => {
-                setLocationInputValue(item);
-                const formValue = item;
-                setValue('location', formValue);
-                setLocationSuggestions([]);
-              }}
-            >
-              <Text style={styles.suggestionItem}>{item}</Text>
-            </TouchableOpacity>
-          ))
-        )}
-      </View>
-    );
-  };
-
   return (
-    <View style={{flex: 1}}>
-      <ScrollView contentContainerStyle={styles.container}>
-        {loading && <ActivityIndicator style={styles.loadingOverlay} size="small" color="#0000ff" />}
+    <ScrollView contentContainerStyle={styles.container}>
+      {loading && <ActivityIndicator style={styles.loadingOverlay} size="small" color="#0000ff" />}
 
-        <View style={styles.avatarContainer}>
-          <TouchableOpacity 
-            onPress={() => {
-              Alert.alert(
-                'Foto de perfil',
-                '¿Cómo quieres subir tu foto?',
-                [
-                  {
-                    text: 'Cancelar',
-                    style: 'cancel',
-                  },
-                  {
-                    text: 'Seleccionar de la galería',
-                    onPress: selectImage,
-                  },
-                  {
-                    text: 'Tomar una foto',
-                    onPress: takePhoto,
-                  },
-                ]
-              );
-            }}
-            disabled={uploadingPhoto}
-          >
-            {loadingPhoto || uploadingPhoto ? (
-              <View style={[styles.avatar, styles.avatarLoading]}>
-                <ActivityIndicator size="small" color="#0000ff" />
+      <View style={styles.avatarContainer}>
+        <TouchableOpacity 
+          onPress={() => {
+            Alert.alert(
+              'Foto de perfil',
+              '¿Cómo quieres subir tu foto?',
+              [
+                {
+                  text: 'Cancelar',
+                  style: 'cancel',
+                },
+                {
+                  text: 'Seleccionar de la galería',
+                  onPress: selectImage,
+                },
+                {
+                  text: 'Tomar una foto',
+                  onPress: takePhoto,
+                },
+              ]
+            );
+          }}
+          disabled={uploadingPhoto}
+        >
+          {loadingPhoto || uploadingPhoto ? (
+            <View style={[styles.avatar, styles.avatarLoading]}>
+              <ActivityIndicator size="small" color="#0000ff" />
+            </View>
+          ) : (
+            <>
+              <Image
+                source={{
+                  uri: profilePhotoUrl || profile?.avatar || "https://via.placeholder.com/100",
+                }}
+                style={styles.avatar}
+              />
+              <View style={styles.editPhotoButton}>
+                <Text style={styles.editPhotoText}>📷</Text>
               </View>
-            ) : (
-              <>
-                <Image
-                  source={{
-                    uri: profilePhotoUrl || profile?.avatar || "https://via.placeholder.com/100",
-                  }}
-                  style={styles.avatar}
-                />
-                <View style={styles.editPhotoButton}>
-                  <Text style={styles.editPhotoText}>📷</Text>
-                </View>
-              </>
-            )}
-          </TouchableOpacity>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {!editing ? (
+        // Modo de visualización - muestra todos los campos
+        <View style={styles.profileInfo}>
+          <Text style={styles.name}>{profile?.name || "Usuario"}</Text>
+          <Text style={styles.email}>{profile?.email || session?.userId}</Text>
+
+          {profile?.bio && <Text style={styles.bio}>{profile.bio}</Text>}
+
+          {profile?.phone_number && <Text style={styles.info}>Teléfono: {profile.phone_number}</Text>}
+
+          {profile?.location && <Text style={styles.info}>Ubicación: {profile.location}</Text>}
+
+          <Text style={styles.info}>Tipo de usuario: {profile?.user_type || session?.userType}</Text>
+
+          <Button mode="contained" onPress={() => setEditing(true)} style={styles.editButton}>
+            Editar Perfil
+          </Button>
         </View>
+      ) : (
+        // Modo de edición usando React Hook Form
+        <View style={styles.editForm}>
+          {/* Campo de Nombre */}
+          <Controller
+            control={control}
+            name="name"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Nombre"
+                value={value}
+                onChangeText={onChange}
+                onBlur={onBlur}
+                style={styles.input}
+              />
+            )}
+          />
 
-        {!editing ? (
-          // Modo de visualización - muestra todos los campos
-          <View style={styles.profileInfo}>
-            <Text style={styles.name}>{profile?.name || "Usuario"}</Text>
-            <Text style={styles.email}>{profile?.email || session?.userId}</Text>
+          {/* Campo de Biografía */}
+          <Controller
+            control={control}
+            name="bio"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Biografía"
+                value={value}
+                onChangeText={onChange}
+                onBlur={onBlur}
+                style={styles.input}
+                multiline
+                numberOfLines={3}
+              />
+            )}
+          />
 
-            {profile?.bio && <Text style={styles.bio}>{profile.bio}</Text>}
+          {/* Campo de Teléfono */}
+          <Controller
+            control={control}
+            name="phone_number"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Teléfono"
+                value={value}
+                onChangeText={onChange}
+                onBlur={onBlur}
+                style={styles.input}
+                keyboardType="phone-pad"
+              />
+            )}
+          />
 
-            {profile?.phone_number && <Text style={styles.info}>Teléfono: {profile.phone_number}</Text>}
+          {/* Campos para la ubicación - Ahora como un único campo de texto */}
+          <Text style={styles.sectionTitle}>Ubicación</Text>
+          <Controller
+            control={control}
+            name="location"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Ubicación"
+                value={value}
+                onChangeText={onChange}
+                onBlur={onBlur}
+                style={styles.input}
+                placeholder="Ej. Ciudad, Región, País"
+              />
+            )}
+          />
 
-            {profile?.location && <Text style={styles.info}>Ubicación: {profile.location}</Text>}
+          <View style={styles.buttonGroup}>
+            <Button mode="outlined" onPress={() => setEditing(false)} style={styles.cancelButton}>
+              Cancelar
+            </Button>
 
-            <Text style={styles.info}>Tipo de usuario: {profile?.user_type || session?.userType}</Text>
-
-            <Button mode="contained" onPress={() => setEditing(true)} style={styles.editButton}>
-              Editar Perfil
+            <Button mode="contained" onPress={handleSubmit(onSubmit)} style={styles.saveButton}>
+              Guardar
             </Button>
           </View>
-        ) : (
-          // Modo de edición usando React Hook Form
-          <View style={styles.editForm}>
-            {/* Campo de Nombre */}
-            <Controller
-              control={control}
-              name="name"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  label="Nombre"
-                  value={value}
-                  onChangeText={onChange}
-                  onBlur={onBlur}
-                  style={styles.input}
-                />
-              )}
-            />
+        </View>
+      )}
 
-            {/* Campo de Biografía */}
-            <Controller
-              control={control}
-              name="bio"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  label="Biografía"
-                  value={value}
-                  onChangeText={onChange}
-                  onBlur={onBlur}
-                  style={styles.input}
-                  multiline
-                  numberOfLines={3}
-                />
-              )}
-            />
-
-            {/* Campo de Teléfono */}
-            <Controller
-              control={control}
-              name="phone_number"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  label="Teléfono"
-                  value={value}
-                  onChangeText={onChange}
-                  onBlur={onBlur}
-                  style={styles.input}
-                  keyboardType="phone-pad"
-                />
-              )}
-            />
-
-            {/* Campos para la ubicación - Ahora como un único campo de texto */}
-            <Text style={styles.sectionTitle}>Ubicación</Text>
-            <Controller
-              control={control}
-              name="location"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  label="Ubicación"
-                  value={locationInputValue}
-                  onChangeText={(text) => {
-                    setLocationInputValue(text);
-                    onChange(text);
-                    handleLocationSearch(text);
-                  }}
-                  onBlur={onBlur}
-                  style={styles.input}
-                  placeholder="Ej. Ciudad, Región, País"
-                />
-              )}
-            />
-
-            <View style={styles.buttonGroup}>
-              <Button mode="outlined" onPress={() => setEditing(false)} style={styles.cancelButton}>
-                Cancelar
-              </Button>
-
-              <Button mode="contained" onPress={handleSubmit(onSubmit)} style={styles.saveButton}>
-                Guardar
-              </Button>
-            </View>
-          </View>
-        )}
-
-        {error && <Text style={styles.errorMessage}>{error}</Text>}
-      </ScrollView>
-      
-      {/* Renderizamos las sugerencias de ubicación fuera del ScrollView */}
-      {renderLocationSuggestions()}
-    </View>
+      {error && <Text style={styles.errorMessage}>{error}</Text>}
+    </ScrollView>
   );
 }
 
@@ -682,24 +615,5 @@ const styles = StyleSheet.create({
   userTypeButton: {
     flex: 1,
     marginRight: 5,
-  },
-  suggestionItem: {
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-    backgroundColor: "#fff",
-  },
-  suggestionsContainer: {
-    maxHeight: 200,
-    backgroundColor: "#fff",
-    borderRadius: 5,
-    marginBottom: 15,
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    overflow: 'hidden',
-    zIndex: 1000,
   },
 });
