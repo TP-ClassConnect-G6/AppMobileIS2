@@ -20,6 +20,8 @@ type CreateExamRequest = {
   location: string;
   additional_info: {
     open_book: boolean;
+    grace_period?: string;
+    submission_rules?: string;
   };
   owner: string;
 };
@@ -66,6 +68,8 @@ const createExamSchema = z.object({
   duration: z.string().min(1, "La duración es requerida"),
   location: z.string().min(1, "La ubicación es requerida"),
   open_book: z.boolean(),
+  grace_period: z.string().optional(),
+  submission_rules: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof createExamSchema>;
@@ -129,6 +133,8 @@ export default function CreateExamScreen() {
       duration: "120",
       location: "",
       open_book: false,
+      grace_period: "",
+      submission_rules: "",
     },
   });
 
@@ -203,7 +209,9 @@ export default function CreateExamScreen() {
         duration: parseInt(data.duration),
         location: data.location,
         additional_info: {
-          open_book: data.open_book
+          open_book: data.open_book,
+          grace_period: data.grace_period || "",
+          submission_rules: data.submission_rules || ""
         },
         owner: userId
       };
@@ -224,10 +232,23 @@ export default function CreateExamScreen() {
       // Encontrar el nombre del curso
       const courseName = courses.find(c => c.course_id === data.course_id)?.course_name || "el curso seleccionado";
       
-      // Mostrar mensaje de éxito con más detalles
+      // Preparar información adicional para el mensaje de éxito
+      let successMessage = `"${examData.title}" para ${courseName} ha sido creado exitosamente.\n\nFecha: ${formattedDate}\nDuración: ${examData.duration} minutos\nUbicación: ${examData.location}`;
+      
+      // Agregar información de tiempo de tolerancia si fue proporcionada
+      if (data.grace_period && data.grace_period.trim() !== "") {
+        successMessage += `\nTiempo de tolerancia: ${data.grace_period} minutos`;
+      }
+      
+      // Agregar información de reglas de entrega si fueron proporcionadas
+      if (data.submission_rules && data.submission_rules.trim() !== "") {
+        successMessage += `\nReglas de entrega: ${data.submission_rules}`;
+      }
+      
+      // Mostrar mensaje de éxito con todos los detalles
       Alert.alert(
         "Examen Creado",
-        `"${examData.title}" para ${courseName} ha sido creado exitosamente.\n\nFecha: ${formattedDate}\nDuración: ${examData.duration} minutos\nUbicación: ${examData.location}`,
+        successMessage,
         [{ text: "OK", onPress: () => {
           reset(); // Resetear el formulario
           router.push("/(tabs)/course-list"); // Redirigir a la lista de cursos
@@ -421,6 +442,48 @@ export default function CreateExamScreen() {
               )}
             />
           </View>
+          
+          {/* Tiempo de tolerancia */}
+          <Controller
+            control={control}
+            name="grace_period"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Tiempo de tolerancia (minutos)"
+                value={value}
+                onChangeText={onChange}
+                onBlur={onBlur}
+                style={styles.input}
+                keyboardType="numeric"
+                error={!!errors.grace_period}
+              />
+            )}
+          />
+          {errors.grace_period && (
+            <HelperText type="error">{errors.grace_period.message}</HelperText>
+          )}
+          <HelperText type="info">Minutos adicionales permitidos después de la hora de entrega.</HelperText>
+          
+          {/* Reglas de entrega */}
+          <Controller
+            control={control}
+            name="submission_rules"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Reglas de entrega"
+                value={value}
+                onChangeText={onChange}
+                onBlur={onBlur}
+                style={styles.input}
+                multiline
+                numberOfLines={3}
+                error={!!errors.submission_rules}
+              />
+            )}
+          />
+          {errors.submission_rules && (
+            <HelperText type="error">{errors.submission_rules.message}</HelperText>
+          )}
 
           {/* Botones de acción */}
           <View style={styles.buttonContainer}>
