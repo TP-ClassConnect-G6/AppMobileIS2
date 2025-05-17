@@ -18,7 +18,8 @@ type ScheduleItem = {
 
 type EditCourseRequest = {
   role: string;
-  course_name: string;
+  user_login: string;  // Campo requerido según la nueva estructura
+  course_name?: string;
   description: string;
   date_init: string;
   date_end: string;
@@ -151,7 +152,7 @@ export default function EditCourseModal({ visible, onDismiss, course, onSuccess 
     name: "required_course_name",
   });
 
-  // Función para convertir cualquier formato de fecha a DD/MM/YYYY
+  // Función para convertir cualquier formato de fecha a DD/MM/YYYY (formato argentino) para la UI
   const formatDateToStandard = (dateStr: string): string => {
     if (!dateStr) return "";
     
@@ -184,6 +185,31 @@ export default function EditCourseModal({ visible, onDismiss, course, onSuccess 
     } catch (e) {
       console.error("Error al formatear fecha:", e);
       return dateStr; // Devolver la cadena original en caso de error
+    }
+  };
+  
+  // Función para convertir fecha de formato DD/MM/YY a formato ISO para el API
+  const convertDateToISOFormat = (dateStr: string): string => {
+    try {
+      // Dividir la fecha en partes (día, mes, año)
+      const parts = dateStr.split('/');
+      if (parts.length !== 3) return dateStr;
+      
+      const day = parts[0];
+      const month = parts[1];
+      let year = parts[2];
+      
+      // Asegurar que el año tiene 4 dígitos
+      if (year.length === 2) {
+        year = `20${year}`;
+      }
+      
+      // Crear una fecha y convertirla a formato ISO
+      const date = new Date(`${year}-${month}-${day}T00:00:00.000Z`);
+      return date.toISOString();
+    } catch (error) {
+      console.error("Error al convertir fecha a ISO:", error);
+      return dateStr;
     }
   };
 
@@ -240,33 +266,32 @@ export default function EditCourseModal({ visible, onDismiss, course, onSuccess 
     }
 
     try {
-      // Preparar el objeto de la petición según la estructura exacta requerida
-      const startDateParts = data.date_init.split('/');
-      const endDateParts = data.date_end.split('/');
-      
-      let startYear = startDateParts[2];
-      let endYear = endDateParts[2];
-      
-      if (startYear.length === 2) {
-        startYear = `20${startYear}`;
+      // Extraer el email del token JWT para el campo user_login
+      let userEmail = "";
+      try {
+        const decodedToken: any = jwtDecode(session.token);
+        userEmail = decodedToken.email || decodedToken.sub || "";
+        console.log("Email extraído del token:", userEmail);
+      } catch (error) {
+        console.error("Error al decodificar token:", error);
       }
-      
-      if (endYear.length === 2) {
-        endYear = `20${endYear}`;
+
+      // Verificar que tenemos un email válido
+      if (!userEmail) {
+        alert("Error: No se pudo obtener el email del usuario");
+        setLoading(false);
+        return;
       }
-      
-      const startDate = new Date(`${startYear}-${startDateParts[1]}-${startDateParts[0]}T00:00:00.000Z`);
-      const endDate = new Date(`${endYear}-${endDateParts[1]}-${endDateParts[0]}T00:00:00.000Z`);
-      
+
       // Preparar los objetivos como un array a partir del string ingresado por el usuario
       const objetives = data.objetives ? data.objetives.split(',').map(obj => obj.trim()) : ["hola"];
       
       const request:Partial<EditCourseRequest> = {
         role: session.userType,
-        //course_name: data.course_name,
+        user_login: userEmail,  // Agregamos el campo requerido user_login
         description: data.description,
-        date_init: startDate.toISOString(),
-        date_end: endDate.toISOString(),
+        date_init: convertDateToISOFormat(data.date_init),
+        date_end: convertDateToISOFormat(data.date_end),
         quota: data.quota,
         content: data.content || "Unit 1 ..... Unit 2",
         objetives: objetives,
@@ -292,30 +317,28 @@ export default function EditCourseModal({ visible, onDismiss, course, onSuccess 
       const response = await courseClient.patch(`/courses/${course.course_id}`, request);
       console.log("Respuesta:", response.data);
 
+      // Extraer la información del curso actualizado de la nueva estructura de respuesta
+      const updatedCourse = response.data.course;
+
       // Mostrar mensaje de éxito
       alert("Curso actualizado exitosamente");
       
+      // Preparar los datos actualizados para la UI según la nueva estructura de respuesta
       const updatedCourseData: Partial<Course> = {
-        //course_name: data.course_name,
-        description: data.description,
-        date_init: startDate.toISOString(),
-        date_end: endDate.toISOString(),
-        quota: data.quota,
-        content: data.content || "Unit 1 ..... Unit 2",
-        objetives: objetives,
-        instructor_profile: data.instructor_profile || "Engineer A",
-        modality: data.modality,
-        schedule: [
-          {
-            day: "Monday",
-            time: "18:00"
-          }
-        ]
+        course_name: updatedCourse.course_name,
+        description: updatedCourse.description,
+        date_init: updatedCourse.date_init,
+        date_end: updatedCourse.date_end,
+        quota: updatedCourse.quota,
+        content: updatedCourse.content,
+        objetives: updatedCourse.objetives,
+        instructor_profile: updatedCourse.instructor_profile,
+        modality: updatedCourse.modality
       };
-
-      // Solo incluir el course_name en los datos actualizados si cambió
-      if (data.course_name !== course.course_name) {
-        updatedCourseData.course_name = data.course_name;
+      
+      // Si la respuesta incluye schedule, lo añadimos a los datos actualizados
+      if (updatedCourse.schedule && Array.isArray(updatedCourse.schedule)) {
+        updatedCourseData.schedule = updatedCourse.schedule;
       }
       
       onSuccess(updatedCourseData);
