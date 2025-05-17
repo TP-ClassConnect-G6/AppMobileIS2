@@ -16,55 +16,27 @@ type RequiredCourse = {
   course_name: string;
 };
 
-type CourseDetail = {
-  course_name: string;
-  description: string;
-  date_init: string;
-  date_end: string;
-  quota: number;
-  max_quota?: number;
-  category: string | null;
-  objetives: string | string[];
-  content: string | null;
-  required_courses: string[] | { course_name: string }[];
-  instructor_profile: string | null;
-  modality: string | null;
-  schedule: ScheduleItem[] | [];
-  teacher?: string;
-  course_status?: string;
-};
-
-// Definición para manejar los diferentes formatos de respuesta
 type CourseDetailResponse = {
-  courses?: CourseDetail,
-  response?: CourseDetail
+  courses: {
+    course_name: string;
+    description: string;
+    date_init: string;
+    date_end: string;
+    quota: number;
+    category: string | null;
+    objetives: string | string[];
+    content: string | null;
+    required_courses: string[] | { course_name: string }[];
+    instructor_profile: string | null;
+    modality: string | null;
+    schedule: ScheduleItem[] | [];
+  }
 };
 
 // Función para obtener los detalles de un curso específico
-const fetchCourseDetail = async (courseId: string): Promise<CourseDetail> => {
-  try {
-    const response = await courseClient.get(`/courses/${courseId}`);
-    console.log("API response structure:", JSON.stringify(response.data, null, 2));
-    
-    // Manejar los diferentes formatos posibles de respuesta
-    if (response.data?.courses) {
-      console.log("Using response.data.courses format");
-      return response.data.courses;
-    } else if (response.data?.response) {
-      console.log("Using response.data.response format");
-      return response.data.response;
-    } else if (response.data && typeof response.data === 'object' && response.data.course_name) {
-      console.log("Using direct object format");
-      // Si la respuesta es directamente un objeto con los detalles
-      return response.data;
-    } else {
-      console.warn('Formato de respuesta inesperado:', response.data);
-      throw new Error('Formato de respuesta inesperado');
-    }
-  } catch (error) {
-    console.error('Error al obtener detalles del curso:', error);
-    throw error;
-  }
+const fetchCourseDetail = async (courseId: string): Promise<CourseDetailResponse> => {
+  const response = await courseClient.get(`/courses/${courseId}`);
+  return response.data;
 };
 
 // Props para el componente modal
@@ -74,14 +46,13 @@ type CourseDetailModalProps = {
   courseId: string | null;
 };
 
-const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalProps) => {  // Consulta para obtener los detalles del curso
+const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalProps) => {
+  // Consulta para obtener los detalles del curso
   const { data: courseDetail, isLoading, error, refetch } = useQuery({
     queryKey: ['courseDetail', courseId],
     queryFn: () => courseId ? fetchCourseDetail(courseId) : Promise.reject('No courseId provided'),
     enabled: !!courseId && visible, // Solo consultar cuando hay un courseId y el modal está visible
     staleTime: 60000, // Datos frescos por 1 minuto
-    retry: 2, // Intentar hasta 2 veces en caso de error
-    retryDelay: 1000, // Esperar 1 segundo entre intentos
   });
 
   // Formatear fecha
@@ -166,16 +137,17 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
               <Button mode="contained" onPress={() => refetch()}>
                 Intentar nuevamente
               </Button>
-            </View>          ) : courseDetail ? (
+            </View>
+          ) : courseDetail ? (
             <>
-              <Title style={styles.title}>{courseDetail.course_name}</Title>
+              <Title style={styles.title}>{courseDetail.courses.course_name}</Title>
               
-              {courseDetail.category && (
+              {courseDetail.courses.category && (
                 <Chip 
                   icon="tag" 
                   style={styles.categoryChip}
                 >
-                  {courseDetail.category}
+                  {courseDetail.courses.category}
                 </Chip>
               )}
               
@@ -183,21 +155,14 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
               
               <View style={styles.sectionContainer}>
                 <Text style={styles.sectionTitle}>Descripción</Text>
-                <Paragraph style={styles.description}>{courseDetail.description}</Paragraph>
+                <Paragraph style={styles.description}>{courseDetail.courses.description}</Paragraph>
               </View>
               
               <View style={styles.rowContainer}>
-                {courseDetail.modality && (
+                {courseDetail.courses.modality && (
                   <View style={styles.infoItem}>
                     <Text style={styles.infoLabel}>Modalidad:</Text>
-                    <Text style={styles.infoValue}>{courseDetail.modality}</Text>
-                  </View>
-                )}
-                
-                {courseDetail.teacher && (
-                  <View style={styles.infoItem}>
-                    <Text style={styles.infoLabel}>Profesor:</Text>
-                    <Text style={styles.infoValue}>{courseDetail.teacher}</Text>
+                    <Text style={styles.infoValue}>{courseDetail.courses.modality}</Text>
                   </View>
                 )}
               </View>
@@ -205,60 +170,49 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
               <View style={styles.rowContainer}>
                 <View style={styles.infoItem}>
                   <Text style={styles.infoLabel}>Fecha inicio:</Text>
-                  <Text style={styles.infoValue}>{formatDateString(courseDetail.date_init)}</Text>
+                  <Text style={styles.infoValue}>{formatDateString(courseDetail.courses.date_init)}</Text>
                 </View>
                 
                 <View style={styles.infoItem}>
                   <Text style={styles.infoLabel}>Fecha fin:</Text>
-                  <Text style={styles.infoValue}>{formatDateString(courseDetail.date_end)}</Text>
+                  <Text style={styles.infoValue}>{formatDateString(courseDetail.courses.date_end)}</Text>
                 </View>
               </View>
               
               <View style={styles.infoItem}>
                 <Text style={styles.infoLabel}>Cupo:</Text>
-                <Text style={styles.infoValue}>
-                  {courseDetail.quota} 
-                  {courseDetail.max_quota ? ` de ${courseDetail.max_quota}` : ''} 
-                  estudiantes
-                </Text>
+                <Text style={styles.infoValue}>{courseDetail.courses.quota} estudiantes</Text>
               </View>
               
-              {courseDetail.course_status && (
-                <View style={styles.infoItem}>
-                  <Text style={styles.infoLabel}>Estado:</Text>
-                  <Text style={styles.infoValue}>{courseDetail.course_status}</Text>
-                </View>
-              )}
-              
               <Divider style={styles.divider} />
               
-              {courseDetail.objetives && (
+              {courseDetail.courses.objetives && (
                 <View style={styles.sectionContainer}>
                   <Text style={styles.sectionTitle}>Objetivos</Text>
-                  <Paragraph style={styles.description}>{formatObjectives(courseDetail.objetives)}</Paragraph>
+                  <Paragraph style={styles.description}>{formatObjectives(courseDetail.courses.objetives)}</Paragraph>
                 </View>
               )}
               
-              {courseDetail.content && (
+              {courseDetail.courses.content && (
                 <View style={styles.sectionContainer}>
                   <Text style={styles.sectionTitle}>Contenido</Text>
-                  <Paragraph style={styles.description}>{courseDetail.content}</Paragraph>
+                  <Paragraph style={styles.description}>{courseDetail.courses.content}</Paragraph>
                 </View>
               )}
               
-              {courseDetail.instructor_profile && (
+              {courseDetail.courses.instructor_profile && (
                 <View style={styles.sectionContainer}>
                   <Text style={styles.sectionTitle}>Perfil del instructor</Text>
-                  <Paragraph style={styles.description}>{courseDetail.instructor_profile}</Paragraph>
+                  <Paragraph style={styles.description}>{courseDetail.courses.instructor_profile}</Paragraph>
                 </View>
               )}
               
               <Divider style={styles.divider} />
               
-              {courseDetail.schedule && courseDetail.schedule.length > 0 && (
+              {courseDetail.courses.schedule && courseDetail.courses.schedule.length > 0 && (
                 <View style={styles.sectionContainer}>
                   <Text style={styles.sectionTitle}>Horario</Text>
-                  {courseDetail.schedule.map((item, index) => (
+                  {courseDetail.courses.schedule.map((item, index) => (
                     <View key={index} style={styles.scheduleItem}>
                       <Text style={styles.scheduleDay}>{item.day}:</Text>
                       <Text style={styles.scheduleTime}>{item.time}</Text>
@@ -267,10 +221,10 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                 </View>
               )}
               
-              {courseDetail.required_courses && courseDetail.required_courses.length > 0 && (
+              {courseDetail.courses.required_courses && courseDetail.courses.required_courses.length > 0 && (
                 <View style={styles.sectionContainer}>
                   <Text style={styles.sectionTitle}>Cursos prerequisitos</Text>
-                  {formatRequiredCourses(courseDetail.required_courses).map((courseName, index) => (
+                  {formatRequiredCourses(courseDetail.courses.required_courses).map((courseName, index) => (
                     <Text key={index} style={styles.prerequisiteItem}>
                       • {courseName}
                     </Text>
