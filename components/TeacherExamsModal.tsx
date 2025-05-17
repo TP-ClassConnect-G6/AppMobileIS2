@@ -58,6 +58,18 @@ const publishExam = async (examId: string): Promise<any> => {
   }
 };
 
+// Función para eliminar un examen
+const deleteExam = async (examId: string): Promise<any> => {
+  try {
+    const response = await courseClient.delete(`/exams/${examId}`);
+    console.log("Examen eliminado exitosamente:", response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error al eliminar examen:', error);
+    throw error;
+  }
+};
+
 // Props para el componente modal
 type TeacherExamsModalProps = {
   visible: boolean;
@@ -69,6 +81,7 @@ type TeacherExamsModalProps = {
 const TeacherExamsModal = ({ visible, onDismiss, courseId, courseName }: TeacherExamsModalProps) => {
   const queryClient = useQueryClient();
   const [publishingExamId, setPublishingExamId] = useState<string | null>(null);
+  const [deletingExamId, setDeletingExamId] = useState<string | null>(null);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [selectedExam, setSelectedExam] = useState<Exam | null>(null);
 
@@ -102,6 +115,27 @@ const TeacherExamsModal = ({ visible, onDismiss, courseId, courseName }: Teacher
       setPublishingExamId(null);
     }
   });
+  
+  // Mutación para eliminar un examen
+  const deleteMutation = useMutation({
+    mutationFn: deleteExam,
+    onMutate: (examId) => {
+      setDeletingExamId(examId);
+    },
+    onSuccess: () => {
+      // Invalidar consultas para refrescar los datos
+      queryClient.invalidateQueries({ queryKey: ['teacherCourseExams', courseId] });
+      queryClient.invalidateQueries({ queryKey: ['courseExams', courseId] });
+      
+      setDeletingExamId(null);
+      Alert.alert("Éxito", "El examen ha sido eliminado exitosamente.");
+    },
+    onError: (error) => {
+      console.error("Error al eliminar examen:", error);
+      Alert.alert("Error", "No se pudo eliminar el examen. Inténtelo nuevamente.");
+      setDeletingExamId(null);
+    }
+  });
 
   // Formatear fecha
   const formatDateString = (dateString: string) => {
@@ -125,6 +159,24 @@ const TeacherExamsModal = ({ visible, onDismiss, courseId, courseName }: Teacher
           text: "Publicar",
           onPress: () => {
             publishMutation.mutate(exam.id);
+          }
+        }
+      ]
+    );
+  };
+  
+  // Manejar la eliminación de un examen
+  const handleDeleteExam = (exam: Exam) => {
+    Alert.alert(
+      "Eliminar examen",
+      `¿Está seguro de que desea eliminar el examen "${exam.title}"? Esta acción no se puede deshacer.`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: () => {
+            deleteMutation.mutate(exam.id);
           }
         }
       ]
@@ -210,18 +262,32 @@ const TeacherExamsModal = ({ visible, onDismiss, courseId, courseName }: Teacher
                       </View>
                     )}
                     
-                    {/* Botón para editar el examen */}
-                    <Button 
-                      mode="outlined" 
-                      style={styles.editButton}
-                      icon="pencil"
-                      onPress={() => {
-                        setSelectedExam(exam);
-                        setEditModalVisible(true);
-                      }}
-                    >
-                      Editar examen
-                    </Button>
+                    <View style={styles.buttonRow}>
+                      {/* Botón para editar el examen */}
+                      <Button 
+                        mode="outlined" 
+                        style={styles.actionButton}
+                        icon="pencil"
+                        onPress={() => {
+                          setSelectedExam(exam);
+                          setEditModalVisible(true);
+                        }}
+                      >
+                        Editar
+                      </Button>
+                      
+                      {/* Botón para eliminar el examen */}
+                      <Button 
+                        mode="outlined" 
+                        style={styles.deleteButton}
+                        icon="delete"
+                        onPress={() => handleDeleteExam(exam)}
+                        loading={deletingExamId === exam.id}
+                        disabled={deletingExamId !== null || publishingExamId !== null}
+                      >
+                        Eliminar
+                      </Button>
+                    </View>
                     
                     {/* Botón de publicar, solo para exámenes no publicados */}
                     {!exam.published && (
@@ -230,7 +296,7 @@ const TeacherExamsModal = ({ visible, onDismiss, courseId, courseName }: Teacher
                         style={styles.publishButton} 
                         onPress={() => handlePublishExam(exam)}
                         loading={publishingExamId === exam.id}
-                        disabled={publishingExamId !== null}
+                        disabled={publishingExamId !== null || deletingExamId !== null}
                       >
                         Publicar examen
                       </Button>
@@ -364,6 +430,21 @@ const styles = StyleSheet.create({
   submissionRules: {
     marginTop: 5,
     fontStyle: 'italic',
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 15,
+    marginBottom: 8,
+  },
+  actionButton: {
+    flex: 1,
+    marginRight: 8,
+  },
+  deleteButton: {
+    flex: 1,
+    marginLeft: 8,
+    borderColor: '#D32F2F',
   },
   editButton: {
     marginTop: 15,
