@@ -48,7 +48,7 @@ const fetchCourseExams = async (courseId: string): Promise<Exam[]> => {
 // Función para publicar un examen
 const publishExam = async (examId: string): Promise<any> => {
   try {
-    const response = await courseClient.patch(`/exams/${examId}/publish`, { published: true });
+    const response = await courseClient.put(`/exams/${examId}/publish`, { published: true });
     console.log("Examen publicado exitosamente:", response.data);
     return response.data;
   } catch (error) {
