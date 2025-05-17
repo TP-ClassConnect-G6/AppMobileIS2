@@ -64,9 +64,26 @@ const fetchCourses = async (filters?: { course_name?: string; category?: string;
   if (userId) {
     params.user_login = userId;  
   }
-
-  const response = await courseClient.get('/courses', { params });
-  return response.data.courses;
+  try {
+    const response = await courseClient.get('/courses', { params });
+    
+    // Verificar diferentes formatos posibles de respuesta
+    if (response.data && Array.isArray(response.data.courses)) {
+      return response.data.courses;
+    } else if (response.data && Array.isArray(response.data)) {
+      // Si la respuesta es directamente un array
+      return response.data;
+    } else if (response.data && response.data.response && Array.isArray(response.data.response)) {
+      // El formato que estás recibiendo actualmente: { response: [...] }
+      return response.data.response;
+    } else {
+      console.warn('La respuesta del API no tiene el formato esperado:', response.data);
+      return []; // Devolver un array vacío para evitar errores
+    }
+  } catch (error) {
+    console.error('Error al obtener cursos:', error);
+    return []; // Devolver un array vacío en caso de error
+  }
 };
 
 // Función para registrarse en un curso
@@ -78,7 +95,26 @@ const registerInCourse = async (courseId: string, email: string, academicLevel: 
     user_academic_level: academicLevel
   });
   
-  return response.data;
+  // Manejar diferentes posibles formatos de respuesta
+  if (response.data && response.data.response) {
+    return response.data;
+  } else if (response.data) {
+    // Si la respuesta no tiene el formato esperado, intentamos adaptarla
+    return {
+      response: response.data
+    };
+  } else {
+    // Caso de emergencia, devolver un objeto con estructura mínima
+    console.warn("Formato de respuesta inesperado en el registro:", response.data);
+    return {
+      response: {
+        registration_id: "unknown",
+        course_name: "Curso",
+        registration_date: new Date().toISOString(),
+        course_date_init: new Date().toISOString()
+      }
+    };
+  }
 };
 
 // Función para eliminar un curso
@@ -117,14 +153,17 @@ export default function CourseListScreen() {
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [filtersVisible, setFiltersVisible] = useState(false);
-
   // Configuración de la consulta de cursos para siempre buscar datos actualizados
-  const { data: courses, isLoading, error, refetch } = useQuery({
+  const { data: courses = [], isLoading, error, refetch } = useQuery({
     queryKey: ['courses', searchFilters], 
-    queryFn: () => fetchCourses(searchFilters,session?.userId),
+    queryFn: () => fetchCourses(searchFilters, session?.userId),
     staleTime: 0, // Considera los datos obsoletos inmediatamente
     gcTime: 0, // No guarda en caché los resultados (reemplaza a cacheTime)
     refetchOnWindowFocus: true, // Actualiza al enfocar la ventana
+    retry: 2, // Reintentar la consulta hasta 2 veces en caso de error
+    retryDelay: 1000, // Esperar 1 segundo entre reintentos
+    // Asegurarnos de que siempre devolvemos un array
+    select: (data) => Array.isArray(data) ? data : []
   });
 
   // Función para actualizar forzosamente la lista de cursos
@@ -269,9 +308,8 @@ export default function CourseListScreen() {
 
       <Card.Actions>
         <Button 
-          mode="contained"
-          disabled={item.message === "Enrolled in course"|| item.quota === 0}
-          style={item.message === "Enrolled in course" ? styles.enrolledButton : {}}
+          mode="contained"          disabled={item.message === "Enrolled in course" || item.message === "enrolled in course" || item.quota === 0}
+          style={(item.message === "Enrolled in course" || item.message === "enrolled in course") ? styles.enrolledButton : {}}
           onPress={() => {
             // Verificar que el usuario está logueado
             if (!session) {
@@ -292,12 +330,15 @@ export default function CourseListScreen() {
                 { text: "Cancelar", style: "cancel" },
                 { 
                   text: "Inscribirse", 
-                  onPress: async () => {
-                    try {
+                  onPress: async () => {                    try {
                       const response = await registerInCourse(item.course_id, userEmail, academicLevel);
+                      // Acceder a los datos de la respuesta de forma segura
+                      const courseName = response.response?.course_name || item.course_name;
+                      const courseStart = response.response?.course_date_init || item.date_init;
+                      
                       Alert.alert(
                         "Inscripción exitosa", 
-                        `Te has inscrito correctamente en el curso "${response.response.course_name}". \nFecha de inicio: ${formatDate(response.response.course_date_init)}`
+                        `Te has inscrito correctamente en el curso "${courseName}". \nFecha de inicio: ${formatDate(courseStart)}`
                       );
                       // Refrescar la lista para mostrar cambios en el curso (como los cupos disponibles)
                       refetch();
@@ -322,9 +363,8 @@ export default function CourseListScreen() {
                 }
               ]
             );
-          }}
-        >
-          {item.message === "enrolled in course" ? "Ya inscrito" : "Inscribirse"}
+          }}        >
+          {(item.message === "enrolled in course" || item.message === "Enrolled in course") ? "Ya inscrito" : "Inscribirse"}
         </Button>
         <Button 
           onPress={() => {
