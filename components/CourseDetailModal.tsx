@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { courseClient } from "@/lib/http";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import CourseExamsModal from "./CourseExamsModal";
 
 // Tipos para la respuesta detallada del curso
 type ScheduleItem = {
@@ -73,6 +74,9 @@ type CourseDetailModalProps = {
 };
 
 const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalProps) => {
+  // Estado para controlar la visibilidad del modal de exámenes
+  const [examModalVisible, setExamModalVisible] = useState(false);
+
   // Consulta para obtener los detalles del curso
   const { data: courseDetail, isLoading, error, refetch } = useQuery({
     queryKey: ['courseDetail', courseId],
@@ -278,6 +282,15 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
               )}
               
               <Button 
+                mode="contained" 
+                style={styles.examButton} 
+                onPress={() => setExamModalVisible(true)}
+                icon="book-open-variant"
+              >
+                Ver exámenes
+              </Button>
+              
+              <Button 
                 mode="outlined" 
                 style={styles.closeButton} 
                 onPress={onDismiss}
@@ -290,6 +303,14 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
           )}
         </ScrollView>
       </Modal>
+      
+      {/* Modal para mostrar los exámenes del curso */}
+      <CourseExamsModal
+        visible={examModalVisible}
+        onDismiss={() => setExamModalVisible(false)}
+        courseId={courseId}
+        courseName={courseDetail?.course_name || null}
+      />
     </Portal>
   );
 };
@@ -384,6 +405,11 @@ const styles = StyleSheet.create({
   prerequisiteItem: {
     fontSize: 16,
     marginBottom: 5,
+  },
+  examButton: {
+    marginTop: 20,
+    marginBottom: 10,
+    backgroundColor: '#2E7D32',
   },
   inscriptionButton: {
     marginTop: 20,
