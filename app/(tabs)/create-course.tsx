@@ -117,8 +117,8 @@ export default function CreateCourseScreen() {
     defaultValues: {
       course_name: "",
       description: "",
-      date_init: format(startDate, "MM/dd/yy"),  // Cambiado a formato MM/dd/yy
-      date_end: format(endDate, "MM/dd/yy"),     // Cambiado a formato MM/dd/yy
+      date_init: format(startDate, "dd/MM/yy"),  // Formato argentino para la UI
+      date_end: format(endDate, "dd/MM/yy"),     // Formato argentino para la UI
       schedule: [{ day: "Monday", time: "09:00" }],
       quota: "",
       academic_level: "Bachelors degree",
@@ -145,6 +145,21 @@ export default function CreateCourseScreen() {
     control,
     name: "required_course_name",
   });
+
+  // Función para convertir fecha de formato DD/MM/YY a MM/DD/YY
+  const convertDateFormat = (dateStr: string): string => {
+    try {
+      // Dividir la fecha en partes (día, mes, año)
+      const parts = dateStr.split('/');
+      if (parts.length !== 3) return dateStr;
+      
+      // Reorganizar las partes para formato MM/DD/YY
+      return `${parts[1]}/${parts[0]}/${parts[2]}`;
+    } catch (error) {
+      console.error("Error al convertir formato de fecha:", error);
+      return dateStr;
+    }
+  };
 
   // Función para crear un nuevo curso
   const onSubmit = async (data: FormValues) => {
@@ -175,11 +190,13 @@ export default function CreateCourseScreen() {
         return;
       }
 
-      // Preparar la solicitud
+      // Preparar la solicitud con las fechas convertidas al formato esperado por el backend (MM/DD/YY)
       const request: CreateCourseRequest = {
         user_login: userEmail, // Usar el email como user_login
         role: session.userType,
         ...data,
+        date_init: convertDateFormat(data.date_init), // Convertir formato para el backend
+        date_end: convertDateFormat(data.date_end),   // Convertir formato para el backend
       };
 
       console.log("Enviando solicitud:", request);
@@ -315,6 +332,7 @@ export default function CreateCourseScreen() {
               {errors.date_init && (
                 <HelperText type="error">{errors.date_init.message}</HelperText>
               )}
+              <HelperText type="info">Formato: día/mes/año (DD/MM/YY)</HelperText>
             </View>
 
             <View style={styles.dateInputContainer}>
