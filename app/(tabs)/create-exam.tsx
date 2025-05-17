@@ -97,8 +97,21 @@ export default function CreateExamScreen() {
     try {
       setFetchingCourses(true);
       const response = await courseClient.get('/courses');
-      if (response.data && response.data.courses) {
+      console.log("Respuesta del API:", response.data);
+      
+      // Extraer cursos según la estructura de la respuesta
+      if (response.data && response.data.response && Array.isArray(response.data.response)) {
+        // Nueva estructura: cursos dentro de "response"
+        setCourses(response.data.response);
+      } else if (response.data && Array.isArray(response.data)) {
+        // Estructura alternativa: array directamente en data
+        setCourses(response.data);
+      } else if (response.data && response.data.courses && Array.isArray(response.data.courses)) {
+        // Estructura anterior: cursos dentro de "courses"
         setCourses(response.data.courses);
+      } else {
+        console.warn("Formato de respuesta no reconocido:", response.data);
+        setCourses([]);
       }
     } catch (error) {
       console.error("Error al cargar los cursos:", error);
