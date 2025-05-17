@@ -36,7 +36,18 @@ type EditExamModalProps = {
 // Función para actualizar un examen
 const updateExam = async (exam: Exam): Promise<any> => {
   try {
-    const response = await courseClient.put(`/exams/${exam.id}`, exam);
+    // Creamos el objeto en el formato esperado por el API
+    const examData = {
+      title: exam.title,
+      description: exam.description,
+      date: exam.date.split('T')[0], // Enviamos solo la fecha sin hora
+      duration: exam.duration,
+      location: exam.location,
+      additional_info: exam.additional_info
+    };
+    
+    console.log("Enviando datos de actualización:", examData);
+    const response = await courseClient.put(`/exams/${exam.id}`, examData);
     console.log("Examen actualizado exitosamente:", response.data);
     return response.data;
   } catch (error) {
@@ -82,7 +93,9 @@ const EditExamModal = ({ visible, onDismiss, exam, courseId }: EditExamModalProp
     onMutate: () => {
       setIsSaving(true);
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log("Respuesta exitosa del servidor:", data);
+      
       // Invalidar consultas para refrescar los datos
       queryClient.invalidateQueries({ queryKey: ['teacherCourseExams', courseId] });
       queryClient.invalidateQueries({ queryKey: ['courseExams', courseId] });
@@ -91,9 +104,25 @@ const EditExamModal = ({ visible, onDismiss, exam, courseId }: EditExamModalProp
       Alert.alert("Éxito", "El examen ha sido actualizado exitosamente.");
       onDismiss();
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error("Error al actualizar examen:", error);
-      Alert.alert("Error", "No se pudo actualizar el examen. Inténtelo nuevamente.");
+      
+      let errorMessage = "No se pudo actualizar el examen. Inténtelo nuevamente.";
+      
+      // Intentar extraer un mensaje más específico si está disponible
+      if (error.response) {
+        console.log("Detalles del error:", {
+          status: error.response.status,
+          data: error.response.data
+        });
+        
+        // Usar el mensaje de error del API si está disponible
+        if (error.response.data && error.response.data.message) {
+          errorMessage = error.response.data.message;
+        }
+      }
+      
+      Alert.alert("Error", errorMessage);
       setIsSaving(false);
     }
   });
@@ -125,11 +154,13 @@ const EditExamModal = ({ visible, onDismiss, exam, courseId }: EditExamModalProp
       location: location.trim(),
       additional_info: {
         open_book: openBook,
-        grace_period: gracePeriod.trim() || undefined,
-        submission_rules: submissionRules.trim() || undefined
+        // Solo incluimos estos campos si tienen valor
+        ...(gracePeriod.trim() ? { grace_period: gracePeriod.trim() } : {}),
+        ...(submissionRules.trim() ? { submission_rules: submissionRules.trim() } : {})
       }
     };
 
+    console.log("Enviando examen actualizado:", updatedExam);
     // Ejecutar la mutación
     updateMutation.mutate(updatedExam);
   };
