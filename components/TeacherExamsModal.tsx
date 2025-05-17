@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
-import { StyleSheet, View, ScrollView, ActivityIndicator, TouchableOpacity } from "react-native";
+import React, { useState } from "react";
+import { StyleSheet, View, ScrollView, ActivityIndicator, TouchableOpacity, Alert } from "react-native";
 import { Modal, Portal, Text, Title, Button, Divider, Paragraph, Chip, List, Card } from "react-native-paper";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { courseClient } from "@/lib/http";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -27,17 +27,14 @@ type Exam = {
   is_active: boolean;
 };
 
-// Función para obtener los exámenes de un curso específico (solo publicados para estudiantes)
+// Función para obtener los exámenes de un curso específico (todos, incluso los no publicados)
 const fetchCourseExams = async (courseId: string): Promise<Exam[]> => {
   try {
     const response = await courseClient.get(`/exams/course/${courseId}`);
-    console.log("API exams response (student view):", JSON.stringify(response.data, null, 2));
+    console.log("API exams response (teacher view):", JSON.stringify(response.data, null, 2));
     
     if (Array.isArray(response.data)) {
-      // Filtrar exámenes para mostrar solo los publicados a los estudiantes
-      const publishedExams = response.data.filter((exam: Exam) => exam.published === true);
-      console.log(`Mostrando ${publishedExams.length} de ${response.data.length} exámenes (solo publicados)`);
-      return publishedExams;
+      return response.data;
     } else {
       console.warn('Formato de respuesta inesperado para exámenes:', response.data);
       return [];
@@ -48,23 +45,59 @@ const fetchCourseExams = async (courseId: string): Promise<Exam[]> => {
   }
 };
 
+// Función para publicar un examen
+const publishExam = async (examId: string): Promise<any> => {
+  try {
+    const response = await courseClient.patch(`/exams/${examId}/publish`, { published: true });
+    console.log("Examen publicado exitosamente:", response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error al publicar examen:', error);
+    throw error;
+  }
+};
+
 // Props para el componente modal
-type CourseExamsModalProps = {
+type TeacherExamsModalProps = {
   visible: boolean;
   onDismiss: () => void;
   courseId: string | null;
   courseName: string | null;
 };
 
-const CourseExamsModal = ({ visible, onDismiss, courseId, courseName }: CourseExamsModalProps) => {
-  // Consulta para obtener los exámenes del curso
+const TeacherExamsModal = ({ visible, onDismiss, courseId, courseName }: TeacherExamsModalProps) => {
+  const queryClient = useQueryClient();
+  const [publishingExamId, setPublishingExamId] = useState<string | null>(null);
+
+  // Consulta para obtener los exámenes del curso (todos para los profesores)
   const { data: exams, isLoading, error, refetch } = useQuery({
-    queryKey: ['courseExams', courseId],
+    queryKey: ['teacherCourseExams', courseId],
     queryFn: () => courseId ? fetchCourseExams(courseId) : Promise.reject('No courseId provided'),
-    enabled: !!courseId && visible, // Solo consultar cuando hay un courseId y el modal está visible
+    enabled: !!courseId && visible, 
     staleTime: 60000, // Datos frescos por 1 minuto
     retry: 1, // Intentar nuevamente 1 vez en caso de error
     retryDelay: 1000, // Esperar 1 segundo entre reintentos
+  });
+
+  // Mutación para publicar un examen
+  const publishMutation = useMutation({
+    mutationFn: publishExam,
+    onMutate: (examId) => {
+      setPublishingExamId(examId);
+    },
+    onSuccess: () => {
+      // Invalidar consultas para refrescar los datos
+      queryClient.invalidateQueries({ queryKey: ['teacherCourseExams', courseId] });
+      queryClient.invalidateQueries({ queryKey: ['courseExams', courseId] });
+      
+      setPublishingExamId(null);
+      Alert.alert("Éxito", "El examen ha sido publicado exitosamente.");
+    },
+    onError: (error) => {
+      console.error("Error al publicar examen:", error);
+      Alert.alert("Error", "No se pudo publicar el examen. Inténtelo nuevamente.");
+      setPublishingExamId(null);
+    }
   });
 
   // Formatear fecha
@@ -78,6 +111,23 @@ const CourseExamsModal = ({ visible, onDismiss, courseId, courseName }: CourseEx
     }
   };
 
+  // Manejar la publicación de un examen
+  const handlePublishExam = (exam: Exam) => {
+    Alert.alert(
+      "Publicar examen",
+      `¿Está seguro de que desea publicar el examen "${exam.title}"? Una vez publicado estará visible para todos los estudiantes.`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Publicar",
+          onPress: () => {
+            publishMutation.mutate(exam.id);
+          }
+        }
+      ]
+    );
+  };
+
   return (
     <Portal>
       <Modal
@@ -87,7 +137,7 @@ const CourseExamsModal = ({ visible, onDismiss, courseId, courseName }: CourseEx
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <Title style={styles.title}>{courseName ? `Exámenes de ${courseName}` : 'Exámenes del Curso'}</Title>
-          <Text style={styles.subtitle}>Se muestran solo exámenes publicados</Text>
+          <Text style={styles.subtitle}>Vista de profesor - Todos los exámenes</Text>
           <Divider style={styles.divider} />
 
           {isLoading ? (
@@ -104,16 +154,23 @@ const CourseExamsModal = ({ visible, onDismiss, courseId, courseName }: CourseEx
             </View>
           ) : !exams || exams.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>
-                No hay exámenes publicados para este curso.
-              </Text>
+              <Text style={styles.emptyText}>No hay exámenes para este curso.</Text>
             </View>
           ) : (
             <View>
               {exams.map((exam) => (
-                <Card key={exam.id} style={styles.examCard}>
+                <Card key={exam.id} style={[styles.examCard, !exam.published && styles.unpublishedExamCard]}>
                   <Card.Content>
-                    <Title style={styles.examTitle}>{exam.title}</Title>
+                    <View style={styles.headerRow}>
+                      <Title style={styles.examTitle}>{exam.title}</Title>
+                      <Chip 
+                        mode="outlined" 
+                        style={exam.published ? styles.publishedChip : styles.unpublishedChip}
+                      >
+                        {exam.published ? "Publicado" : "No publicado"}
+                      </Chip>
+                    </View>
+                    
                     <Paragraph style={styles.examDescription}>{exam.description}</Paragraph>
                     
                     <View style={styles.examInfoRow}>
@@ -149,13 +206,30 @@ const CourseExamsModal = ({ visible, onDismiss, courseId, courseName }: CourseEx
                         <Text style={styles.submissionRules}>{exam.additional_info.submission_rules}</Text>
                       </View>
                     )}
+                    
+                    {/* Botón de publicar, solo para exámenes no publicados */}
+                    {!exam.published && (
+                      <Button 
+                        mode="contained" 
+                        style={styles.publishButton} 
+                        onPress={() => handlePublishExam(exam)}
+                        loading={publishingExamId === exam.id}
+                        disabled={publishingExamId !== null}
+                      >
+                        Publicar examen
+                      </Button>
+                    )}
                   </Card.Content>
                 </Card>
               ))}
             </View>
           )}
 
-          <Button mode="outlined" onPress={onDismiss} style={styles.closeButton}>
+          <Button 
+            mode="outlined" 
+            onPress={onDismiss} 
+            style={styles.closeButton}
+          >
             Cerrar
           </Button>
         </ScrollView>
@@ -222,9 +296,27 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     elevation: 2,
   },
+  unpublishedExamCard: {
+    borderWidth: 1,
+    borderColor: '#FFA500',
+    backgroundColor: '#FFFAF0',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
   examTitle: {
     fontSize: 18,
     fontWeight: 'bold',
+    flex: 1,
+  },
+  publishedChip: {
+    backgroundColor: '#E8F5E9',
+  },
+  unpublishedChip: {
+    backgroundColor: '#FFF3E0',
   },
   examDescription: {
     marginBottom: 10,
@@ -249,9 +341,13 @@ const styles = StyleSheet.create({
     marginTop: 5,
     fontStyle: 'italic',
   },
+  publishButton: {
+    marginTop: 15,
+    backgroundColor: '#E65100',
+  },
   closeButton: {
     marginTop: 20,
   },
 });
 
-export default CourseExamsModal;
+export default TeacherExamsModal;

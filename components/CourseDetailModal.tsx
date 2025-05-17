@@ -6,6 +6,8 @@ import { courseClient } from "@/lib/http";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import CourseExamsModal from "./CourseExamsModal";
+import TeacherExamsModal from "./TeacherExamsModal";
+import { useSession } from "@/contexts/session";
 
 // Tipos para la respuesta detallada del curso
 type ScheduleItem = {
@@ -76,6 +78,11 @@ type CourseDetailModalProps = {
 const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalProps) => {
   // Estado para controlar la visibilidad del modal de exámenes
   const [examModalVisible, setExamModalVisible] = useState(false);
+  const [teacherExamModalVisible, setTeacherExamModalVisible] = useState(false);
+  
+  // Obtener la sesión del usuario para verificar su rol
+  const { session } = useSession();
+  const isTeacher = session?.userType === "teacher" || session?.userType === "admin" || session?.userType === "administrator";
 
   // Consulta para obtener los detalles del curso
   const { data: courseDetail, isLoading, error, refetch } = useQuery({
@@ -281,14 +288,36 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                 </View>
               )}
               
-              <Button 
-                mode="contained" 
-                style={styles.examButton} 
-                onPress={() => setExamModalVisible(true)}
-                icon="book-open-variant"
-              >
-                Ver exámenes
-              </Button>
+              {/* Mostrar diferentes botones según el rol del usuario */}
+              {isTeacher ? (
+                <>
+                  <Button 
+                    mode="contained" 
+                    style={styles.examButton} 
+                    onPress={() => setTeacherExamModalVisible(true)}
+                    icon="book-open-variant"
+                  >
+                    Gestionar exámenes
+                  </Button>
+                  <Button 
+                    mode="outlined" 
+                    style={[styles.examButton, {backgroundColor: '#E8F5E9'}]} 
+                    onPress={() => setExamModalVisible(true)}
+                    icon="eye-outline"
+                  >
+                    Ver como estudiante
+                  </Button>
+                </>
+              ) : (
+                <Button 
+                  mode="contained" 
+                  style={styles.examButton} 
+                  onPress={() => setExamModalVisible(true)}
+                  icon="book-open-variant"
+                >
+                  Ver exámenes
+                </Button>
+              )}
               
               <Button 
                 mode="outlined" 
@@ -304,10 +333,18 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
         </ScrollView>
       </Modal>
       
-      {/* Modal para mostrar los exámenes del curso */}
+      {/* Modal para mostrar exámenes publicados (vista de estudiantes) */}
       <CourseExamsModal
         visible={examModalVisible}
         onDismiss={() => setExamModalVisible(false)}
+        courseId={courseId}
+        courseName={courseDetail?.course_name || null}
+      />
+      
+      {/* Modal para gestionar exámenes (vista de profesores) */}
+      <TeacherExamsModal
+        visible={teacherExamModalVisible}
+        onDismiss={() => setTeacherExamModalVisible(false)}
         courseId={courseId}
         courseName={courseDetail?.course_name || null}
       />

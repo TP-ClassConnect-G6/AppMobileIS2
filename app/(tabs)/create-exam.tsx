@@ -24,6 +24,7 @@ type CreateExamRequest = {
     submission_rules?: string;
   };
   owner: string;
+  published: boolean;
 };
 
 // Respuesta del servidor al crear un examen
@@ -85,6 +86,18 @@ export default function CreateExamScreen() {
   const [loading, setLoading] = useState(false);
   const [courses, setCourses] = useState<CourseItem[]>([]);
   const [fetchingCourses, setFetchingCourses] = useState(false);
+
+  // Verificar si el usuario es profesor
+  const isTeacher = session?.userType === "teacher" || session?.userType === "admin" || session?.userType === "administrator";
+  
+  // Redireccionar si no es un profesor
+  useEffect(() => {
+    if (session && !isTeacher) {
+      Alert.alert("Acceso denegado", "Solo los profesores pueden crear exámenes", [
+        { text: "OK", onPress: () => router.replace("/(tabs)/course-list") }
+      ]);
+    }
+  }, [session, isTeacher]);
 
   // Función para convertir fecha de formato DD/MM/YY a YYYY-MM-DD (para API)
   const convertToAPIDateFormat = (dateStr: string): string => {
@@ -207,6 +220,13 @@ export default function CreateExamScreen() {
       }
 
       // Preparar la solicitud - convertir la fecha de DD/MM/YY a YYYY-MM-DD para el API
+      // Verificar que el usuario sea profesor
+      if (!isTeacher) {
+        Alert.alert("Error", "Solo los profesores pueden crear exámenes");
+        setLoading(false);
+        return;
+      }
+
       const request: CreateExamRequest = {
         course_id: data.course_id,
         title: data.title,
@@ -219,7 +239,8 @@ export default function CreateExamScreen() {
           grace_period: data.grace_period || "",
           submission_rules: data.submission_rules || ""
         },
-        owner: userId
+        owner: userId,
+        published: false // Los exámenes se crean como no publicados por defecto
       };
 
       console.log("Enviando solicitud:", request);
