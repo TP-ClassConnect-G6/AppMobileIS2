@@ -21,10 +21,12 @@ type RequiredCourse = {
 
 // Respuesta del servidor al crear un curso
 type CreateCourseResponse = {
-  course_id: string;
-  name: string;
-  description: string;
-  date_init: string;
+  response: {
+    id: string;
+    name: string;
+    description: string;
+    date_init: string;
+  }
 };
 
 // Tipo para los cursos en la lista
@@ -115,11 +117,11 @@ export default function CreateCourseScreen() {
     defaultValues: {
       course_name: "",
       description: "",
-      date_init: format(startDate, "dd/MM/yy"),
-      date_end: format(endDate, "dd/MM/yy"),
+      date_init: format(startDate, "MM/dd/yy"),  // Cambiado a formato MM/dd/yy
+      date_end: format(endDate, "MM/dd/yy"),     // Cambiado a formato MM/dd/yy
       schedule: [{ day: "Monday", time: "09:00" }],
       quota: "",
-      academic_level: "Basic",
+      academic_level: "Bachelors degree",
       required_course_name: [],
     },
   });
@@ -185,11 +187,14 @@ export default function CreateCourseScreen() {
       // Enviar la solicitud al servidor
       const response = await courseClient.post("/courses", request);
       console.log("Respuesta:", response.data);
+      
+      // Extraer información de la respuesta con la nueva estructura
+      const courseData = response.data.response;
 
       // Mostrar mensaje de éxito
       Alert.alert(
         "Éxito",
-        "Curso creado exitosamente",
+        `Curso "${courseData.name}" creado exitosamente`,
         [{ text: "OK", onPress: () => {
           reset(); // Resetear el formulario
           router.push("/(tabs)/course-list"); // Redirigir a la lista de cursos
