@@ -66,7 +66,13 @@ const createExamSchema = z.object({
     .min(1, "La fecha es requerida")
     .regex(/^\d{2}\/\d{2}\/\d{2,4}$/, "El formato debe ser DD/MM/YY"),
   duration: z.string().min(1, "La duración es requerida"),
-  location: z.string().min(1, "La ubicación es requerida"),
+  location: z.string()
+    .min(1, "El número de aula es requerido")
+    .regex(/^\d+$/, "Solo debe ingresar números")
+    .refine(
+      (value) => parseInt(value) > 0,
+      "El número de aula debe ser positivo"
+    ),
   open_book: z.boolean(),
   grace_period: z.string().optional(),
   submission_rules: z.string().optional(),
@@ -207,7 +213,7 @@ export default function CreateExamScreen() {
         description: data.description,
         date: convertToAPIDateFormat(data.date), // Convertir la fecha al formato esperado por el API
         duration: parseInt(data.duration),
-        location: data.location,
+        location: `Aula ${data.location}`, // Agregar el prefijo "Aula" al número
         additional_info: {
           open_book: data.open_book,
           grace_period: data.grace_period || "",
@@ -408,18 +414,23 @@ export default function CreateExamScreen() {
             name="location"
             render={({ field: { onChange, onBlur, value } }) => (
               <TextInput
-                label="Ubicación *"
+                label="Número de Aula *"
                 value={value}
                 onChangeText={onChange}
                 onBlur={onBlur}
                 style={styles.input}
+                keyboardType="numeric"
                 error={!!errors.location}
+                placeholder="Ej: 101"
               />
             )}
           />
           {errors.location && (
             <HelperText type="error">{errors.location.message}</HelperText>
           )}
+          <HelperText type="info">
+            Ingrese solo el número del aula donde se realizará el examen
+          </HelperText>
 
           <Divider style={styles.divider} />
 
@@ -573,4 +584,5 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 10,
   },
+  // Estilos para el formulario
 });
