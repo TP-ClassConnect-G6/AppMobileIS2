@@ -40,6 +40,7 @@ type CreateExamResponse = {
   published: boolean;
   created_at: string;
   updated_at: string;
+  is_active: boolean;
 };
 
 // Tipo para la lista de cursos
@@ -59,7 +60,9 @@ const createExamSchema = z.object({
   course_id: z.string().min(1, "El curso es requerido"),
   title: z.string().min(3, "El título debe tener al menos 3 caracteres"),
   description: z.string().min(10, "La descripción debe tener al menos 10 caracteres"),
-  date: z.string().min(1, "La fecha es requerida"),
+  date: z.string()
+    .min(1, "La fecha es requerida")
+    .regex(/^\d{2}\/\d{2}\/\d{2,4}$/, "El formato debe ser DD/MM/YY"),
   duration: z.string().min(1, "La duración es requerida"),
   location: z.string().min(1, "La ubicación es requerida"),
   open_book: z.boolean(),
@@ -73,6 +76,43 @@ export default function CreateExamScreen() {
   const [courses, setCourses] = useState<CourseItem[]>([]);
   const [fetchingCourses, setFetchingCourses] = useState(false);
 
+  // Función para convertir fecha de formato DD/MM/YY a YYYY-MM-DD (para API)
+  const convertToAPIDateFormat = (dateStr: string): string => {
+    try {
+      // Dividir la fecha en partes (día, mes, año)
+      const parts = dateStr.split('/');
+      if (parts.length !== 3) return dateStr;
+      
+      const day = parts[0];
+      const month = parts[1];
+      let year = parts[2];
+      
+      // Asegurar que el año tiene 4 dígitos
+      if (year.length === 2) {
+        year = `20${year}`;
+      }
+      
+      // Crear formato YYYY-MM-DD
+      return `${year}-${month}-${day}`;
+    } catch (error) {
+      console.error("Error al convertir formato de fecha:", error);
+      return dateStr;
+    }
+  };
+
+  // Función para convertir fecha de formato YYYY-MM-DD a DD/MM/YY (para UI)
+  const convertToUIDateFormat = (dateStr: string): string => {
+    try {
+      // Crear objeto Date desde la fecha en formato YYYY-MM-DD
+      const date = new Date(dateStr);
+      // Formatear a DD/MM/YY
+      return format(date, "dd/MM/yy");
+    } catch (error) {
+      console.error("Error al convertir formato de fecha:", error);
+      return dateStr;
+    }
+  };
+
   // Configurar React Hook Form con validación Zod
   const {
     control,
@@ -85,7 +125,7 @@ export default function CreateExamScreen() {
       course_id: "",
       title: "",
       description: "",
-      date: format(new Date(), "yyyy-MM-dd"),
+      date: format(new Date(), "dd/MM/yy"), // Formato para UI: DD/MM/YY
       duration: "120",
       location: "",
       open_book: false,
@@ -154,12 +194,12 @@ export default function CreateExamScreen() {
         console.warn("No se pudo obtener el ID del usuario del token, usando valor por defecto");
       }
 
-      // Preparar la solicitud
+      // Preparar la solicitud - convertir la fecha de DD/MM/YY a YYYY-MM-DD para el API
       const request: CreateExamRequest = {
         course_id: data.course_id,
         title: data.title,
         description: data.description,
-        date: data.date,
+        date: convertToAPIDateFormat(data.date), // Convertir la fecha al formato esperado por el API
         duration: parseInt(data.duration),
         location: data.location,
         additional_info: {
@@ -173,11 +213,21 @@ export default function CreateExamScreen() {
       // Enviar la solicitud al servidor
       const response = await courseClient.post("/exams", request);
       console.log("Respuesta:", response.data);
-
-      // Mostrar mensaje de éxito
+      
+      // Obtener los datos del examen creado
+      const examData: CreateExamResponse = response.data;
+      
+      // La fecha ya viene en formato API (YYYY-MM-DD), la convertimos a formato amigable DD/MM/YYYY
+      const examDate = new Date(examData.date);
+      const formattedDate = format(examDate, "dd/MM/yyyy");
+      
+      // Encontrar el nombre del curso
+      const courseName = courses.find(c => c.course_id === data.course_id)?.course_name || "el curso seleccionado";
+      
+      // Mostrar mensaje de éxito con más detalles
       Alert.alert(
-        "Éxito",
-        "Examen creado exitosamente",
+        "Examen Creado",
+        `"${examData.title}" para ${courseName} ha sido creado exitosamente.\n\nFecha: ${formattedDate}\nDuración: ${examData.duration} minutos\nUbicación: ${examData.location}`,
         [{ text: "OK", onPress: () => {
           reset(); // Resetear el formulario
           router.push("/(tabs)/course-list"); // Redirigir a la lista de cursos
@@ -297,18 +347,19 @@ export default function CreateExamScreen() {
             name="date"
             render={({ field: { onChange, value } }) => (
               <TextInput
-                label="Fecha del Examen (YYYY-MM-DD) *"
+                label="Fecha del Examen (DD/MM/YY) *"
                 value={value}
                 onChangeText={onChange}
                 style={styles.input}
                 error={!!errors.date}
-                placeholder="YYYY-MM-DD"
+                placeholder="DD/MM/YY"
               />
             )}
           />
           {errors.date && (
             <HelperText type="error">{errors.date.message}</HelperText>
           )}
+          <HelperText type="info">Formato: día/mes/año (DD/MM/YY). Ejemplo: 01/06/25</HelperText>
 
           {/* Duración */}
           <Controller
