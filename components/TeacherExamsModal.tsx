@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { courseClient } from "@/lib/http";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import EditExamModal from "./EditExamModal";
 
 // Tipo para los exámenes
 type Exam = {
@@ -68,6 +69,8 @@ type TeacherExamsModalProps = {
 const TeacherExamsModal = ({ visible, onDismiss, courseId, courseName }: TeacherExamsModalProps) => {
   const queryClient = useQueryClient();
   const [publishingExamId, setPublishingExamId] = useState<string | null>(null);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [selectedExam, setSelectedExam] = useState<Exam | null>(null);
 
   // Consulta para obtener los exámenes del curso (todos para los profesores)
   const { data: exams, isLoading, error, refetch } = useQuery({
@@ -207,6 +210,19 @@ const TeacherExamsModal = ({ visible, onDismiss, courseId, courseName }: Teacher
                       </View>
                     )}
                     
+                    {/* Botón para editar el examen */}
+                    <Button 
+                      mode="outlined" 
+                      style={styles.editButton}
+                      icon="pencil"
+                      onPress={() => {
+                        setSelectedExam(exam);
+                        setEditModalVisible(true);
+                      }}
+                    >
+                      Editar examen
+                    </Button>
+                    
                     {/* Botón de publicar, solo para exámenes no publicados */}
                     {!exam.published && (
                       <Button 
@@ -234,6 +250,14 @@ const TeacherExamsModal = ({ visible, onDismiss, courseId, courseName }: Teacher
           </Button>
         </ScrollView>
       </Modal>
+
+      {/* Modal de edición de examen */}
+      <EditExamModal
+        visible={editModalVisible}
+        onDismiss={() => setEditModalVisible(false)}
+        exam={selectedExam}
+        courseId={courseId}
+      />
     </Portal>
   );
 };
@@ -341,8 +365,12 @@ const styles = StyleSheet.create({
     marginTop: 5,
     fontStyle: 'italic',
   },
-  publishButton: {
+  editButton: {
     marginTop: 15,
+    marginBottom: 8,
+  },
+  publishButton: {
+    marginTop: 8,
     backgroundColor: '#E65100',
   },
   closeButton: {
