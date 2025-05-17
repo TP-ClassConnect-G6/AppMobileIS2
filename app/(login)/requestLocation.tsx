@@ -50,7 +50,6 @@ export default function RequestLocationScreen() {
         locationString = `${currentLocation.coords.latitude}, ${currentLocation.coords.longitude}`;
       }
       
-      // ToDo: Enviar solo el string de ubicación en lugar del objeto con coordenadas
       const response = await client.patch("/profile", {
         location: locationString || "Ubicación desconocida"
       });
