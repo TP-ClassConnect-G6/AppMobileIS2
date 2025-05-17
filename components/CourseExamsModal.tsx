@@ -27,17 +27,17 @@ type Exam = {
   is_active: boolean;
 };
 
-// Función para obtener los exámenes de un curso específico (solo publicados para estudiantes)
+// Función para obtener los exámenes de un curso específico (solo publicados y activos para estudiantes)
 const fetchCourseExams = async (courseId: string): Promise<Exam[]> => {
   try {
     const response = await courseClient.get(`/exams/course/${courseId}`);
     console.log("API exams response (student view):", JSON.stringify(response.data, null, 2));
     
     if (Array.isArray(response.data)) {
-      // Filtrar exámenes para mostrar solo los publicados a los estudiantes
-      const publishedExams = response.data.filter((exam: Exam) => exam.published === true);
-      console.log(`Mostrando ${publishedExams.length} de ${response.data.length} exámenes (solo publicados)`);
-      return publishedExams;
+      // Filtrar exámenes para mostrar solo los publicados y activos a los estudiantes
+      const validExams = response.data.filter((exam: Exam) => exam.published === true && exam.is_active === true);
+      console.log(`Mostrando ${validExams.length} de ${response.data.length} exámenes (solo publicados y activos)`);
+      return validExams;
     } else {
       console.warn('Formato de respuesta inesperado para exámenes:', response.data);
       return [];
@@ -87,7 +87,7 @@ const CourseExamsModal = ({ visible, onDismiss, courseId, courseName }: CourseEx
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <Title style={styles.title}>{courseName ? `Exámenes de ${courseName}` : 'Exámenes del Curso'}</Title>
-          <Text style={styles.subtitle}>Se muestran solo exámenes publicados</Text>
+          <Text style={styles.subtitle}>Se muestran solo exámenes publicados y activos</Text>
           <Divider style={styles.divider} />
 
           {isLoading ? (
@@ -105,7 +105,7 @@ const CourseExamsModal = ({ visible, onDismiss, courseId, courseName }: CourseEx
           ) : !exams || exams.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyText}>
-                No hay exámenes publicados para este curso.
+                No hay exámenes publicados y activos para este curso.
               </Text>
             </View>
           ) : (

@@ -192,7 +192,7 @@ const TeacherExamsModal = ({ visible, onDismiss, courseId, courseName }: Teacher
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <Title style={styles.title}>{courseName ? `Exámenes de ${courseName}` : 'Exámenes del Curso'}</Title>
-          <Text style={styles.subtitle}>Vista de profesor - Todos los exámenes</Text>
+          <Text style={styles.subtitle}>Vista de profesor - Exámenes activos</Text>
           <Divider style={styles.divider} />
 
           {isLoading ? (
@@ -211,9 +211,13 @@ const TeacherExamsModal = ({ visible, onDismiss, courseId, courseName }: Teacher
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyText}>No hay exámenes para este curso.</Text>
             </View>
+          ) : exams.filter(exam => exam.is_active).length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No hay exámenes activos para este curso.</Text>
+            </View>
           ) : (
             <View>
-              {exams.map((exam) => (
+              {exams.filter(exam => exam.is_active).map((exam) => (
                 <Card key={exam.id} style={[styles.examCard, !exam.published && styles.unpublishedExamCard]}>
                   <Card.Content>
                     <View style={styles.headerRow}>
