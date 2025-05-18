@@ -306,80 +306,94 @@ export default function CourseListScreen() {
         </View>
       </Card.Content>
 
-      <Card.Actions>
-        <Button 
-          mode="contained"          disabled={item.message === "Enrolled in course" || item.message === "enrolled in course" || item.quota === 0}
-          style={(item.message === "Enrolled in course" || item.message === "enrolled in course") ? styles.enrolledButton : {}}
-          onPress={() => {
-            // Verificar que el usuario está logueado
-            if (!session) {
-              Alert.alert("Error", "Necesitas iniciar sesión para inscribirte en este curso");
-              return;
-            }
+      <Card.Actions style={styles.cardActions}>
+        {/* Botón de inscripción, solo visible para estudiantes */}
+        {!isTeacher && (
+          <Button 
+            mode="contained"
+            disabled={item.message === "Enrolled in course" || item.message === "enrolled in course" || item.quota === 0}
+            style={[(item.message === "Enrolled in course" || item.message === "enrolled in course") ? styles.enrolledButton : {}, { width: '100%', marginBottom: 8 }]}
+            labelStyle={styles.buttonLabel}
+            contentStyle={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 12 }}
+            icon="account-check-outline"
+            onPress={() => {
+              // Verificar que el usuario está logueado
+              if (!session) {
+                Alert.alert("Error", "Necesitas iniciar sesión para inscribirte en este curso");
+                return;
+              }
 
-            // Obtener el email del usuario desde la sesión
-            let userEmail = session.userId;
-            // El nivel académico se puede pedir al usuario o usar un valor predeterminado
-            // Usaremos "Primary School" como nivel académico predeterminado o el del curso si está disponible
-            const academicLevel = item.academic_level || "Primary School";
+              // Obtener el email del usuario desde la sesión
+              let userEmail = session.userId;
+              // El nivel académico se puede pedir al usuario o usar un valor predeterminado
+              // Usaremos "Primary School" como nivel académico predeterminado o el del curso si está disponible
+              const academicLevel = item.academic_level || "Primary School";
 
-            Alert.alert(
-              "Confirmar inscripción",
-              `¿Estás seguro de que deseas inscribirte en el curso "${item.course_name}"?`,
-              [
-                { text: "Cancelar", style: "cancel" },
-                { 
-                  text: "Inscribirse", 
-                  onPress: async () => {                    try {
-                      const response = await registerInCourse(item.course_id, userEmail, academicLevel);
-                      // Acceder a los datos de la respuesta de forma segura
-                      const courseName = response.response?.course_name || item.course_name;
-                      const courseStart = response.response?.course_date_init || item.date_init;
-                      
-                      Alert.alert(
-                        "Inscripción exitosa", 
-                        `Te has inscrito correctamente en el curso "${courseName}". \nFecha de inicio: ${formatDate(courseStart)}`
-                      );
-                      // Refrescar la lista para mostrar cambios en el curso (como los cupos disponibles)
-                      refetch();
-                    } catch (error: any) {
-                      console.error("Error al inscribirse en el curso:", error);
-                      
-                      let errorMessage = "No se pudo completar la inscripción. Inténtalo de nuevo.";
-                      
-                      if (error.response) {
-                        if (error.response.status === 400) {
-                          errorMessage = "No se pudo inscribir. Verifica que cumplas con todos los requisitos del curso.";
-                        } else if (error.response.status === 409) {
-                          errorMessage = "Ya estás inscrito en este curso.";
-                        } else if (error.response.data && error.response.data.message) {
-                          errorMessage = error.response.data.message;
+              Alert.alert(
+                "Confirmar inscripción",
+                `¿Estás seguro de que deseas inscribirte en el curso "${item.course_name}"?`,
+                [
+                  { text: "Cancelar", style: "cancel" },
+                  { 
+                    text: "Inscribirse", 
+                    onPress: async () => {                    try {
+                        const response = await registerInCourse(item.course_id, userEmail, academicLevel);
+                        // Acceder a los datos de la respuesta de forma segura
+                        const courseName = response.response?.course_name || item.course_name;
+                        const courseStart = response.response?.course_date_init || item.date_init;
+                        
+                        Alert.alert(
+                          "Inscripción exitosa", 
+                          `Te has inscrito correctamente en el curso "${courseName}". \nFecha de inicio: ${formatDate(courseStart)}`
+                        );
+                        // Refrescar la lista para mostrar cambios en el curso (como los cupos disponibles)
+                        refetch();
+                      } catch (error: any) {
+                        console.error("Error al inscribirse en el curso:", error);
+                        
+                        let errorMessage = "No se pudo completar la inscripción. Inténtalo de nuevo.";
+                        
+                        if (error.response) {
+                          if (error.response.status === 400) {
+                            errorMessage = "No se pudo inscribir. Verifica que cumplas con todos los requisitos del curso.";
+                          } else if (error.response.status === 409) {
+                            errorMessage = "Ya estás inscrito en este curso.";
+                          } else if (error.response.data && error.response.data.message) {
+                            errorMessage = error.response.data.message;
+                          }
                         }
+                        
+                        Alert.alert("Error", errorMessage);
                       }
-                      
-                      Alert.alert("Error", errorMessage);
                     }
                   }
-                }
-              ]
-            );
-          }}        >
-          {(item.message === "enrolled in course" || item.message === "Enrolled in course") ? "Ya inscrito" : "Inscribirse"}
-        </Button>
+                ]
+              );
+            }}        >
+            {(item.message === "enrolled in course" || item.message === "Enrolled in course") ? "Ya inscrito" : "Inscribirse"}
+          </Button>
+        )}
+        {/* Botón de Más Información - siempre visible */}
         <Button 
           onPress={() => {
             setSelectedCourseId(item.course_id);
             setDetailModalVisible(true);
           }}
+          style={{ width: '100%', marginBottom: 8 }}
+          labelStyle={styles.buttonLabel}
+          contentStyle={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 12 }}
+          icon="information-outline"
         >
           Más información
         </Button>
         {isTeacher && (
-          <>
+          <View style={styles.teacherButtonsContainer}>
             <Button 
               mode="outlined" 
               icon="pencil"
-              style={styles.actionButton}
+              style={[styles.actionButton, styles.actionButtonFlex]}
+              labelStyle={styles.buttonLabel}
+              contentStyle={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 12 }}
               onPress={() => {
                 setSelectedCourse(item);
                 setEditModalVisible(true);
@@ -390,12 +404,14 @@ export default function CourseListScreen() {
             <Button 
               mode="outlined" 
               icon="delete"
-              style={[styles.actionButton, styles.deleteButton]}
+              style={[styles.actionButton, styles.deleteButton, styles.actionButtonFlex]}
+              labelStyle={styles.buttonLabel}
+              contentStyle={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 12 }}
               onPress={() => handleDeleteCourse(item.course_id, item.course_name)}
             >
               Eliminar
             </Button>
-          </>
+          </View>
         )}
       </Card.Actions>
     </Card>
@@ -679,8 +695,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   actionButton: {
-    marginLeft: 1,
-
+    marginHorizontal: 4,
+    paddingHorizontal: 8,
+    minWidth: 100,
   },
   deleteButton: {
     backgroundColor: "#ffebee",
@@ -688,5 +705,33 @@ const styles = StyleSheet.create({
   },
   enrolledButton: {
     backgroundColor: "#e0e0e0",
+  },
+  cardActions: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    justifyContent: 'flex-start',
+    padding: 10,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    borderRadius: 0,
+    elevation: 0,
+  },
+  actionButtonFlex: {
+    flex: 1,
+    marginHorizontal: 4,
+    marginVertical: 4,
+  },
+  buttonLabel: {
+    fontSize: 14,  // Tamaño de fuente más grande
+    marginHorizontal: 4,
+    paddingLeft: 8,  // Espacio adicional para evitar que se pise con los iconos
+  },
+  teacherButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginTop: 0,
+    gap: 8,
   },
 });
