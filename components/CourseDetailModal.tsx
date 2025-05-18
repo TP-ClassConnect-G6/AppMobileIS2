@@ -6,6 +6,7 @@ import { courseClient } from "@/lib/http";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import CourseExamsModal from "./CourseExamsModal";
+import CourseTasksModal from "./CourseTasksModal";
 import TeacherExamsModal from "./TeacherExamsModal";
 import TeacherTasksModal from "./TeacherTasksModal";
 import { useSession } from "@/contexts/session";
@@ -78,6 +79,7 @@ type CourseDetailModalProps = {
 
 const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalProps) => {  // Estado para controlar la visibilidad del modal de exámenes
   const [examModalVisible, setExamModalVisible] = useState(false);
+  const [taskModalVisible, setTaskModalVisible] = useState(false);
   const [teacherExamModalVisible, setTeacherExamModalVisible] = useState(false);
   const [teacherTaskModalVisible, setTeacherTaskModalVisible] = useState(false);
   const [isEnrolled, setIsEnrolled] = useState(false);
@@ -356,19 +358,28 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                   >
                     Ver como estudiante
                   </Button>
+                </>              ) : isEnrolled ? (
+                <>
+                  <Button 
+                    mode="contained" 
+                    style={styles.examButton} 
+                    onPress={() => setExamModalVisible(true)}
+                    icon="book-open-variant"
+                  >
+                    Ver exámenes
+                  </Button>
+                  <Button 
+                    mode="contained" 
+                    style={[styles.examButton, {backgroundColor: '#7B1FA2'}]} 
+                    onPress={() => setTaskModalVisible(true)}
+                    icon="clipboard-text"
+                  >
+                    Ver tareas
+                  </Button>
                 </>
-              ) : isEnrolled ? (
-                <Button 
-                  mode="contained" 
-                  style={styles.examButton} 
-                  onPress={() => setExamModalVisible(true)}
-                  icon="book-open-variant"
-                >
-                  Ver exámenes
-                </Button>
               ) : (
                 <Text style={styles.notEnrolledText}>
-                  Debes estar inscrito en el curso para ver los exámenes
+                  Debes estar inscrito en el curso para ver exámenes y tareas
                 </Text>
               )}
               
@@ -400,11 +411,18 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
         courseId={courseId}
         courseName={courseDetail?.course_name || null}
       />
-      
-      {/* Modal para gestionar tareas (vista de profesores) */}
+        {/* Modal para gestionar tareas (vista de profesores) */}
       <TeacherTasksModal
         visible={teacherTaskModalVisible}
         onDismiss={() => setTeacherTaskModalVisible(false)}
+        courseId={courseId}
+        courseName={courseDetail?.course_name || null}
+      />
+
+      {/* Modal para mostrar tareas publicadas (vista de estudiantes) */}
+      <CourseTasksModal
+        visible={taskModalVisible}
+        onDismiss={() => setTaskModalVisible(false)}
         courseId={courseId}
         courseName={courseDetail?.course_name || null}
       />
