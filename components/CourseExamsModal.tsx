@@ -30,7 +30,7 @@ type Exam = {
 // Función para obtener los exámenes de un curso específico (solo publicados y activos para estudiantes)
 const fetchCourseExams = async (courseId: string): Promise<Exam[]> => {
   try {
-    const response = await courseClient.get(`/exams/course/${courseId}`);
+    const response = await courseClient.get(`/course/${courseId}/exams`);
     console.log("API exams response (student view):", JSON.stringify(response.data, null, 2));
     
     if (Array.isArray(response.data)) {
