@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import CourseExamsModal from "./CourseExamsModal";
 import TeacherExamsModal from "./TeacherExamsModal";
+import TeacherTasksModal from "./TeacherTasksModal";
 import { useSession } from "@/contexts/session";
 
 // Tipos para la respuesta detallada del curso
@@ -78,6 +79,7 @@ type CourseDetailModalProps = {
 const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalProps) => {  // Estado para controlar la visibilidad del modal de exámenes
   const [examModalVisible, setExamModalVisible] = useState(false);
   const [teacherExamModalVisible, setTeacherExamModalVisible] = useState(false);
+  const [teacherTaskModalVisible, setTeacherTaskModalVisible] = useState(false);
   const [isEnrolled, setIsEnrolled] = useState(false);
   
   // Obtener la sesión del usuario para verificar su rol
@@ -328,7 +330,6 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                   ))}
                 </View>
               )}
-                {/* Mostrar diferentes botones según el rol del usuario y estado de inscripción */}
               {isTeacher ? (
                 <>
                   <Button 
@@ -338,6 +339,14 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                     icon="book-open-variant"
                   >
                     Gestionar exámenes
+                  </Button>
+                  <Button 
+                    mode="contained" 
+                    style={[styles.examButton, {backgroundColor: '#7B1FA2'}]} 
+                    onPress={() => setTeacherTaskModalVisible(true)}
+                    icon="clipboard-text"
+                  >
+                    Gestionar tareas
                   </Button>
                   <Button 
                     mode="outlined" 
@@ -384,11 +393,18 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
         courseId={courseId}
         courseName={courseDetail?.course_name || null}
       />
-      
-      {/* Modal para gestionar exámenes (vista de profesores) */}
+        {/* Modal para gestionar exámenes (vista de profesores) */}
       <TeacherExamsModal
         visible={teacherExamModalVisible}
         onDismiss={() => setTeacherExamModalVisible(false)}
+        courseId={courseId}
+        courseName={courseDetail?.course_name || null}
+      />
+      
+      {/* Modal para gestionar tareas (vista de profesores) */}
+      <TeacherTasksModal
+        visible={teacherTaskModalVisible}
+        onDismiss={() => setTeacherTaskModalVisible(false)}
         courseId={courseId}
         courseName={courseDetail?.course_name || null}
       />
