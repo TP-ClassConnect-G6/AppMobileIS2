@@ -169,14 +169,21 @@ const CourseTasksModal = ({ visible, onDismiss, courseId, courseName }: CourseTa
       return dateString;
     }
   };
-
   // Verificar si una tarea está vencida
   const isTaskOverdue = (dueDate: string): boolean => {
     try {
+      // Obtener la fecha actual y establecer horas, minutos, segundos y ms a cero
       const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      
+      // Convertir la fecha de entrega a objeto Date y establecer horas, minutos, segundos y ms a cero
       const due = new Date(dueDate);
+      due.setHours(0, 0, 0, 0);
+      
+      // Comparar si la fecha actual es mayor que la fecha de entrega
       return now > due;
     } catch (e) {
+      console.error('Error al verificar si la tarea está vencida:', e);
       return false;
     }
   };
