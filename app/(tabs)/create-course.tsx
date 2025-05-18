@@ -67,13 +67,13 @@ const requiredCourseSchema = z.object({
 });
 
 const createCourseSchema = z.object({
-  course_name: z.string().min(3, "El nombre del curso debe tener al menos 3 caracteres"),
-  description: z.string().min(10, "La descripción debe tener al menos 10 caracteres"),
-  date_init: z.string().min(1, "La fecha de inicio es requerida"),
-  date_end: z.string().min(1, "La fecha de fin es requerida"),
+  course_name: z.string().min(3, "El nombre del curso debe tener al menos 3 caracteres").nonempty("El nombre del curso es obligatorio"),
+  description: z.string().min(10, "La descripción debe tener al menos 10 caracteres").nonempty("La descripción es obligatoria"),
+  date_init: z.string().min(1, "La fecha de inicio es requerida").nonempty("La fecha de inicio es obligatoria"),
+  date_end: z.string().min(1, "La fecha de fin es requerida").nonempty("La fecha de fin es obligatoria"),
   schedule: z.array(scheduleItemSchema).min(1, "Debe agregar al menos un horario"),
-  quota: z.string().min(1, "El cupo es requerido"),
-  academic_level: z.string().min(1, "El nivel académico es requerido"),
+  quota: z.string().min(1, "El cupo es requerido").nonempty("El cupo máximo es obligatorio"),
+  academic_level: z.string().min(1, "El nivel académico es requerido").nonempty("El nivel académico es obligatorio"),
   required_course_name: z.array(requiredCourseSchema),
 });
 
@@ -116,11 +116,15 @@ export default function CreateCourseScreen() {
   const {
     control,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isSubmitting },
     setValue,
     watch,
     reset,
-  } = useForm<FormValues>({        defaultValues: {
+    trigger,
+    setError,
+    clearErrors,
+  } = useForm<FormValues>({
+    defaultValues: {
       course_name: "",
       description: "",
       date_init: format(startDate, "dd/MM/yy"),  // Formato argentino para la UI
@@ -130,6 +134,7 @@ export default function CreateCourseScreen() {
       academic_level: "Bachelors degree",
       required_course_name: [],
     },
+    mode: "onChange", // Validar cambios en tiempo real
   });
 
   // Configurar Field Array para horarios
@@ -153,30 +158,147 @@ export default function CreateCourseScreen() {
   });
 
   // Función para convertir fecha de formato DD/MM/YY a MM/DD/YY
-  const convertDateFormat = (dateStr: string): string => {
+  const convertDateFormat = (dateStr: string): string | null => {
     try {
-      // Dividir la fecha en partes (día, mes, año)
-      const parts = dateStr.split('/');
-      if (parts.length !== 3) return dateStr;
+      // Primero validar el formato con una expresión regular
+      const dateRegex = /^(\d{2})\/(\d{2})\/(\d{2})$/;
+      const match = dateStr.match(dateRegex);
+      
+      if (!match) {
+        console.error("Formato de fecha incorrecto:", dateStr);
+        return null;
+      }
+      
+      // Extraer día, mes y año
+      const day = match[1];
+      const month = match[2];
+      const year = match[3];
+      
+      // Validar rangos lógicos para día y mes
+      const dayNum = parseInt(day, 10);
+      const monthNum = parseInt(month, 10);
+      
+      if (dayNum < 1 || dayNum > 31) {
+        console.error("Día inválido:", day);
+        return null;
+      }
+      
+      if (monthNum < 1 || monthNum > 12) {
+        console.error("Mes inválido:", month);
+        return null;
+      }
       
       // Reorganizar las partes para formato MM/DD/YY
-      return `${parts[1]}/${parts[0]}/${parts[2]}`;
+      return `${month}/${day}/${year}`;
     } catch (error) {
       console.error("Error al convertir formato de fecha:", error);
-      return dateStr;
+      return null;
     }
+  };
+
+  // Función para validar manualmente los campos obligatorios
+  const validateRequiredFields = (data: FormValues) => {
+    // Lista para almacenar campos que faltan
+    const missingFields: string[] = [];
+    
+    // Verificar cada campo obligatorio
+    if (!data.course_name || data.course_name.trim() === '') {
+      missingFields.push("Nombre del curso");
+    } else if (data.course_name.length < 3) {
+      missingFields.push("El nombre del curso debe tener al menos 3 caracteres");
+    }
+    
+    if (!data.description || data.description.trim() === '') {
+      missingFields.push("Descripción");
+    } else if (data.description.length < 10) {
+      missingFields.push("La descripción debe tener al menos 10 caracteres");
+    }
+    
+    // Validar formato de fecha (DD/MM/YY)
+    const dateRegex = /^\d{2}\/\d{2}\/\d{2}$/;
+    
+    if (!data.date_init || data.date_init.trim() === '') {
+      missingFields.push("Fecha de inicio");
+    } else if (!dateRegex.test(data.date_init.trim())) {
+      missingFields.push("Fecha de inicio debe tener formato DD/MM/YY");
+    }
+    
+    if (!data.date_end || data.date_end.trim() === '') {
+      missingFields.push("Fecha de fin");
+    } else if (!dateRegex.test(data.date_end.trim())) {
+      missingFields.push("Fecha de fin debe tener formato DD/MM/YY");
+    }
+    
+    if (!data.quota || data.quota.trim() === '') {
+      missingFields.push("Cupo máximo");
+    } else if (isNaN(Number(data.quota)) || Number(data.quota) <= 0) {
+      missingFields.push("Cupo máximo debe ser un número positivo");
+    }
+    
+    if (!data.academic_level || data.academic_level.trim() === '') {
+      missingFields.push("Nivel académico");
+    }
+    
+    if (!data.schedule || data.schedule.length === 0) {
+      missingFields.push("Al menos un horario");
+    } else {
+      // Verificar que cada horario tenga día y hora
+      data.schedule.forEach((item, index) => {
+        if (!item.day || item.day.trim() === '') {
+          missingFields.push(`Día en el horario ${index + 1}`);
+        }
+        if (!item.time || item.time.trim() === '') {
+          missingFields.push(`Hora en el horario ${index + 1}`);
+        } else {
+          // Validar formato de hora (HH:MM)
+          const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+          if (!timeRegex.test(item.time.trim())) {
+            missingFields.push(`Formato de hora incorrecto en horario ${index + 1} (use HH:MM)`);
+          }
+        }
+      });
+    }
+    
+    return missingFields;
   };
 
   // Función para crear un nuevo curso
   const onSubmit = async (data: FormValues) => {
     setLoading(true);
-
-    // Comprobar si el usuario está autenticado y tiene el rol adecuado
-    if (!session) {
-      Alert.alert("Error", "Necesitas iniciar sesión");
+    
+    try {
+      // Primero ejecutar la validación de React Hook Form
+      const isFormValid = await trigger();
+      
+      if (!isFormValid) {
+        Alert.alert(
+          "Campos obligatorios",
+          "Por favor, completa todos los campos obligatorios marcados con *"
+        );
+        return;
+      }
+      
+      // Validación manual adicional
+      const missingFields = validateRequiredFields(data);
+      
+      if (missingFields.length > 0) {
+        Alert.alert(
+          "Campos obligatorios",
+          `Por favor, completa los siguientes campos:\n${missingFields.map(field => `- ${field}`).join('\n')}`
+        );
+        return;
+      }
+      
+      // Comprobar si el usuario está autenticado y tiene el rol adecuado
+      if (!session) {
+        Alert.alert("Error", "Necesitas iniciar sesión");
+        return;
+      }
+    } finally {
       setLoading(false);
-      return;
     }
+    
+    setLoading(true);
 
     try {
       // Extraer el email del token JWT
@@ -196,6 +318,13 @@ export default function CreateCourseScreen() {
         return;
       }
 
+      // Verificar una última vez los campos críticos
+      const dateRegex = /^\d{2}\/\d{2}\/\d{2}$/;
+      if (!dateRegex.test(data.date_init.trim()) || !dateRegex.test(data.date_end.trim())) {
+        Alert.alert("Formato incorrecto", "Las fechas deben tener formato DD/MM/YY");
+        return;
+      }
+      
       // Preparar la solicitud con las fechas convertidas al formato esperado por el backend (MM/DD/YY)
       // También ajustamos los cursos requeridos para usar solo el nombre
       const processedData = {
@@ -205,12 +334,21 @@ export default function CreateCourseScreen() {
         }))
       };
       
+      // Convertir y validar las fechas antes de enviar
+      const convertedDateInit = convertDateFormat(data.date_init);
+      const convertedDateEnd = convertDateFormat(data.date_end);
+      
+      if (!convertedDateInit || !convertedDateEnd) {
+        Alert.alert("Error de formato", "Las fechas tienen formato incorrecto. Utiliza DD/MM/YY");
+        return;
+      }
+      
       const request: CreateCourseRequest = {
         user_login: userEmail, // Usar el email como user_login
         role: session.userType,
         ...processedData,
-        date_init: convertDateFormat(data.date_init), // Convertir formato para el backend
-        date_end: convertDateFormat(data.date_end),   // Convertir formato para el backend
+        date_init: convertedDateInit, // Fecha ya convertida
+        date_end: convertedDateEnd,   // Fecha ya convertida
       };
 
       console.log("Enviando solicitud:", request);
@@ -239,10 +377,22 @@ export default function CreateCourseScreen() {
         // El servidor respondió con un código de error
         const status = error.response.status;
         let message = "Error al crear el curso";
+        
+        // Verificar una vez más los campos obligatorios antes de mostrar errores específicos
+        const missingFields = validateRequiredFields(data);
+        if (missingFields.length > 0) {
+          // Prioritariamente mostrar errores de campos obligatorios
+          Alert.alert(
+            "Campos obligatorios",
+            `Por favor, completa los siguientes campos:\n${missingFields.map(field => `- ${field}`).join('\n')}`
+          );
+          return;
+        }
 
+        // Sólo después de verificar que no faltan campos, mostrar errores específicos
         switch (status) {
           case 400:
-            message = "Faltan datos requeridos";
+            message = "Faltan datos requeridos o están en formato incorrecto. Por favor, verifica todos los campos.";
             break;
           case 403:
             message = "No tienes permisos para crear cursos";
@@ -251,6 +401,7 @@ export default function CreateCourseScreen() {
             message = "Curso requerido no encontrado";
             break;
           case 409:
+            // Este código sólo debe mostrarse cuando realmente hay un conflicto de nombre
             message = "Ya existe un curso con este nombre, intenta con otro";
             break;
           default:
@@ -336,6 +487,23 @@ export default function CreateCourseScreen() {
         <Card.Content>
           <Title style={styles.title}>Crear Nuevo Curso</Title>
           
+          {/* Mensaje de error global */}
+          {Object.keys(errors).length > 0 && (
+            <View style={styles.errorSummary}>
+              <Text style={styles.errorSummaryText}>
+                Por favor completa todos los campos obligatorios (marcados con *)
+              </Text>
+              {/* Mostrar lista de errores específicos */}
+              <View style={styles.errorList}>
+                {Object.entries(errors).map(([fieldName, error]: [string, any]) => (
+                  <Text key={fieldName} style={styles.errorItem}>
+                    • {error.message || `Error en ${fieldName.replace('_', ' ')}`}
+                  </Text>
+                ))}
+              </View>
+            </View>
+          )}
+          
           {/* Nombre del curso */}
           <Controller
             control={control}
@@ -344,10 +512,29 @@ export default function CreateCourseScreen() {
               <TextInput
                 label="Nombre del Curso *"
                 value={value}
-                onChangeText={onChange}
-                onBlur={onBlur}
-                style={styles.input}
+                onChangeText={(text) => {
+                  onChange(text);
+                  if (text.trim().length >= 3) {
+                    // Limpiar error cuando el campo es válido
+                    clearErrors("course_name");
+                  }
+                }}
+                onBlur={() => {
+                  onBlur();
+                  // Validar al perder el foco
+                  if (!value || value.trim().length < 3) {
+                    setError("course_name", {
+                      type: "manual",
+                      message: !value ? "El nombre del curso es requerido" : "El nombre debe tener al menos 3 caracteres"
+                    });
+                  }
+                }}
+                style={[styles.input, !!errors.course_name && styles.inputError]}
                 error={!!errors.course_name}
+                right={
+                  value && value.trim().length >= 3 ? 
+                  <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                }
               />
             )}
           />
@@ -363,12 +550,29 @@ export default function CreateCourseScreen() {
               <TextInput
                 label="Descripción *"
                 value={value}
-                onChangeText={onChange}
-                onBlur={onBlur}
-                style={styles.input}
+                onChangeText={(text) => {
+                  onChange(text);
+                  if (text.trim().length >= 10) {
+                    clearErrors("description");
+                  }
+                }}
+                onBlur={() => {
+                  onBlur();
+                  if (!value || value.trim().length < 10) {
+                    setError("description", {
+                      type: "manual",
+                      message: !value ? "La descripción es requerida" : "La descripción debe tener al menos 10 caracteres"
+                    });
+                  }
+                }}
+                style={[styles.input, !!errors.description && styles.inputError]}
                 multiline
                 numberOfLines={3}
                 error={!!errors.description}
+                right={
+                  value && value.trim().length >= 10 ? 
+                  <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                }
               />
             )}
           />
@@ -389,10 +593,30 @@ export default function CreateCourseScreen() {
                     onChangeText={(text) => {
                       onChange(text);
                       handleDateManualInput('start', text);
+                      
+                      // Validar formato mientras se escribe
+                      const dateRegex = /^\d{2}\/\d{2}\/\d{2}$/;
+                      if (text && text.trim() !== '' && dateRegex.test(text.trim())) {
+                        clearErrors("date_init");
+                      }
                     }}
-                    style={styles.input}
+                    onBlur={() => {
+                      // Validar al perder el foco
+                      const dateRegex = /^\d{2}\/\d{2}\/\d{2}$/;
+                      if (!value || value.trim() === '' || !dateRegex.test(value.trim())) {
+                        setError("date_init", {
+                          type: "manual",
+                          message: !value ? "La fecha de inicio es requerida" : "Formato incorrecto, use DD/MM/YY"
+                        });
+                      }
+                    }}
+                    style={[styles.input, !!errors.date_init && styles.inputError]}
                     error={!!errors.date_init}
                     placeholder="DD/MM/YY"
+                    right={
+                      value && /^\d{2}\/\d{2}\/\d{2}$/.test(value.trim()) ? 
+                      <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                    }
                   />
                 )}
               />
@@ -413,10 +637,30 @@ export default function CreateCourseScreen() {
                     onChangeText={(text) => {
                       onChange(text);
                       handleDateManualInput('end', text);
+                      
+                      // Validar formato mientras se escribe
+                      const dateRegex = /^\d{2}\/\d{2}\/\d{2}$/;
+                      if (text && text.trim() !== '' && dateRegex.test(text.trim())) {
+                        clearErrors("date_end");
+                      }
                     }}
-                    style={styles.input}
+                    onBlur={() => {
+                      // Validar al perder el foco
+                      const dateRegex = /^\d{2}\/\d{2}\/\d{2}$/;
+                      if (!value || value.trim() === '' || !dateRegex.test(value.trim())) {
+                        setError("date_end", {
+                          type: "manual",
+                          message: !value ? "La fecha de fin es requerida" : "Formato incorrecto, use DD/MM/YY"
+                        });
+                      }
+                    }}
+                    style={[styles.input, !!errors.date_end && styles.inputError]}
                     error={!!errors.date_end}
                     placeholder="DD/MM/YY"
+                    right={
+                      value && /^\d{2}\/\d{2}\/\d{2}$/.test(value.trim()) ? 
+                      <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                    }
                   />
                 )}
               />
@@ -434,11 +678,34 @@ export default function CreateCourseScreen() {
               <TextInput
                 label="Cupo máximo *"
                 value={value}
-                onChangeText={onChange}
-                onBlur={onBlur}
-                style={styles.input}
+                onChangeText={(text) => {
+                  // Asegurar que solo acepte números
+                  if (text === '' || /^\d+$/.test(text)) {
+                    onChange(text);
+                    
+                    // Limpiar error si el valor es válido
+                    if (text && parseInt(text, 10) > 0) {
+                      clearErrors("quota");
+                    }
+                  }
+                }}
+                onBlur={() => {
+                  onBlur();
+                  // Validar al perder el foco
+                  if (!value || value.trim() === '' || isNaN(parseInt(value, 10)) || parseInt(value, 10) <= 0) {
+                    setError("quota", {
+                      type: "manual",
+                      message: !value ? "El cupo máximo es requerido" : "El cupo debe ser un número mayor a cero"
+                    });
+                  }
+                }}
+                style={[styles.input, !!errors.quota && styles.inputError]}
                 keyboardType="numeric"
                 error={!!errors.quota}
+                right={
+                  value && parseInt(value, 10) > 0 ? 
+                  <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                }
               />
             )}
           />
@@ -666,10 +933,23 @@ export default function CreateCourseScreen() {
             
             <Button 
               mode="contained" 
-              onPress={handleSubmit(onSubmit)}
+              onPress={async () => {
+                // Validar formulario antes de enviar
+                const isValid = await trigger();
+                if (!isValid) {
+                  Alert.alert(
+                    "Campos incompletos",
+                    "Por favor, completa todos los campos obligatorios antes de continuar."
+                  );
+                  return;
+                }
+                
+                // Si la validación pasa, enviar el formulario
+                handleSubmit(onSubmit)();
+              }}
               style={styles.submitButton}
-              loading={loading}
-              disabled={loading}
+              loading={loading || isSubmitting}
+              disabled={loading || isSubmitting}
             >
               Crear Curso
             </Button>
@@ -696,6 +976,29 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     fontSize: 22,
     fontWeight: "bold",
+  },
+  errorSummary: {
+    backgroundColor: "#FFEBEE",
+    borderRadius: 4,
+    padding: 10,
+    marginBottom: 15,
+    borderLeftWidth: 4,
+    borderLeftColor: "#F44336",
+  },
+  errorSummaryText: {
+    color: "#D32F2F",
+    fontSize: 14,
+    fontWeight: "bold",
+    marginBottom: 5,
+  },
+  errorList: {
+    marginTop: 5,
+    paddingLeft: 5,
+  },
+  errorItem: {
+    color: "#D32F2F",
+    fontSize: 12,
+    marginBottom: 2,
   },
   // Estilos para el selector de cursos
   courseSelectButton: {
