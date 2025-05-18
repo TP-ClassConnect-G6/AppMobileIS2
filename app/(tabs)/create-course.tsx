@@ -1,6 +1,6 @@
-import React, { useState } from "react";
-import { StyleSheet, View, ScrollView, Alert, TouchableOpacity, Text as RNText, Platform } from "react-native";
-import { Button, TextInput, Text, Card, Title, Chip, HelperText, Divider } from "react-native-paper";
+import React, { useState, useEffect } from "react";
+import { StyleSheet, View, ScrollView, Alert, TouchableOpacity, Text as RNText, Platform, FlatList, Modal } from "react-native";
+import { Button, TextInput, Text, Card, Title, Chip, HelperText, Divider, ActivityIndicator, List, Searchbar } from "react-native-paper";
 import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { z } from "zod";
 import { courseClient } from "@/lib/http";
@@ -17,6 +17,7 @@ type ScheduleItem = {
 
 type RequiredCourse = {
   course_name: string;
+  course_id?: string;  // Añadimos el ID del curso para la selección
 };
 
 // Respuesta del servidor al crear un curso
@@ -62,6 +63,7 @@ const scheduleItemSchema = z.object({
 
 const requiredCourseSchema = z.object({
   course_name: z.string().min(1, "El nombre del curso es requerido"),
+  course_id: z.string().optional(),
 });
 
 const createCourseSchema = z.object({
@@ -104,6 +106,11 @@ export default function CreateCourseScreen() {
   const [loading, setLoading] = useState(false);
   const [startDate, setStartDate] = useState(new Date());
   const [endDate, setEndDate] = useState(new Date());
+  const [availableCourses, setAvailableCourses] = useState<CourseItem[]>([]);
+  const [loadingCourses, setLoadingCourses] = useState(false);
+  const [showCourseSelector, setShowCourseSelector] = useState(false);
+  const [courseSearchQuery, setCourseSearchQuery] = useState('');
+  const [currentPrerequisiteIndex, setCurrentPrerequisiteIndex] = useState<number | null>(null);
 
   // Configurar React Hook Form con validación Zod
   const {
@@ -113,8 +120,7 @@ export default function CreateCourseScreen() {
     setValue,
     watch,
     reset,
-  } = useForm<FormValues>({
-    defaultValues: {
+  } = useForm<FormValues>({        defaultValues: {
       course_name: "",
       description: "",
       date_init: format(startDate, "dd/MM/yy"),  // Formato argentino para la UI
@@ -191,10 +197,18 @@ export default function CreateCourseScreen() {
       }
 
       // Preparar la solicitud con las fechas convertidas al formato esperado por el backend (MM/DD/YY)
+      // También ajustamos los cursos requeridos para usar solo el nombre
+      const processedData = {
+        ...data,
+        required_course_name: data.required_course_name.map(course => ({
+          course_name: course.course_name
+        }))
+      };
+      
       const request: CreateCourseRequest = {
         user_login: userEmail, // Usar el email como user_login
         role: session.userType,
-        ...data,
+        ...processedData,
         date_init: convertDateFormat(data.date_init), // Convertir formato para el backend
         date_end: convertDateFormat(data.date_end),   // Convertir formato para el backend
       };
@@ -262,6 +276,59 @@ export default function CreateCourseScreen() {
       setValue("date_end", value);
     }
   };
+  
+  // Función para cargar los cursos disponibles
+  const fetchAvailableCourses = async () => {
+    setLoadingCourses(true);
+    try {
+      const response = await courseClient.get("/courses");
+      console.log("Cursos disponibles:", response.data);
+      
+      // Extraer los cursos de la respuesta
+      if (response.data && Array.isArray(response.data.response)) {
+        setAvailableCourses(response.data.response);
+      } else {
+        setAvailableCourses([]);
+      }
+    } catch (error) {
+      console.error("Error al cargar los cursos:", error);
+      Alert.alert("Error", "No se pudieron cargar los cursos disponibles");
+      setAvailableCourses([]);
+    } finally {
+      setLoadingCourses(false);
+    }
+  };
+  
+  // Función para abrir el selector de cursos
+  const openCourseSelector = (index: number) => {
+    setCurrentPrerequisiteIndex(index);
+    setShowCourseSelector(true);
+    fetchAvailableCourses(); // Cargar los cursos disponibles
+  };
+  
+  // Función para seleccionar un curso como prerrequisito
+  const selectCoursePrerequisite = (course: CourseItem) => {
+    if (currentPrerequisiteIndex !== null) {
+      // Actualizar el valor del campo de curso requerido
+      setValue(`required_course_name.${currentPrerequisiteIndex}`, {
+        course_name: course.course_name,
+        course_id: course.course_id
+      });
+    }
+    setShowCourseSelector(false);
+    setCourseSearchQuery('');
+  };
+  
+  // Filtrar cursos basados en la búsqueda
+  const filteredCourses = courseSearchQuery
+    ? availableCourses.filter(course => 
+        course.course_name.toLowerCase().includes(courseSearchQuery.toLowerCase()))
+    : availableCourses;
+  
+  // Cargar los cursos disponibles al montar el componente
+  useEffect(() => {
+    fetchAvailableCourses();
+  }, []);
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -498,15 +565,15 @@ export default function CreateCourseScreen() {
               <Controller
                 control={control}
                 name={`required_course_name.${index}.course_name`}
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    label="Nombre del curso prerrequisito"
-                    value={value}
-                    onChangeText={onChange}
-                    onBlur={onBlur}
-                    style={styles.requiredCourseInput}
-                    error={!!errors.required_course_name?.[index]?.course_name}
-                  />
+                render={({ field: { value } }) => (
+                  <TouchableOpacity
+                    style={styles.courseSelectButton}
+                    onPress={() => openCourseSelector(index)}
+                  >
+                    <Text style={styles.courseSelectButtonText}>
+                      {value ? value : "Seleccionar curso prerequisito"}
+                    </Text>
+                  </TouchableOpacity>
                 )}
               />
 
@@ -521,11 +588,70 @@ export default function CreateCourseScreen() {
 
           <Button 
             mode="outlined" 
-            onPress={() => appendRequiredCourse({ course_name: "" })}
+            onPress={() => appendRequiredCourse({ course_name: "", course_id: "" })}
             style={styles.addButton}
           >
             Agregar Prerequisito
           </Button>
+          
+          {/* Modal para seleccionar curso */}
+          <Modal
+            visible={showCourseSelector}
+            transparent={true}
+            animationType="slide"
+            onRequestClose={() => {
+              setShowCourseSelector(false);
+              setCourseSearchQuery('');
+            }}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Seleccionar Curso Prerequisito</Text>
+                
+                <Searchbar
+                  placeholder="Buscar curso..."
+                  onChangeText={setCourseSearchQuery}
+                  value={courseSearchQuery}
+                  style={styles.searchBar}
+                />
+                
+                {loadingCourses ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#6200ee" />
+                  </View>
+                ) : filteredCourses.length === 0 ? (
+                  <Text style={styles.noCoursesText}>
+                    {courseSearchQuery ? "No se encontraron cursos" : "No hay cursos disponibles"}
+                  </Text>
+                ) : (
+                  <FlatList
+                    data={filteredCourses}
+                    keyExtractor={(item) => item.course_id}
+                    renderItem={({ item }) => (
+                      <List.Item
+                        title={item.course_name}
+                        description={`${item.description?.substring(0, 50)}${item.description?.length > 50 ? '...' : ''}`}
+                        onPress={() => selectCoursePrerequisite(item)}
+                        style={styles.courseListItem}
+                      />
+                    )}
+                    style={styles.courseList}
+                  />
+                )}
+                
+                <Button 
+                  mode="outlined" 
+                  onPress={() => {
+                    setShowCourseSelector(false);
+                    setCourseSearchQuery('');
+                  }}
+                  style={styles.cancelModalButton}
+                >
+                  Cancelar
+                </Button>
+              </View>
+            </View>
+          </Modal>
 
           {/* Botones de acción */}
           <View style={styles.buttonContainer}>
@@ -570,6 +696,64 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     fontSize: 22,
     fontWeight: "bold",
+  },
+  // Estilos para el selector de cursos
+  courseSelectButton: {
+    flex: 1,
+    backgroundColor: "white",
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+    padding: 15,
+    justifyContent: "center",
+  },
+  courseSelectButtonText: {
+    color: "#333",
+    fontSize: 16,
+  },
+  // Estilos para el modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+  },
+  modalContent: {
+    backgroundColor: "white",
+    borderRadius: 8,
+    padding: 20,
+    width: "100%",
+    maxHeight: "80%",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  searchBar: {
+    marginBottom: 16,
+    backgroundColor: "#f5f5f5",
+  },
+  courseList: {
+    maxHeight: 300,
+  },
+  courseListItem: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#f5f5f5",
+  },
+  loadingContainer: {
+    padding: 20,
+    alignItems: "center",
+  },
+  noCoursesText: {
+    textAlign: "center",
+    padding: 20,
+    color: "#757575",
+  },
+  cancelModalButton: {
+    marginTop: 16,
   },
   input: {
     marginBottom: 10,
