@@ -679,7 +679,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   actionButton: {
-    marginLeft: 8,
+    marginLeft: 1,
+
   },
   deleteButton: {
     backgroundColor: "#ffebee",
