@@ -75,10 +75,10 @@ type CourseDetailModalProps = {
   courseId: string | null;
 };
 
-const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalProps) => {
-  // Estado para controlar la visibilidad del modal de exámenes
+const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalProps) => {  // Estado para controlar la visibilidad del modal de exámenes
   const [examModalVisible, setExamModalVisible] = useState(false);
   const [teacherExamModalVisible, setTeacherExamModalVisible] = useState(false);
+  const [isEnrolled, setIsEnrolled] = useState(false);
   
   // Obtener la sesión del usuario para verificar su rol
   const { session } = useSession();
@@ -93,6 +93,47 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
     retry: 1, // Intentar nuevamente 1 vez en caso de error
     retryDelay: 1000, // Esperar 1 segundo entre reintentos
   });
+
+  // Verificar si el estudiante está inscrito en el curso
+  const checkEnrollmentStatus = async () => {
+    if (!courseId || !session || isTeacher) {
+      return;
+    }
+    
+    try {
+      const response = await courseClient.get('/courses', { 
+        params: { user_login: session.userId } 
+      });
+      
+      // Obtener la lista de cursos del usuario según el formato de respuesta
+      let userCourses = [];
+      if (response.data?.courses) {
+        userCourses = response.data.courses;
+      } else if (response.data?.response) {
+        userCourses = response.data.response;
+      } else if (Array.isArray(response.data)) {
+        userCourses = response.data;
+      }
+      
+      // Verificar si el curso actual está en la lista de cursos del usuario
+      const isUserEnrolled = userCourses.some((course: any) => 
+        course.course_id === courseId && 
+        (course.message === "enrolled in course" || course.message === "Enrolled in course")
+      );
+      
+      setIsEnrolled(isUserEnrolled);
+      console.log(`Usuario inscrito en el curso ${courseId}: ${isUserEnrolled}`);
+    } catch (error) {
+      console.error('Error al verificar inscripción:', error);
+    }
+  };
+
+  // Verificar inscripción cuando se carga el componente o cambia el courseId
+  useEffect(() => {
+    if (visible && !isTeacher) {
+      checkEnrollmentStatus();
+    }
+  }, [courseId, visible, session?.userId]);
 
   // Formatear fecha
   const formatDateString = (dateString: string) => {
@@ -287,8 +328,7 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                   ))}
                 </View>
               )}
-              
-              {/* Mostrar diferentes botones según el rol del usuario */}
+                {/* Mostrar diferentes botones según el rol del usuario y estado de inscripción */}
               {isTeacher ? (
                 <>
                   <Button 
@@ -308,7 +348,7 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                     Ver como estudiante
                   </Button>
                 </>
-              ) : (
+              ) : isEnrolled ? (
                 <Button 
                   mode="contained" 
                   style={styles.examButton} 
@@ -317,6 +357,10 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                 >
                   Ver exámenes
                 </Button>
+              ) : (
+                <Text style={styles.notEnrolledText}>
+                  Debes estar inscrito en el curso para ver los exámenes
+                </Text>
               )}
               
               <Button 
@@ -442,8 +486,7 @@ const styles = StyleSheet.create({
   prerequisiteItem: {
     fontSize: 16,
     marginBottom: 5,
-  },
-  examButton: {
+  },  examButton: {
     marginTop: 20,
     marginBottom: 10,
     backgroundColor: '#2E7D32',
@@ -454,6 +497,15 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     marginBottom: 10,
+  },
+  notEnrolledText: {
+    textAlign: 'center',
+    color: '#D32F2F',
+    fontWeight: '500',
+    fontSize: 16,
+    marginTop: 15,
+    marginBottom: 10,
+    fontStyle: 'italic',
   },
 });
 
