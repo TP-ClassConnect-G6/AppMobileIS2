@@ -226,11 +226,11 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle }: ExamSubm
               <Divider style={styles.divider} />
               
               <List.Section>
-                <List.Item 
+                {/* <List.Item 
                   title="ID de Entrega" 
                   description={submissionData.id}
                   left={props => <List.Icon {...props} icon="identifier" />}
-                />
+                /> */}
                 <List.Item 
                   title="Fecha de Envío" 
                   description={formatSubmissionDate(submissionData.submitted_at)}
@@ -274,13 +274,13 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle }: ExamSubm
               </List.Section>
               
               <View style={styles.buttonContainer}>
-                <Button 
+                {/* <Button 
                   mode="outlined" 
                   onPress={resetForm}
                   style={styles.resetButton}
                 >
                   Nueva Entrega
-                </Button>
+                </Button> */}
                 
                 <Button 
                   mode="contained" 

@@ -237,13 +237,14 @@ const CourseExamsModal = ({ visible, onDismiss, courseId, courseName }: CourseEx
                         <Text style={styles.examInfoValue}>{exam.additional_info.grace_period} minutos</Text>
                       </View>
                     )}
-                    
-                    {exam.additional_info?.submission_rules && (
+                      {exam.additional_info?.submission_rules && (
                       <View style={styles.examInfoSection}>
                         <Text style={styles.examInfoLabel}>Reglas de entrega:</Text>
                         <Text style={styles.submissionRules}>{exam.additional_info.submission_rules}</Text>
                       </View>
-                    )}                    {/* Botón para completar el examen */}
+                    )}
+                    
+                    {/* Botón para completar el examen */}
                     <Button 
                       mode="contained" 
                       onPress={() => openSubmissionModal(exam)}
