@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { StyleSheet, View, Alert } from "react-native";
+import React, { useState, useEffect } from "react";
+import { StyleSheet, View, Alert, ActivityIndicator } from "react-native";
 import { Button, Text } from "react-native-paper";
 import * as Location from "expo-location";
 import { router } from "expo-router";
@@ -10,6 +10,31 @@ import { client } from "@/lib/http";
 export default function RequestLocationScreen() {
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true); // Estado para controlar la carga inicial
+
+  // Verificar si el usuario ya tiene una ubicación guardada
+  useEffect(() => {
+    async function checkUserLocation() {
+      try {
+        // Obtener el perfil del usuario
+        const response = await client.get("/profile");
+        
+        // Si el usuario ya tiene una ubicación, redirigir directamente a la pantalla principal
+        if (response.data && response.data.location) {
+          console.log("Usuario ya tiene ubicación guardada:", response.data.location);
+          router.push("/(tabs)");
+        } else {
+          // Si no tiene ubicación, permitir que la página de solicitud se muestre
+          setIsLoading(false);
+        }
+      } catch (error) {
+        console.error("Error al verificar la ubicación del usuario:", error);
+        setIsLoading(false); // Mostrar la página en caso de error
+      }
+    }
+    
+    checkUserLocation();
+  }, []);
 
   const handleRequestLocation = async () => {
 
@@ -61,6 +86,16 @@ export default function RequestLocationScreen() {
     }
   };
 
+  // Si está cargando, mostrar un indicador de carga
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color="#0000ff" />
+        <Text style={styles.loadingText}>Verificando información del usuario...</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <Text variant="headlineMedium" style={styles.title}>
@@ -78,13 +113,13 @@ export default function RequestLocationScreen() {
         Compartir mi ubicación
       </Button>
       
-      {/* <Button
+      <Button
         mode="text"
-        onPress={() => router.push("./")} // Omitir y continuar
+        onPress={() => router.push("/(tabs)")} // Omitir y continuar a la aplicación
         style={styles.skipButton}
       >
         Omitir este paso
-      </Button> */}
+      </Button>
     </View>
   );
 }
@@ -109,12 +144,20 @@ const styles = StyleSheet.create({
   button: {
     marginTop: 16,
   },
-  // skipButton: {
-  //   marginTop: 8,
-  // },
+  skipButton: {
+    marginTop: 8,
+  },
   error: {
     color: "red",
     textAlign: "center",
     marginBottom: 16,
+  },
+  loadingContainer: {
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    textAlign: "center",
   },
 });

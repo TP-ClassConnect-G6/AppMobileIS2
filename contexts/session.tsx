@@ -131,7 +131,7 @@ export function useInitializeSessionService() {
     console.log("Usertype: ", session.userType);
     console.log("Session: ", session);
     setSession(savedSession);
-    router.push("/requestLocation"); // Redirijo a la pantalla de solicitud de ubicación
+    router.push("/requestLocation"); // La pantalla de requestLocation se encargará de verificar si ya existe ubicación
   };
 
   const signInWithBiometric = async () : Promise<boolean> => {
@@ -144,7 +144,7 @@ export function useInitializeSessionService() {
         const session: Session = JSON.parse(savedSessionStr);
         const savedSession = await startSession(session);
         setSession(session);
-        router.push("/requestLocation"); // Redirijo a la pantalla de solicitud de ubicación
+        router.push("/requestLocation"); // La pantalla de requestLocation se encargará de verificar si ya existe ubicación
         return true;
       } catch (error) {
         console.error("Error al parsear la sesión:", error);
@@ -185,7 +185,7 @@ export function useInitializeSessionService() {
         // Usar el startSession que ya está disponible en este contexto
         const savedSession = await startSession(session);
         setSession(savedSession);
-        router.push("/requestLocation"); // Redirijo a la pantalla de solicitud de ubicación
+        router.push("/requestLocation"); // La pantalla de requestLocation se encargará de verificar si ya existe ubicación
       } else {
         console.warn("El login fue cancelado o no se recibió el token.");
       }

@@ -244,13 +244,13 @@ export default function LoginScreen() {
         Login with Google
       </Button>
 
-      <Button
+      {/* <Button
         mode="contained"
         onPress={handleFacebookLogin}
         style={[styles.button, { backgroundColor: "#4267B2" }]}
       >
         Login with Facebook
-      </Button>
+      </Button> */}
 
       <Button
         mode="contained"
