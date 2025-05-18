@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from "react";
-import { StyleSheet, View, Text, Image, ScrollView, ActivityIndicator, Alert, TouchableOpacity, Platform } from "react-native";
-import { Button, TextInput } from "react-native-paper";
+import React, { useEffect, useState, useCallback } from "react";
+import { StyleSheet, View, Text, Image, ActivityIndicator, Alert, TouchableOpacity, Platform, FlatList } from "react-native";
+import { Button, TextInput, Divider } from "react-native-paper";
 import { client } from "@/lib/http";
 import { useSession } from "@/contexts/session";
 import { useForm, Controller } from "react-hook-form";
 import * as ImagePicker from 'expo-image-picker';
+import { searchLocationByText, formatLocation, NominatimResult } from "@/lib/nominatim";
 
 // Definición del tipo para el perfil de usuario
 type UserProfile = {
@@ -36,6 +37,11 @@ export default function ProfileScreen() {
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null);
   const [loadingPhoto, setLoadingPhoto] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [searchResults, setSearchResults] = useState<NominatimResult[]>([]);
+  const [searchingLocations, setSearchingLocations] = useState(false);
+  const [showLocationResults, setShowLocationResults] = useState(false);
+  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
   const { session } = useSession();
 
   // Configurar React Hook Form
@@ -141,6 +147,104 @@ export default function ProfileScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Función para ejecutar la búsqueda con el texto actual
+  const executeSearch = useCallback(async (text: string) => {
+    if (text.length < 3) {
+      setSearchResults([]);
+      setShowLocationResults(false);
+      setSearchingLocations(false);
+      return;
+    }
+
+    setSearchingLocations(true);
+    setShowLocationResults(true);
+    
+    try {
+      const results = await searchLocationByText(text);
+      // Usamos directamente el texto que recibimos para verificar
+      // ya que searchQuery podría haber cambiado durante la búsqueda
+      setSearchResults(results);
+    } catch (error) {
+      console.error('Error buscando ubicaciones:', error);
+      setError('Error al buscar ubicaciones. Intente nuevamente.');
+    } finally {
+      setSearchingLocations(false);
+    }
+  }, []);
+
+  // Función para manejar la entrada de texto con debounce
+  const handleLocationSearch = (text: string) => {
+    setSearchQuery(text);
+    
+    // Si el texto está vacío o es muy corto, limpiamos los resultados inmediatamente
+    if (text.length < 3) {
+      setSearchResults([]);
+      setShowLocationResults(false);
+      setSearchingLocations(false);
+      
+      // Cancelamos cualquier búsqueda pendiente
+      if (searchTimeout) {
+        clearTimeout(searchTimeout);
+        setSearchTimeout(null);
+      }
+      return;
+    }
+    
+    // Mostrar que estamos realizando una búsqueda
+    setShowLocationResults(true);
+    
+    // Cancelamos cualquier búsqueda pendiente anterior
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
+    
+    // Configuramos un nuevo timeout para debounce (300ms)
+    const timeout = setTimeout(() => {
+      executeSearch(text);
+    }, 300);
+    
+    setSearchTimeout(timeout);
+  };
+
+  // Función para seleccionar una ubicación de los resultados
+  const handleLocationSelect = (location: NominatimResult, onChange: (value: string) => void) => {
+    const formattedLocationString = formatLocation(location);
+    onChange(formattedLocationString);
+    setShowLocationResults(false);
+    setSearchQuery(formattedLocationString);
+  };
+
+  // Función para limpiar la ubicación actual
+  const clearLocation = (onChange: (value: string) => void) => {
+    onChange('');
+    setSearchQuery('');
+    setSearchResults([]);
+    setShowLocationResults(false);
+    setSearchingLocations(false);
+    
+    // Cancelar cualquier búsqueda pendiente
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+      setSearchTimeout(null);
+    }
+  };
+
+  // Función para cancelar la edición y limpiar los campos
+  const cancelEditing = () => {
+    // Limpiar cualquier búsqueda pendiente
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+      setSearchTimeout(null);
+    }
+    
+    reset();
+    setSearchQuery('');
+    setSearchResults([]);
+    setShowLocationResults(false);
+    setSearchingLocations(false);
+    setEditing(false);
   };
 
   // Función para seleccionar una imagen de la galería
@@ -311,154 +415,216 @@ export default function ProfileScreen() {
     );
   }
 
-  return (
-    <ScrollView contentContainerStyle={styles.container}>
-      {loading && <ActivityIndicator style={styles.loadingOverlay} size="small" color="#0000ff" />}
+  // Renderizador para el contenido del perfil
+  const renderProfileContent = () => {
+    return (
+      <>
+        {loading && <ActivityIndicator style={styles.loadingOverlay} size="small" color="#0000ff" />}
 
-      <View style={styles.avatarContainer}>
-        <TouchableOpacity 
-          onPress={() => {
-            Alert.alert(
-              'Foto de perfil',
-              '¿Cómo quieres subir tu foto?',
-              [
-                {
-                  text: 'Cancelar',
-                  style: 'cancel',
-                },
-                {
-                  text: 'Seleccionar de la galería',
-                  onPress: selectImage,
-                },
-                {
-                  text: 'Tomar una foto',
-                  onPress: takePhoto,
-                },
-              ]
-            );
-          }}
-          disabled={uploadingPhoto}
-        >
-          {loadingPhoto || uploadingPhoto ? (
-            <View style={[styles.avatar, styles.avatarLoading]}>
-              <ActivityIndicator size="small" color="#0000ff" />
-            </View>
-          ) : (
-            <>
-              <Image
-                source={{
-                  uri: profilePhotoUrl || profile?.avatar || "https://via.placeholder.com/100",
-                }}
-                style={styles.avatar}
-              />
-              <View style={styles.editPhotoButton}>
-                <Text style={styles.editPhotoText}>📷</Text>
+        <View style={styles.avatarContainer}>
+          <TouchableOpacity 
+            onPress={() => {
+              Alert.alert(
+                'Foto de perfil',
+                '¿Cómo quieres subir tu foto?',
+                [
+                  {
+                    text: 'Cancelar',
+                    style: 'cancel',
+                  },
+                  {
+                    text: 'Seleccionar de la galería',
+                    onPress: selectImage,
+                  },
+                  {
+                    text: 'Tomar una foto',
+                    onPress: takePhoto,
+                  },
+                ]
+              );
+            }}
+            disabled={uploadingPhoto}
+          >
+            {loadingPhoto || uploadingPhoto ? (
+              <View style={[styles.avatar, styles.avatarLoading]}>
+                <ActivityIndicator size="small" color="#0000ff" />
               </View>
-            </>
-          )}
-        </TouchableOpacity>
-      </View>
-
-      {!editing ? (
-        // Modo de visualización - muestra todos los campos
-        <View style={styles.profileInfo}>
-          <Text style={styles.name}>{profile?.name || "Usuario"}</Text>
-          <Text style={styles.email}>{profile?.email || session?.userId}</Text>
-
-          {profile?.bio && <Text style={styles.bio}>{profile.bio}</Text>}
-
-          {profile?.phone_number && <Text style={styles.info}>Teléfono: {profile.phone_number}</Text>}
-
-          {profile?.location && <Text style={styles.info}>Ubicación: {profile.location}</Text>}
-
-          <Text style={styles.info}>Tipo de usuario: {profile?.user_type || session?.userType}</Text>
-
-          <Button mode="contained" onPress={() => setEditing(true)} style={styles.editButton}>
-            Editar Perfil
-          </Button>
+            ) : (
+              <>
+                <Image
+                  source={{
+                    uri: profilePhotoUrl || profile?.avatar || "https://via.placeholder.com/100",
+                  }}
+                  style={styles.avatar}
+                />
+                <View style={styles.editPhotoButton}>
+                  <Text style={styles.editPhotoText}>📷</Text>
+                </View>
+              </>
+            )}
+          </TouchableOpacity>
         </View>
-      ) : (
-        // Modo de edición usando React Hook Form
-        <View style={styles.editForm}>
-          {/* Campo de Nombre */}
-          <Controller
-            control={control}
-            name="name"
-            render={({ field: { onChange, onBlur, value } }) => (
-              <TextInput
-                label="Nombre"
-                value={value}
-                onChangeText={onChange}
-                onBlur={onBlur}
-                style={styles.input}
-              />
-            )}
-          />
 
-          {/* Campo de Biografía */}
-          <Controller
-            control={control}
-            name="bio"
-            render={({ field: { onChange, onBlur, value } }) => (
-              <TextInput
-                label="Biografía"
-                value={value}
-                onChangeText={onChange}
-                onBlur={onBlur}
-                style={styles.input}
-                multiline
-                numberOfLines={3}
-              />
-            )}
-          />
+        {!editing ? (
+          // Modo de visualización - muestra todos los campos
+          <View style={styles.profileInfo}>
+            <Text style={styles.name}>{profile?.name || "Usuario"}</Text>
+            <Text style={styles.email}>{profile?.email || session?.userId}</Text>
 
-          {/* Campo de Teléfono */}
-          <Controller
-            control={control}
-            name="phone_number"
-            render={({ field: { onChange, onBlur, value } }) => (
-              <TextInput
-                label="Teléfono"
-                value={value}
-                onChangeText={onChange}
-                onBlur={onBlur}
-                style={styles.input}
-                keyboardType="phone-pad"
-              />
-            )}
-          />
+            {profile?.bio && <Text style={styles.bio}>{profile.bio}</Text>}
 
-          {/* Campos para la ubicación - Ahora como un único campo de texto */}
-          <Text style={styles.sectionTitle}>Ubicación</Text>
-          <Controller
-            control={control}
-            name="location"
-            render={({ field: { onChange, onBlur, value } }) => (
-              <TextInput
-                label="Ubicación"
-                value={value}
-                onChangeText={onChange}
-                onBlur={onBlur}
-                style={styles.input}
-                placeholder="Ej. Ciudad, Región, País"
-              />
-            )}
-          />
+            {profile?.phone_number && <Text style={styles.info}>Teléfono: {profile.phone_number}</Text>}
 
-          <View style={styles.buttonGroup}>
-            <Button mode="outlined" onPress={() => setEditing(false)} style={styles.cancelButton}>
-              Cancelar
-            </Button>
+            {profile?.location && <Text style={styles.info}>Ubicación: {profile.location}</Text>}
 
-            <Button mode="contained" onPress={handleSubmit(onSubmit)} style={styles.saveButton}>
-              Guardar
+            <Text style={styles.info}>Tipo de usuario: {profile?.user_type || session?.userType}</Text>
+
+            <Button mode="contained" onPress={() => setEditing(true)} style={styles.editButton}>
+              Editar Perfil
             </Button>
           </View>
-        </View>
-      )}
+        ) : (
+          // Modo de edición usando React Hook Form
+          <View style={styles.editForm}>
+            {/* Campo de Nombre */}
+            <Controller
+              control={control}
+              name="name"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Nombre"
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  style={styles.input}
+                />
+              )}
+            />
 
-      {error && <Text style={styles.errorMessage}>{error}</Text>}
-    </ScrollView>
+            {/* Campo de Biografía */}
+            <Controller
+              control={control}
+              name="bio"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Biografía"
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  style={styles.input}
+                  multiline
+                  numberOfLines={3}
+                />
+              )}
+            />
+
+            {/* Campo de Teléfono */}
+            <Controller
+              control={control}
+              name="phone_number"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Teléfono"
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  style={styles.input}
+                  keyboardType="phone-pad"
+                />
+              )}
+            />
+
+            {/* Campos para la ubicación - Usando Nominatim API */}
+            <Text style={styles.sectionTitle}>Ubicación</Text>
+            <Controller
+              control={control}
+              name="location"
+              render={({ field: { onChange, value } }) => (
+                <View style={styles.autocompleteContainer}>
+                  <TextInput
+                    label="Buscar ubicación"
+                    value={searchQuery !== '' ? searchQuery : value}
+                    onChangeText={text => {
+                      handleLocationSearch(text);
+                      onChange(text); // Actualizar también el valor del formulario
+                    }}
+                    style={styles.input}
+                    placeholder="Escribe al menos 3 caracteres para buscar"
+                    right={
+                      (searchQuery || value) ? (
+                        <TextInput.Icon 
+                          icon="close" 
+                          onPress={() => clearLocation(onChange)} 
+                          forceTextInputFocus={false}
+                        />
+                      ) : undefined
+                    }
+                  />
+                  
+                  {searchingLocations && (
+                    <View style={styles.loadingIndicator}>
+                      <ActivityIndicator size="small" color="#0000ff" />
+                    </View>
+                  )}
+                  
+                  {showLocationResults && searchResults.length > 0 && (
+                    <View style={styles.resultsContainer}>
+                      <FlatList
+                        nestedScrollEnabled
+                        data={searchResults}
+                        keyExtractor={(item) => item.place_id.toString()}
+                        renderItem={({ item }) => (
+                          <TouchableOpacity
+                            style={styles.resultItem}
+                            onPress={() => handleLocationSelect(item, onChange)}
+                          >
+                            <Text style={styles.resultText}>
+                              {item.display_name}
+                            </Text>
+                            <Divider />
+                          </TouchableOpacity>
+                        )}
+                        style={styles.resultsList}
+                      />
+                    </View>
+                  )}
+                  
+                  {showLocationResults && searchResults.length === 0 && searchQuery.length >= 3 && !searchingLocations && (
+                    <View style={styles.noResults}>
+                      <Text style={styles.noResultsText}>No se encontraron resultados</Text>
+                    </View>
+                  )}
+                </View>
+              )}
+            />
+
+            <View style={styles.buttonGroup}>
+              <Button mode="outlined" onPress={cancelEditing} style={styles.cancelButton}>
+                Cancelar
+              </Button>
+
+              <Button mode="contained" onPress={handleSubmit(onSubmit)} style={styles.saveButton}>
+                Guardar
+              </Button>
+            </View>
+          </View>
+        )}
+
+        {error && <Text style={styles.errorMessage}>{error}</Text>}
+      </>
+    );
+  };
+
+  // Usamos FlatList en lugar de ScrollView para evitar el error de VirtualizedLists anidadas
+  return (
+    <FlatList
+      data={[{ key: 'profile' }]}
+      renderItem={() => renderProfileContent()}
+      keyExtractor={(item) => item.key}
+      contentContainerStyle={styles.container}
+      ListHeaderComponent={null}
+      ListFooterComponent={null}
+    />
   );
 }
 
@@ -615,5 +781,63 @@ const styles = StyleSheet.create({
   userTypeButton: {
     flex: 1,
     marginRight: 5,
+  },
+  // Estilos para el componente de autocompletado
+  autocompleteContainer: {
+    flex: 0,
+    position: 'relative',
+    marginBottom: 15,
+    zIndex: 1,
+  },
+  resultsContainer: {
+    position: 'absolute',
+    top: 56,
+    left: 0,
+    right: 0,
+    backgroundColor: 'white',
+    zIndex: 10,
+    maxHeight: 200,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    borderRadius: 4,
+  },
+  resultsList: {
+    maxHeight: 200,
+  },
+  resultItem: {
+    padding: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  resultText: {
+    fontSize: 14,
+    color: '#333',
+  },
+  loadingIndicator: {
+    position: 'absolute',
+    right: 10,
+    top: 15,
+  },
+  noResults: {
+    padding: 10,
+    alignItems: 'center',
+    backgroundColor: 'white',
+    position: 'absolute',
+    top: 56,
+    left: 0,
+    right: 0,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 4,
+  },
+  noResultsText: {
+    fontSize: 14,
+    color: '#666',
   },
 });

@@ -538,6 +538,7 @@ export default function CourseListScreen() {
           keyExtractor={(item) => item.course_id}
           renderItem={renderCourseCard}
           contentContainerStyle={styles.listContent}
+          nestedScrollEnabled={true}
           refreshControl={
             <RefreshControl refreshing={isLoading} onRefresh={() => refetch()} />
           }

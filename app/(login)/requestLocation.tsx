@@ -3,9 +3,9 @@ import { StyleSheet, View, Alert, ActivityIndicator } from "react-native";
 import { Button, Text } from "react-native-paper";
 import * as Location from "expo-location";
 import { router } from "expo-router";
-import axios from "axios";
 import { useSession } from "@/contexts/session";
 import { client } from "@/lib/http";
+import { searchLocationByText, formatLocation } from "@/lib/nominatim";
 
 export default function RequestLocationScreen() {
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
@@ -37,44 +37,61 @@ export default function RequestLocationScreen() {
   }, []);
 
   const handleRequestLocation = async () => {
-
     try {
-      // console.log("Headers de autorización:", client.defaults.headers.common["Authorization"]);
-      // console.log("URL base del cliente:", client.defaults.baseURL);
-
-      //Solicitar permisos de ubicación
+      // Solicitar permisos de ubicación
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
         setErrorMsg("Permiso de ubicación denegado.");
         Alert.alert("Permiso denegado", "No podemos continuar sin tu ubicación.");
         return;
       }
-      //Obtener la ubicación actual
+      
+      // Obtener la ubicación actual
       const currentLocation = await Location.getCurrentPositionAsync({});
       setLocation(currentLocation);
-
+      
       console.log("Ubicación actual:", currentLocation);
-      console.log("Url completa:", client.defaults.baseURL + "/profile");
 
-      // Obtener ciudad y país usando geocodificación inversa
+      // Usar Nominatim API para hacer geocoding inverso (coordenadas a dirección)
       let locationString = "";
       try {
-        const geocode = await Location.reverseGeocodeAsync({
-          latitude: currentLocation.coords.latitude,
-          longitude: currentLocation.coords.longitude,
-        });
-
-        if (geocode.length > 0) {
-          const { city, region, country } = geocode[0];
-          locationString = [city, region, country].filter(Boolean).join(", ");
-          console.log("Ubicación convertida:", locationString);
+        // Construir la consulta para Nominatim con la latitud y longitud
+        const query = `${currentLocation.coords.latitude},${currentLocation.coords.longitude}`;
+        
+        // Buscar la ubicación usando Nominatim
+        const results = await searchLocationByText(query);
+        
+        if (results && results.length > 0) {
+          // Formatear el resultado para que sea legible
+          locationString = formatLocation(results[0]);
+          console.log("Ubicación encontrada con Nominatim:", locationString);
+        } else {
+          // Si no hay resultados, usar las coordenadas
+          locationString = `${currentLocation.coords.latitude}, ${currentLocation.coords.longitude}`;
         }
-      } catch (geocodeError) {
-        console.error("Error al convertir coordenadas:", geocodeError);
-        // Si falla la geocodificación, continuamos con las coordenadas
-        locationString = `${currentLocation.coords.latitude}, ${currentLocation.coords.longitude}`;
+      } catch (nominatimError) {
+        console.error("Error al buscar ubicación con Nominatim:", nominatimError);
+        
+        // Plan B: Intentar con la API de geocoding de Expo como respaldo
+        try {
+          const geocode = await Location.reverseGeocodeAsync({
+            latitude: currentLocation.coords.latitude,
+            longitude: currentLocation.coords.longitude,
+          });
+          
+          if (geocode.length > 0) {
+            const { city, region, country } = geocode[0];
+            locationString = [city, region, country].filter(Boolean).join(", ");
+            console.log("Ubicación convertida con geocoding de Expo:", locationString);
+          }
+        } catch (geocodeError) {
+          console.error("Error al convertir coordenadas:", geocodeError);
+          // Si todo falla, usar las coordenadas directamente
+          locationString = `${currentLocation.coords.latitude}, ${currentLocation.coords.longitude}`;
+        }
       }
       
+      // Actualizar el perfil del usuario con la ubicación
       const response = await client.patch("/profile", {
         location: locationString || "Ubicación desconocida"
       });
