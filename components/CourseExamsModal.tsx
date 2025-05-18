@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { courseClient } from "@/lib/http";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import ExamSubmissionModal from "./ExamSubmissionModal";
 
 // Tipo para los exámenes
 type Exam = {
@@ -57,6 +58,10 @@ type CourseExamsModalProps = {
 };
 
 const CourseExamsModal = ({ visible, onDismiss, courseId, courseName }: CourseExamsModalProps) => {
+  // Estado para el modal de envío de examen
+  const [submissionModalVisible, setSubmissionModalVisible] = useState(false);
+  const [selectedExam, setSelectedExam] = useState<Exam | null>(null);
+
   // Consulta para obtener los exámenes del curso
   const { data: exams, isLoading, error, refetch } = useQuery({
     queryKey: ['courseExams', courseId],
@@ -66,6 +71,12 @@ const CourseExamsModal = ({ visible, onDismiss, courseId, courseName }: CourseEx
     retry: 1, // Intentar nuevamente 1 vez en caso de error
     retryDelay: 1000, // Esperar 1 segundo entre reintentos
   });
+
+  // Función para abrir el modal de envío de examen
+  const openSubmissionModal = (exam: Exam) => {
+    setSelectedExam(exam);
+    setSubmissionModalVisible(true);
+  };
 
   // Formatear fecha
   const formatDateString = (dateString: string) => {
@@ -149,6 +160,16 @@ const CourseExamsModal = ({ visible, onDismiss, courseId, courseName }: CourseEx
                         <Text style={styles.submissionRules}>{exam.additional_info.submission_rules}</Text>
                       </View>
                     )}
+
+                    {/* Botón para completar el examen */}
+                    <Button 
+                      mode="contained" 
+                      onPress={() => openSubmissionModal(exam)}
+                      style={styles.completeButton}
+                      icon="file-document-edit-outline"
+                    >
+                      Completar Examen
+                    </Button>
                   </Card.Content>
                 </Card>
               ))}
@@ -160,6 +181,16 @@ const CourseExamsModal = ({ visible, onDismiss, courseId, courseName }: CourseEx
           </Button>
         </ScrollView>
       </Modal>
+
+      {/* Modal para enviar respuestas de examen */}
+      {selectedExam && (
+        <ExamSubmissionModal
+          visible={submissionModalVisible}
+          onDismiss={() => setSubmissionModalVisible(false)}
+          examId={selectedExam.id}
+          examTitle={selectedExam.title}
+        />
+      )}
     </Portal>
   );
 };
@@ -251,6 +282,9 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     marginTop: 20,
+  },
+  completeButton: {
+    marginTop: 15,
   },
 });
 
