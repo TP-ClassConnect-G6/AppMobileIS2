@@ -349,14 +349,21 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                     icon="clipboard-text"
                   >
                     Gestionar tareas
-                  </Button>
-                  <Button 
+                  </Button>                  <Button 
                     mode="outlined" 
                     style={[styles.examButton, {backgroundColor: '#E8F5E9'}]} 
                     onPress={() => setExamModalVisible(true)}
                     icon="eye-outline"
                   >
-                    Ver como estudiante
+                    Ver exámenes como estudiante
+                  </Button>
+                  <Button 
+                    mode="outlined" 
+                    style={[styles.examButton, {backgroundColor: '#F3E5F5'}]} 
+                    onPress={() => setTaskModalVisible(true)}
+                    icon="eye-outline"
+                  >
+                    Ver tareas como estudiante
                   </Button>
                 </>              ) : isEnrolled ? (
                 <>
