@@ -6,6 +6,8 @@ import { courseClient } from "@/lib/http";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import ExamSubmissionModal from "./ExamSubmissionModal";
+import { useSession } from "@/contexts/session";
+import jwtDecode from "jwt-decode";
 
 // Tipo para los exámenes
 type Exam = {
@@ -25,6 +27,18 @@ type Exam = {
   published: boolean;
   created_at: string;
   updated_at: string;
+  is_active: boolean;
+};
+
+// Tipo para las entregas de exámenes
+type ExamSubmission = {
+  id: string;
+  exam_id: string;
+  student_id: string;
+  answers: string;
+  submitted_at: string;
+  is_late: boolean;
+  file_urls: string[];
   is_active: boolean;
 };
 
@@ -49,6 +63,24 @@ const fetchCourseExams = async (courseId: string): Promise<Exam[]> => {
   }
 };
 
+// Función para obtener las entregas de exámenes de un estudiante
+const fetchStudentSubmissions = async (studentId: string): Promise<ExamSubmission[]> => {
+  try {
+    const response = await courseClient.get(`/exam-submissions?student_id=${studentId}`);
+    console.log("API submissions response:", JSON.stringify(response.data, null, 2));
+    
+    if (Array.isArray(response.data)) {
+      return response.data;
+    } else {
+      console.warn('Formato de respuesta inesperado para entregas:', response.data);
+      return [];
+    }
+  } catch (error) {
+    console.error('Error al obtener entregas del estudiante:', error);
+    return []; // Retornamos array vacío en caso de error para evitar bloquear la UI
+  }
+};
+
 // Props para el componente modal
 type CourseExamsModalProps = {
   visible: boolean;
@@ -58,9 +90,61 @@ type CourseExamsModalProps = {
 };
 
 const CourseExamsModal = ({ visible, onDismiss, courseId, courseName }: CourseExamsModalProps) => {
+  const { session } = useSession();
+  const [studentId, setStudentId] = useState<string>("");
+  const [completedExams, setCompletedExams] = useState<string[]>([]);
+  
   // Estado para el modal de envío de examen
   const [submissionModalVisible, setSubmissionModalVisible] = useState(false);
   const [selectedExam, setSelectedExam] = useState<Exam | null>(null);
+
+  // Extraer el ID del estudiante del token JWT
+  useEffect(() => {
+    if (session?.token) {
+      try {
+        const decodedToken: any = jwtDecode(session.token);
+        // Asumimos que el ID del usuario está en el token como "sub", "id" o similar
+        const userId = decodedToken.sub || decodedToken.id || session.userId;
+        setStudentId(userId);
+        console.log("ID del estudiante extraído:", userId);
+      } catch (error) {
+        console.error("Error al decodificar el token:", error);
+      }
+    }
+  }, [session]);
+
+  // Obtener las entregas del estudiante cuando se abre el modal y tenemos su ID
+  useEffect(() => {
+    const loadSubmissions = async () => {
+      if (studentId && visible) {
+        const submissions = await fetchStudentSubmissions(studentId);
+        // Crear un array con los IDs de exámenes ya completados
+        const completedExamIds = submissions
+          .filter(sub => sub.is_active)
+          .map(sub => sub.exam_id);
+        setCompletedExams(completedExamIds);
+        console.log("Exámenes ya completados:", completedExamIds);
+      }
+    };
+    
+    loadSubmissions();
+  }, [studentId, visible]);
+
+  // Verificar si un examen ya fue completado
+  const isExamCompleted = (examId: string): boolean => {
+    return completedExams.includes(examId);
+  };
+
+  // Función para recargar las entregas después de enviar un examen
+  const refreshSubmissions = async () => {
+    if (studentId) {
+      const submissions = await fetchStudentSubmissions(studentId);
+      const completedExamIds = submissions
+        .filter(sub => sub.is_active)
+        .map(sub => sub.exam_id);
+      setCompletedExams(completedExamIds);
+    }
+  };
 
   // Consulta para obtener los exámenes del curso
   const { data: exams, isLoading, error, refetch } = useQuery({
@@ -159,17 +243,22 @@ const CourseExamsModal = ({ visible, onDismiss, courseId, courseName }: CourseEx
                         <Text style={styles.examInfoLabel}>Reglas de entrega:</Text>
                         <Text style={styles.submissionRules}>{exam.additional_info.submission_rules}</Text>
                       </View>
-                    )}
-
-                    {/* Botón para completar el examen */}
+                    )}                    {/* Botón para completar el examen */}
                     <Button 
                       mode="contained" 
                       onPress={() => openSubmissionModal(exam)}
-                      style={styles.completeButton}
-                      icon="file-document-edit-outline"
+                      style={[styles.completeButton, isExamCompleted(exam.id) && styles.completedButton]}
+                      icon={isExamCompleted(exam.id) ? "check-circle" : "file-document-edit-outline"}
+                      disabled={isExamCompleted(exam.id)}
                     >
-                      Completar Examen
+                      {isExamCompleted(exam.id) ? 'Examen Completado' : 'Completar Examen'}
                     </Button>
+                    
+                    {isExamCompleted(exam.id) && (
+                      <Text style={styles.completedText}>
+                        Ya has enviado una respuesta para este examen
+                      </Text>
+                    )}
                   </Card.Content>
                 </Card>
               ))}
@@ -186,7 +275,10 @@ const CourseExamsModal = ({ visible, onDismiss, courseId, courseName }: CourseEx
       {selectedExam && (
         <ExamSubmissionModal
           visible={submissionModalVisible}
-          onDismiss={() => setSubmissionModalVisible(false)}
+          onDismiss={() => {
+            setSubmissionModalVisible(false);
+            refreshSubmissions();
+          }}
           examId={selectedExam.id}
           examTitle={selectedExam.title}
         />
@@ -282,9 +374,18 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     marginTop: 20,
-  },
-  completeButton: {
+  },  completeButton: {
     marginTop: 15,
+  },
+  completedButton: {
+    backgroundColor: '#4CAF50',
+  },
+  completedText: {
+    textAlign: 'center',
+    fontStyle: 'italic',
+    color: '#757575',
+    fontSize: 12,
+    marginTop: 5,
   },
 });
 

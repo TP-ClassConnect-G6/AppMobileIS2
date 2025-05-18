@@ -127,8 +127,7 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle }: ExamSubm
         },
       });
       
-      console.log("Respuesta del servidor:", response.data);
-        // Guardar los datos de la respuesta
+      console.log("Respuesta del servidor:", response.data);      // Guardar los datos de la respuesta
       const submissionResponse: ExamSubmissionResponse = response.data;
       setSubmissionData(submissionResponse);
       
