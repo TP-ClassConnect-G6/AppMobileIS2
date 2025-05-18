@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { StyleSheet, View, ScrollView, ActivityIndicator, TouchableOpacity } from "react-native";
 import { Modal, Portal, Text, Title, Button, Divider, Paragraph, Chip, List, Card } from "react-native-paper";
 import { useQuery } from "@tanstack/react-query";
@@ -6,6 +6,8 @@ import { courseClient } from "@/lib/http";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useSession } from "@/contexts/session";
+import TaskSubmissionModal from "./TaskSubmissionModal";
+import jwtDecode from "jwt-decode";
 
 // Tipo para las tareas
 type Task = {
@@ -22,6 +24,18 @@ type Task = {
   published: boolean;
   created_at: string;
   updated_at: string;
+  is_active: boolean;
+};
+
+// Tipo para las entregas de tareas
+type TaskSubmission = {
+  id: string;
+  task_id: string;
+  student_id: string;
+  content: string;
+  submitted_at: string;
+  is_late: boolean;
+  file_urls: string[];
   is_active: boolean;
 };
 
@@ -46,6 +60,24 @@ const fetchCourseTasks = async (courseId: string): Promise<Task[]> => {
   }
 };
 
+// Función para obtener las entregas de tareas de un estudiante
+const fetchStudentTaskSubmissions = async (studentId: string): Promise<TaskSubmission[]> => {
+  try {
+    const response = await courseClient.get(`/task-submissions?student_id=${studentId}`);
+    console.log("API task submissions response:", JSON.stringify(response.data, null, 2));
+    
+    if (Array.isArray(response.data)) {
+      return response.data;
+    } else {
+      console.warn('Formato de respuesta inesperado para entregas de tareas:', response.data);
+      return [];
+    }
+  } catch (error) {
+    console.error('Error al obtener entregas de tareas del estudiante:', error);
+    return []; // Retornamos array vacío en caso de error para evitar bloquear la UI
+  }
+};
+
 // Props para el componente modal
 type CourseTasksModalProps = {
   visible: boolean;
@@ -56,6 +88,60 @@ type CourseTasksModalProps = {
 
 const CourseTasksModal = ({ visible, onDismiss, courseId, courseName }: CourseTasksModalProps) => {
   const { session } = useSession();
+  const [studentId, setStudentId] = useState<string>("");
+  const [completedTasks, setCompletedTasks] = useState<string[]>([]);
+  
+  // Estado para el modal de envío de tarea
+  const [submissionModalVisible, setSubmissionModalVisible] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+
+  // Extraer el ID del estudiante del token JWT
+  useEffect(() => {
+    if (session?.token) {
+      try {
+        const decodedToken: any = jwtDecode(session.token);
+        // Asumimos que el ID del usuario está en el token como "sub", "id" o similar
+        const userId = decodedToken.sub || decodedToken.id || session.userId;
+        setStudentId(userId);
+        console.log("ID del estudiante extraído:", userId);
+      } catch (error) {
+        console.error("Error al decodificar el token:", error);
+      }
+    }
+  }, [session]);
+
+  // Obtener las entregas del estudiante cuando se abre el modal y tenemos su ID
+  useEffect(() => {
+    const loadSubmissions = async () => {
+      if (studentId && visible) {
+        const submissions = await fetchStudentTaskSubmissions(studentId);
+        // Crear un array con los IDs de tareas ya completadas
+        const completedTaskIds = submissions
+          .filter(sub => sub.is_active)
+          .map(sub => sub.task_id);
+        setCompletedTasks(completedTaskIds);
+        console.log("Tareas ya completadas:", completedTaskIds);
+      }
+    };
+    
+    loadSubmissions();
+  }, [studentId, visible]);
+
+  // Verificar si una tarea ya fue completada
+  const isTaskCompleted = (taskId: string): boolean => {
+    return completedTasks.includes(taskId);
+  };
+
+  // Función para recargar las entregas después de enviar una tarea
+  const refreshSubmissions = async () => {
+    if (studentId) {
+      const submissions = await fetchStudentTaskSubmissions(studentId);
+      const completedTaskIds = submissions
+        .filter(sub => sub.is_active)
+        .map(sub => sub.task_id);
+      setCompletedTasks(completedTaskIds);
+    }
+  };
 
   // Consulta para obtener las tareas del curso
   const { data: tasks, isLoading, error, refetch } = useQuery({
@@ -67,6 +153,12 @@ const CourseTasksModal = ({ visible, onDismiss, courseId, courseName }: CourseTa
     retryDelay: 1000, // Esperar 1 segundo entre reintentos
   });
 
+  // Función para abrir el modal de envío de tarea
+  const openSubmissionModal = (task: Task) => {
+    setSelectedTask(task);
+    setSubmissionModalVisible(true);
+  };
+
   // Formatear fecha
   const formatDateString = (dateString: string) => {
     try {
@@ -75,6 +167,17 @@ const CourseTasksModal = ({ visible, onDismiss, courseId, courseName }: CourseTa
       return format(date, 'dd/MM/yyyy', { locale: es });
     } catch (e) {
       return dateString;
+    }
+  };
+
+  // Verificar si una tarea está vencida
+  const isTaskOverdue = (dueDate: string): boolean => {
+    try {
+      const now = new Date();
+      const due = new Date(dueDate);
+      return now > due;
+    } catch (e) {
+      return false;
     }
   };
 
@@ -108,31 +211,62 @@ const CourseTasksModal = ({ visible, onDismiss, courseId, courseName }: CourseTa
             </View>
           ) : (
             <View>
-              {tasks.map((task) => (
-                <Card key={task.id} style={styles.taskCard}>
-                  <Card.Content>
-                    <Title style={styles.taskTitle}>{task.title}</Title>
-                    <Paragraph style={styles.taskDescription}>{task.description}</Paragraph>
-                    
-                    <View style={styles.taskInfoRow}>
-                      <Text style={styles.taskInfoLabel}>Fecha de entrega:</Text>
-                      <Text style={styles.taskInfoValue}>{formatDateString(task.due_date)}</Text>
-                    </View>
-                    
-                    <View style={styles.taskInfoRow}>
-                      <Text style={styles.taskInfoLabel}>Tipo:</Text>
-                      <Text style={styles.taskInfoValue}>{task.extra_conditions.type === 'individual' ? 'Individual' : 'Grupal'}</Text>
-                    </View>
-                    
-                    {task.instructions && (
-                      <View style={styles.instructionsContainer}>
-                        <Text style={styles.instructionsLabel}>Instrucciones:</Text>
-                        <Text style={styles.instructions}>{task.instructions}</Text>
+              {tasks.map((task) => {
+                const isOverdue = isTaskOverdue(task.due_date);
+                const isCompleted = isTaskCompleted(task.id);
+                
+                return (
+                  <Card key={task.id} style={styles.taskCard}>
+                    <Card.Content>
+                      <Title style={styles.taskTitle}>{task.title}</Title>
+                      <Paragraph style={styles.taskDescription}>{task.description}</Paragraph>
+                      
+                      <View style={styles.taskInfoRow}>
+                        <Text style={styles.taskInfoLabel}>Fecha de entrega:</Text>
+                        <Text 
+                          style={[
+                            styles.taskInfoValue, 
+                            isOverdue && !isCompleted && styles.overdueText
+                          ]}
+                        >
+                          {formatDateString(task.due_date)} {isOverdue && !isCompleted && "(Vencida)"}
+                        </Text>
                       </View>
-                    )}
-                  </Card.Content>
-                </Card>
-              ))}
+                      
+                      <View style={styles.taskInfoRow}>
+                        <Text style={styles.taskInfoLabel}>Tipo:</Text>
+                        <Text style={styles.taskInfoValue}>
+                          {task.extra_conditions.type === 'individual' ? 'Individual' : 'Grupal'}
+                        </Text>
+                      </View>
+                      
+                      {task.instructions && (
+                        <View style={styles.instructionsContainer}>
+                          <Text style={styles.instructionsLabel}>Instrucciones:</Text>
+                          <Text style={styles.instructions}>{task.instructions}</Text>
+                        </View>
+                      )}
+                      
+                      {/* Botón para completar la tarea */}
+                      <Button 
+                        mode="contained" 
+                        onPress={() => openSubmissionModal(task)}
+                        style={[styles.completeButton, isCompleted && styles.completedButton]}
+                        icon={isCompleted ? "check-circle" : "file-document-edit-outline"}
+                        disabled={isCompleted}
+                      >
+                        {isCompleted ? 'Tarea Completada' : 'Completar Tarea'}
+                      </Button>
+                      
+                      {isCompleted && (
+                        <Text style={styles.completedText}>
+                          Ya has enviado una respuesta para esta tarea
+                        </Text>
+                      )}
+                    </Card.Content>
+                  </Card>
+                );
+              })}
             </View>
           )}
 
@@ -145,6 +279,20 @@ const CourseTasksModal = ({ visible, onDismiss, courseId, courseName }: CourseTa
           </Button>
         </ScrollView>
       </Modal>
+
+      {/* Modal para enviar respuestas de tarea */}
+      {selectedTask && (
+        <TaskSubmissionModal
+          visible={submissionModalVisible}
+          onDismiss={() => {
+            setSubmissionModalVisible(false);
+            refreshSubmissions();
+          }}
+          taskId={selectedTask.id}
+          taskTitle={selectedTask.title}
+          dueDate={selectedTask.due_date}
+        />
+      )}
     </Portal>
   );
 };
@@ -227,6 +375,10 @@ const styles = StyleSheet.create({
   taskInfoValue: {
     flex: 2,
   },
+  overdueText: {
+    color: '#d32f2f',
+    fontWeight: 'bold',
+  },
   instructionsContainer: {
     marginTop: 10,
     padding: 10,
@@ -239,6 +391,19 @@ const styles = StyleSheet.create({
   },
   instructions: {
     fontStyle: 'italic',
+  },
+  completeButton: {
+    marginTop: 15,
+  },
+  completedButton: {
+    backgroundColor: '#4CAF50',
+  },
+  completedText: {
+    textAlign: 'center',
+    fontStyle: 'italic',
+    color: '#757575',
+    fontSize: 12,
+    marginTop: 5,
   },
   closeButton: {
     marginTop: 20,
