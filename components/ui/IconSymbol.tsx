@@ -17,6 +17,8 @@ const MAPPING = {
   'book.fill': 'book',
   //'plus.circle.fill': 'add-circle',
   'book-plus.fill': 'post-add',
+  'doc.text.fill': 'article',
+  'checklist.fill': 'checklist',
 } as const;
 
 // Tipo personalizado que incluye tanto los nombres de SF Symbols como nuestros nombres personalizados

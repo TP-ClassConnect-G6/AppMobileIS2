@@ -212,13 +212,21 @@ function TeacherTabLayout() {
               <IconSymbol size={28} name="book-plus.fill" color={color} />
             ),
           }}
-        />
-        <Tabs.Screen
+        />        <Tabs.Screen
           name="create-exam"
           options={{
             title: "Crear Examen",
             tabBarIcon: ({ color }: { color: string }) => (
               <IconSymbol size={28} name="doc.text.fill" color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="create-task"
+          options={{
+            title: "Crear Tarea",
+            tabBarIcon: ({ color }: { color: string }) => (
+              <IconSymbol size={28} name="checklist.fill" color={color} />
             ),
           }}
         />
@@ -291,13 +299,22 @@ function StudentTabLayout() {
             ),
             tabBarButton: () => null,
           }}
-        />
-        <Tabs.Screen
+        />        <Tabs.Screen
           name="create-exam"
           options={{
             title: "Crear Examen",
             tabBarIcon: ({ color }: { color: string }) => (
               <IconSymbol size={28} name="doc.text.fill" color={color} />
+            ),
+            tabBarButton: () => null,
+          }}
+        />
+        <Tabs.Screen
+          name="create-task"
+          options={{
+            title: "Crear Tarea",
+            tabBarIcon: ({ color }: { color: string }) => (
+              <IconSymbol size={28} name="checklist.fill" color={color} />
             ),
             tabBarButton: () => null,
           }}
