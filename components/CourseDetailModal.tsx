@@ -404,29 +404,24 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
         </ScrollView>
       </Modal>
       
-      {/* Modal para mostrar exámenes publicados (vista de estudiantes) */}
       <CourseExamsModal
         visible={examModalVisible}
         onDismiss={() => setExamModalVisible(false)}
         courseId={courseId}
         courseName={courseDetail?.course_name || null}
       />
-        {/* Modal para gestionar exámenes (vista de profesores) */}
       <TeacherExamsModal
         visible={teacherExamModalVisible}
         onDismiss={() => setTeacherExamModalVisible(false)}
         courseId={courseId}
         courseName={courseDetail?.course_name || null}
       />
-        {/* Modal para gestionar tareas (vista de profesores) */}
       <TeacherTasksModal
         visible={teacherTaskModalVisible}
         onDismiss={() => setTeacherTaskModalVisible(false)}
         courseId={courseId}
         courseName={courseDetail?.course_name || null}
       />
-
-      {/* Modal para mostrar tareas publicadas (vista de estudiantes) */}
       <CourseTasksModal
         visible={taskModalVisible}
         onDismiss={() => setTaskModalVisible(false)}

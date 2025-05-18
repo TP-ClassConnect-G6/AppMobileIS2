@@ -51,23 +51,32 @@ const TaskSubmissionModal = ({ visible, onDismiss, taskId, taskTitle, dueDate }:
       }
     }
   }, [session]);
-
-  // Función para seleccionar archivos
+  // Función para seleccionar archivos (limitado a 1 archivo)
   const pickDocuments = async () => {
     try {
+      // Si ya hay un archivo seleccionado, mostrar advertencia
+      if (selectedFiles.length >= 1) {
+        Alert.alert(
+          "Límite de archivos", 
+          "Solo se permite adjuntar 1 archivo. Por favor elimina el archivo actual para seleccionar uno nuevo.",
+          [{ text: "Entendido" }]
+        );
+        return;
+      }
+
       const result = await DocumentPicker.getDocumentAsync({
         type: "*/*", // Cualquier tipo de archivo
-        multiple: true, // Permitir múltiples archivos
+        multiple: false, // No permitir múltiples archivos
         copyToCacheDirectory: true,
       });
       
       if (!result.canceled && result.assets) {
-        // Actualizar la lista de archivos seleccionados
-        setSelectedFiles(prevFiles => [...prevFiles, ...result.assets]);
+        // Actualizar con solo el nuevo archivo seleccionado
+        setSelectedFiles(result.assets);
       }
     } catch (error) {
       console.error("Error al seleccionar archivos:", error);
-      Alert.alert("Error", "No se pudieron seleccionar los archivos");
+      Alert.alert("Error", "No se pudo seleccionar el archivo");
     }
   };
 
@@ -111,22 +120,21 @@ const TaskSubmissionModal = ({ visible, onDismiss, taskId, taskTitle, dueDate }:
       
       // Agregar el contenido de la tarea
       formData.append("content", content);
-      
-      // Agregar los archivos seleccionados
+        // Agregar el archivo seleccionado (máximo 1)
       if (selectedFiles.length > 0) {
-        for (const file of selectedFiles) {
-          const fileInfo = await FileSystem.getInfoAsync(file.uri);
+        // Solo tomamos el primer archivo de la lista
+        const file = selectedFiles[0];
+        const fileInfo = await FileSystem.getInfoAsync(file.uri);
+        
+        // Solo proceder si el archivo existe
+        if (fileInfo.exists) {
+          const fileBlob: any = {
+            uri: file.uri,
+            type: file.mimeType || "application/octet-stream",
+            name: file.name || "file"
+          };
           
-          // Solo proceder si el archivo existe
-          if (fileInfo.exists) {
-            const fileBlob: any = {
-              uri: file.uri,
-              type: file.mimeType || "application/octet-stream",
-              name: file.name || "file"
-            };
-            
-            formData.append("files", fileBlob);
-          }
+          formData.append("files", fileBlob);
         }
       }
 
@@ -304,8 +312,7 @@ const TaskSubmissionModal = ({ visible, onDismiss, taskId, taskTitle, dueDate }:
                 placeholder="Escribe el contenido de tu tarea aquí..."
                 style={styles.contentInput}
               />
-              
-              <Text style={styles.sectionTitle}>Archivos adjuntos:</Text>
+                <Text style={styles.sectionTitle}>Archivo adjunto (máximo 1):</Text>
               {selectedFiles.length > 0 ? (
                 <View style={styles.fileList}>
                   {selectedFiles.map((file, index) => (
@@ -326,7 +333,7 @@ const TaskSubmissionModal = ({ visible, onDismiss, taskId, taskTitle, dueDate }:
                   ))}
                 </View>
               ) : (
-                <Text style={styles.noFilesText}>No hay archivos seleccionados</Text>
+                <Text style={styles.noFilesText}>No hay archivo seleccionado</Text>
               )}
               
               <Button 
@@ -334,9 +341,9 @@ const TaskSubmissionModal = ({ visible, onDismiss, taskId, taskTitle, dueDate }:
                 icon="file-upload" 
                 onPress={pickDocuments}
                 style={styles.fileButton}
-                disabled={uploading}
+                disabled={uploading || selectedFiles.length >= 1}
               >
-                Adjuntar Archivos
+                Adjuntar Archivo
               </Button>
               
               {isSubmissionLate() && (
