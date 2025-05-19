@@ -219,9 +219,9 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                 Error al cargar los detalles del curso
               </Text>
               <Button mode="contained" onPress={() => refetch()}>
-                Intentar nuevamente
-              </Button>
-            </View>          ) : courseDetail ? (
+                Intentar nuevamente              </Button>
+            </View>
+          ) : courseDetail ? (
             <>
               <Title style={styles.title}>{courseDetail.course_name}</Title>
               
@@ -349,7 +349,8 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                     icon="clipboard-text"
                   >
                     Gestionar tareas
-                  </Button>                  <Button 
+                  </Button>                  
+                  <Button 
                     mode="outlined" 
                     style={[styles.examButton, {backgroundColor: '#E8F5E9'}]} 
                     onPress={() => setExamModalVisible(true)}
@@ -363,9 +364,10 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                     onPress={() => setTaskModalVisible(true)}
                     icon="eye-outline"
                   >
-                    Ver tareas como estudiante
+                    Ver tareas como estudiantes
                   </Button>
-                </>              ) : isEnrolled ? (
+                </>
+              ) : isEnrolled ? (
                 <>
                   <Button 
                     mode="contained" 

@@ -175,7 +175,7 @@ export default function CreateTaskScreen() {
         }}]
       );
     } catch (error: any) {
-      console.error("Error al crear la tarea:", error);
+      //console.error("Error al crear la tarea:", error);
       
       // Manejar diferentes tipos de errores
       if (error.response) {

@@ -12,6 +12,8 @@ import jwtDecode from "jwt-decode";
 import * as Linking from 'expo-linking';
 import * as WebBrowser from "expo-web-browser";
 import * as SecureStore from "expo-secure-store";
+import axios from "axios";
+import { Alert } from "react-native";
 
 
 type Session = {
@@ -133,7 +135,6 @@ export function useInitializeSessionService() {
     setSession(savedSession);
     router.push("/requestLocation"); // La pantalla de requestLocation se encargará de verificar si ya existe ubicación
   };
-
   const signInWithBiometric = async () : Promise<boolean> => {
     //Me guardo la session para el login biométrico
     console.log("Entro a la funcion de biometrico");
@@ -142,10 +143,45 @@ export function useInitializeSessionService() {
     if (savedSessionStr) {
       try {
         const session: Session = JSON.parse(savedSessionStr);
-        const savedSession = await startSession(session);
-        setSession(session);
-        router.push("/requestLocation"); // La pantalla de requestLocation se encargará de verificar si ya existe ubicación
-        return true;
+        
+        // Verificar si el usuario está bloqueado con el endpoint is_logged
+        try {
+          const response = await axios.get(
+            'https://usuariosis2-production.up.railway.app/is_logged',
+            {
+              headers: {
+                'Authorization': `Bearer ${session.token}`
+              }
+            }
+          );
+          
+          console.log("Verificación de usuario bloqueado:", response.status);
+          
+          // Si la petición es exitosa, el usuario no está bloqueado
+          const savedSession = await startSession(session);
+          setSession(session);
+          router.push("/requestLocation"); // La pantalla de requestLocation se encargará de verificar si ya existe ubicación
+          return true;
+        } catch (apiError: any) {
+          // Si obtenemos un código 401, el usuario está bloqueado
+          if (apiError.response && apiError.response.status === 401) {
+            console.error("Usuario bloqueado");
+            Alert.alert(
+              "Cuenta bloqueada",
+              "Tu cuenta ha sido bloqueada. Por favor, contacta con el administrador.",
+              [{ text: "OK" }]
+            );
+            await endSession(); // Eliminar la sesión
+            return false;
+          } else {
+            console.error("Error al verificar el estado del usuario:", apiError);
+            // Si hay otro tipo de error, continuamos con el proceso normal
+            const savedSession = await startSession(session);
+            setSession(session);
+            router.push("/requestLocation");
+            return true;
+          }
+        }
       } catch (error) {
         console.error("Error al parsear la sesión:", error);
         return false;
