@@ -357,7 +357,7 @@ export default function CourseListScreen() {
                           if (error.response.status === 400) {
                             errorMessage = "No se pudo inscribir. Verifica que cumplas con todos los requisitos del curso.";
                           } else if (error.response.status === 409) {
-                            errorMessage = "Ya estás inscrito en este curso.";
+                            errorMessage = error.response.data.detail;
                           } else if (error.response.data && error.response.data.message) {
                             errorMessage = error.response.data.message;
                           }
