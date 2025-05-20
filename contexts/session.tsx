@@ -147,7 +147,7 @@ export function useInitializeSessionService() {
         // Verificar si el usuario está bloqueado con el endpoint is_logged
         try {
           const response = await axios.get(
-            'https://usuariosis2-production.up.railway.app/is_logged',
+            'https://apigatewayis2-production.up.railway.app/users/is_logged',
             {
               headers: {
                 'Authorization': `Bearer ${session.token}`
@@ -195,7 +195,7 @@ export function useInitializeSessionService() {
   const signInWithGoogle = async () => {
     try {
       const redirectUri = Linking.createURL('redirect');
-      const loginUrl = `https://usuariosis2-production.up.railway.app/login/google?redirect_uri=${encodeURIComponent(redirectUri)}`;
+      const loginUrl = `https://apigatewayis2-production.up.railway.app/users/login/google?redirect_uri=${encodeURIComponent(redirectUri)}`;
   
       const result = await WebBrowser.openAuthSessionAsync(loginUrl, redirectUri);
   

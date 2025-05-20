@@ -78,7 +78,7 @@ export default function LoginScreen() {
   const handleFacebookLogin = async () => {
     try {
       const result = await WebBrowser.openBrowserAsync(
-        "https://usuariosis2-production.up.railway.app/login/facebook"
+        "https://apigatewayis2-production.up.railway.app/users/login/facebook"
       );
       console.log("Facebook Login Result:", result);
     } catch (e) {
