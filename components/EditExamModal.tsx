@@ -167,7 +167,9 @@ const EditExamModal = ({ visible, onDismiss, exam, courseId }: EditExamModalProp
     if (!title.trim() || !description.trim() || !duration || !location.trim()) {
       Alert.alert("Error", "Por favor complete todos los campos obligatorios.");
       return;
-    }    // Crear el objeto de examen actualizado
+    }
+    
+    // Crear el objeto de examen actualizado
     const updatedExam: Exam = {
       ...exam,
       title: title.trim(),
@@ -274,7 +276,9 @@ const EditExamModal = ({ visible, onDismiss, exam, courseId }: EditExamModalProp
             mode="outlined"
             keyboardType="numeric"
             style={styles.input}
-          />          <TextInput
+          />
+          
+          <TextInput
             label="Reglas de entrega"
             value={submissionRules}
             onChangeText={setSubmissionRules}
