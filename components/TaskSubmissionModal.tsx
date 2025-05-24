@@ -36,9 +36,7 @@ const TaskSubmissionModal = ({ visible, onDismiss, taskId, taskTitle, dueDate }:
   const [uploading, setUploading] = useState(false);
   const [studentId, setStudentId] = useState<string>("");
   const [submissionData, setSubmissionData] = useState<TaskSubmissionResponse | null>(null);
-  const [submissionSuccess, setSubmissionSuccess] = useState(false);
-
-  // Extraer el ID del estudiante del token JWT
+  const [submissionSuccess, setSubmissionSuccess] = useState(false);  // Extraer el ID del estudiante del token JWT
   useEffect(() => {
     if (session?.token) {
       try {
@@ -51,6 +49,22 @@ const TaskSubmissionModal = ({ visible, onDismiss, taskId, taskTitle, dueDate }:
       }
     }
   }, [session]);
+  
+  // Reset form state when taskId changes or when modal becomes visible
+  useEffect(() => {
+    if (visible) {
+      resetForm();
+      console.log(`Modal opened for task: ${taskId}, resetting form state`);
+    }
+  }, [taskId, visible]);
+  
+  // Reset form state when taskId changes or when modal becomes visible
+  useEffect(() => {
+    if (visible) {
+      resetForm();
+      console.log(`Modal opened for task: ${taskId}, resetting form state`);
+    }
+  }, [taskId, visible]);
   // Función para seleccionar archivos (limitado a 1 archivo)
   const pickDocuments = async () => {
     try {
@@ -119,7 +133,7 @@ const TaskSubmissionModal = ({ visible, onDismiss, taskId, taskTitle, dueDate }:
       formData.append("user_id", studentId);
       
       // Agregar el contenido de la tarea
-      formData.append("content", content);
+      formData.append("answers", content);
         // Agregar el archivo seleccionado (máximo 1)
       if (selectedFiles.length > 0) {
         // Solo tomamos el primer archivo de la lista
@@ -202,7 +216,6 @@ const TaskSubmissionModal = ({ visible, onDismiss, taskId, taskTitle, dueDate }:
       return dateString;
     }
   };
-
   // Función para abrir un archivo desde URL
   const openFileUrl = (url: string) => {
     Linking.canOpenURL(url).then(supported => {
@@ -214,11 +227,24 @@ const TaskSubmissionModal = ({ visible, onDismiss, taskId, taskTitle, dueDate }:
     });
   };
 
+  // Función para resetear el formulario y volver al modo de envío
+  const resetForm = () => {
+    setContent("");
+    setSelectedFiles([]);
+    setSubmissionData(null);
+    setSubmissionSuccess(false);
+    console.log("Form state reset completed");
+  };
+
   return (
-    <Portal>
-      <Modal
+    <Portal>      <Modal
         visible={visible}
-        onDismiss={(uploading || submissionSuccess) ? undefined : onDismiss} // Prevenir cierre durante la carga o después del éxito
+        onDismiss={() => {
+          if (!uploading) {
+            resetForm();
+            onDismiss();
+          }
+        }}
         contentContainerStyle={styles.modalContainer}
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -280,10 +306,12 @@ const TaskSubmissionModal = ({ visible, onDismiss, taskId, taskTitle, dueDate }:
                 )}
               </List.Section>
               
-              <View style={styles.buttonContainer}>                
-                <Button 
+              <View style={styles.buttonContainer}>                  <Button 
                   mode="contained" 
-                  onPress={onDismiss}
+                  onPress={() => {
+                    resetForm();
+                    onDismiss();
+                  }}
                   style={styles.doneButton}
                 >
                   Finalizar
@@ -354,10 +382,12 @@ const TaskSubmissionModal = ({ visible, onDismiss, taskId, taskTitle, dueDate }:
                 </View>
               )}
               
-              <View style={styles.buttonContainer}>
-                <Button 
+              <View style={styles.buttonContainer}>                <Button 
                   mode="outlined" 
-                  onPress={onDismiss} 
+                  onPress={() => {
+                    resetForm();
+                    onDismiss();
+                  }} 
                   style={styles.cancelButton}
                   disabled={uploading}
                 >

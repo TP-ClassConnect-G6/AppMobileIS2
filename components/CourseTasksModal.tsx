@@ -152,9 +152,12 @@ const CourseTasksModal = ({ visible, onDismiss, courseId, courseName }: CourseTa
     retry: 1, // Intentar nuevamente 1 vez en caso de error
     retryDelay: 1000, // Esperar 1 segundo entre reintentos
   });
-
   // Función para abrir el modal de envío de tarea
   const openSubmissionModal = (task: Task) => {
+    // If we're selecting a new task, clear any previous state
+    if (selectedTask?.id !== task.id) {
+      console.log(`Switching from task ${selectedTask?.id} to ${task.id}`);
+    }
     setSelectedTask(task);
     setSubmissionModalVisible(true);
   };
@@ -285,14 +288,13 @@ const CourseTasksModal = ({ visible, onDismiss, courseId, courseName }: CourseTa
             Cerrar
           </Button>
         </ScrollView>
-      </Modal>
-
-      {/* Modal para enviar respuestas de tarea */}
+      </Modal>      {/* Modal para enviar respuestas de tarea */}
       {selectedTask && (
         <TaskSubmissionModal
           visible={submissionModalVisible}
           onDismiss={() => {
             setSubmissionModalVisible(false);
+            setSelectedTask(null); // Clear selected task when modal is dismissed
             refreshSubmissions();
           }}
           taskId={selectedTask.id}
