@@ -116,7 +116,7 @@ const TaskSubmissionModal = ({ visible, onDismiss, taskId, taskTitle, dueDate }:
       formData.append("task_id", taskId);
       
       // Agregar el ID del estudiante
-      formData.append("student_id", studentId);
+      formData.append("user_id", studentId);
       
       // Agregar el contenido de la tarea
       formData.append("content", content);

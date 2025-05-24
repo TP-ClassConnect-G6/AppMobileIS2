@@ -106,7 +106,7 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle }: ExamSubm
       formData.append("exam_id", examId);
       
       // Agregar el ID del estudiante
-      formData.append("student_id", studentId);
+      formData.append("user_id", studentId);
       
       // Agregar las respuestas
       formData.append("answers", answers);
