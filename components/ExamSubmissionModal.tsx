@@ -201,14 +201,21 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle }: ExamSubm
       
       // Agregar el ID del estudiante
       formData.append("user_id", studentId);
-      
-      // Determinar el formato de las respuestas según si estamos usando preguntas estructuradas
+        // Determinar el formato de las respuestas según si estamos usando preguntas estructuradas
       if (examQuestions.length > 0) {
         // Convertir las respuestas a un formato estructurado para enviar al servidor
-        const formattedAnswers = examQuestions.map((question: string, index: number) => {
-          return `PREGUNTA ${index + 1}: ${question}\n\nRESPUESTA ${index + 1}: ${questionAnswers[index] || "Sin respuesta"}\n\n---\n`;
-        }).join("\n");
+        let formattedAnswers = "";
         
+        // Recorrer cada pregunta y su respuesta correspondiente
+        for (let i = 0; i < examQuestions.length; i++) {
+          const question = examQuestions[i];
+          const answer = questionAnswers[i] || "Sin respuesta";
+          
+          // Formatear cada par pregunta-respuesta
+          formattedAnswers += `PREGUNTA ${i + 1}: ${question}\n\nRESPUESTA ${i + 1}: ${answer}\n\n---\n`;
+        }
+        
+        console.log("Respuestas formateadas:", formattedAnswers);
         formData.append("answers", formattedAnswers);
       } else {
         // Usar el campo de respuestas tradicional
@@ -361,16 +368,17 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle }: ExamSubm
                 <Divider />
                 <Text style={styles.sectionTitle}>Tus Respuestas:</Text>
                 <View style={styles.answersContainer}>
-                  {/* Parse and display formatted answers if they contain structured questions */}
                   {submissionData.answers.includes("PREGUNTA") && submissionData.answers.includes("RESPUESTA") ? (
                     <View>
-                      {submissionData.answers.split(/---\n/).map((qa, index) => {
-                        if (!qa.trim()) return null;
-                        const parts = qa.split(/RESPUESTA \d+:/);
-                        if (parts.length !== 2) return <Text key={index}>{qa}</Text>;
+                      {submissionData.answers.split(/---\n/).filter(qa => qa.trim()).map((qa, index) => {
+                        // Buscar patrones de pregunta y respuesta
+                        const questionMatch = qa.match(/PREGUNTA \d+:(.*?)(?=\n\nRESPUESTA)/s);
+                        const answerMatch = qa.match(/RESPUESTA \d+:(.*?)$/s);
                         
-                        const questionPart = parts[0].replace(/PREGUNTA \d+:/, '').trim();
-                        const answerPart = parts[1].trim();
+                        if (!questionMatch || !answerMatch) return <Text key={index}>{qa}</Text>;
+                        
+                        const questionPart = questionMatch[1].trim();
+                        const answerPart = answerMatch[1].trim();
                         
                         return (
                           <View key={index} style={styles.submittedQuestionContainer}>
@@ -379,7 +387,7 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle }: ExamSubm
                             </Text>
                             <View style={styles.submittedAnswerContainer}>
                               <Text style={styles.submittedAnswerText}>
-                                {`${answerPart}`}
+                                {answerPart}
                               </Text>
                             </View>
                           </View>
