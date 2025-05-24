@@ -22,6 +22,7 @@ type CreateExamRequest = {
     open_book: boolean;
     grace_period?: string;
     submission_rules?: string;
+    questions?: string;
   };
   user_id: string;
   published: boolean;
@@ -62,7 +63,8 @@ type CourseItem = {
 const createExamSchema = z.object({
   course_id: z.string().min(1, "El curso es requerido"),
   title: z.string().min(3, "El título debe tener al menos 3 caracteres"),
-  description: z.string().min(10, "La descripción debe tener al menos 10 caracteres"),
+  description: z.string().min(10, "Las instrucciones generales deben tener al menos 10 caracteres"),
+  questions: z.string().min(5, "Debe ingresar al menos una pregunta"),
   date: z.string()
     .min(1, "La fecha es requerida")
     .regex(/^\d{2}\/\d{2}\/\d{2,4}$/, "El formato debe ser DD/MM/YY"),
@@ -135,7 +137,6 @@ export default function CreateExamScreen() {
       return dateStr;
     }
   };
-
   // Configurar React Hook Form con validación Zod
   const {
     control,
@@ -148,6 +149,7 @@ export default function CreateExamScreen() {
       course_id: "",
       title: "",
       description: "",
+      questions: "",
       date: format(new Date(), "dd/MM/yy"), // Formato para UI: DD/MM/YY
       duration: "120",
       location: "",
@@ -225,9 +227,7 @@ export default function CreateExamScreen() {
         Alert.alert("Error", "Solo los profesores pueden crear exámenes");
         setLoading(false);
         return;
-      }
-
-      const request: CreateExamRequest = {
+      }      const request: CreateExamRequest = {
         course_id: data.course_id,
         title: data.title,
         description: data.description,
@@ -237,7 +237,8 @@ export default function CreateExamScreen() {
         additional_info: {
           open_book: data.open_book,
           grace_period: data.grace_period || "",
-          submission_rules: data.submission_rules || ""
+          submission_rules: data.submission_rules || "",
+          questions: data.questions || "", // Incluir las preguntas en el campo additional_info
         },
         user_id: userId,
         published: false // Los exámenes se crean como no publicados por defecto
@@ -366,15 +367,13 @@ export default function CreateExamScreen() {
           />
           {errors.title && (
             <HelperText type="error">{errors.title.message}</HelperText>
-          )}
-
-          {/* Descripción */}
+          )}          {/* Descripción e Instrucciones Generales */}
           <Controller
             control={control}
             name="description"
             render={({ field: { onChange, onBlur, value } }) => (
               <TextInput
-                label="Descripción *"
+                label="Instrucciones Generales *"
                 value={value}
                 onChangeText={onChange}
                 onBlur={onBlur}
@@ -382,11 +381,40 @@ export default function CreateExamScreen() {
                 multiline
                 numberOfLines={3}
                 error={!!errors.description}
+                placeholder="Instrucciones generales del examen"
               />
             )}
           />
           {errors.description && (
             <HelperText type="error">{errors.description.message}</HelperText>
+          )}
+          
+          {/* Preguntas del Examen */}
+          <Text style={styles.sectionTitle}>Preguntas del Examen</Text>
+          <HelperText type="info">
+            Ingrese cada pregunta separada por tres guiones (---). Ejemplo:
+            {'\n\n'}1. ¿Qué es un algoritmo?
+            {'\n\n'}---
+            {'\n\n'}2. Defina qué es la herencia en programación orientada a objetos.
+          </HelperText>
+          <Controller
+            control={control}
+            name="questions"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Preguntas del Examen *"
+                value={value}
+                onChangeText={onChange}
+                onBlur={onBlur}
+                style={[styles.input, styles.questionsInput]}
+                multiline
+                numberOfLines={10}
+                error={!!errors.questions}
+              />
+            )}
+          />
+          {errors.questions && (
+            <HelperText type="error">{errors.questions.message}</HelperText>
           )}
 
           {/* Fecha del examen */}
@@ -564,6 +592,10 @@ const styles = StyleSheet.create({
   input: {
     marginBottom: 10,
     backgroundColor: "white",
+  },
+  questionsInput: {
+    minHeight: 200,
+    textAlignVertical: "top",
   },
   pickerContainer: {
     backgroundColor: "white",

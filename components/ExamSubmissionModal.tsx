@@ -20,6 +20,18 @@ type ExamSubmissionResponse = {
   is_active: boolean;
 };
 
+// Tipo para detalles del examen
+type ExamDetails = {
+  id: string;
+  title: string;
+  description: string;
+  additional_info?: {
+    instructions?: string;
+    questions?: string;
+  };
+  [key: string]: any;
+};
+
 // Tipo para las propiedades del componente
 type ExamSubmissionModalProps = {
   visible: boolean;
@@ -36,6 +48,11 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle }: ExamSubm
   const [studentId, setStudentId] = useState<string>("");
   const [submissionData, setSubmissionData] = useState<ExamSubmissionResponse | null>(null);
   const [submissionSuccess, setSubmissionSuccess] = useState(false);
+  const [examQuestions, setExamQuestions] = useState<string[]>([]);
+  const [questionAnswers, setQuestionAnswers] = useState<{[key: number]: string}>({});
+  const [examDetails, setExamDetails] = useState<ExamDetails | null>(null);
+  const [loading, setLoading] = useState(false);
+  
   // Extraer el ID del estudiante del token JWT
   useEffect(() => {
     if (session?.token) {
@@ -55,9 +72,42 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle }: ExamSubm
   useEffect(() => {
     if (visible) {
       resetForm();
+      fetchExamDetails();
       console.log(`Modal opened for exam: ${examId}, resetting form state`);
     }
   }, [examId, visible]);
+
+  // Fetch exam details including questions
+  const fetchExamDetails = async () => {
+    if (!examId) return;
+    
+    try {
+      setLoading(true);
+      const response = await courseClient.get(`/exams/${examId}`);
+      setExamDetails(response.data);
+      
+      // Extract questions from additional_info if available
+      if (response.data?.additional_info?.questions) {
+        const questionsText = response.data.additional_info.questions;
+        // Split questions by the delimiter "---"
+        const questionsArray = questionsText.split(/\s*---\s*/).filter((q: string) => q.trim());
+        setExamQuestions(questionsArray);
+        
+        // Initialize answers object
+        const initialAnswers: {[key: number]: string} = {};
+        questionsArray.forEach((_: string, index: number) => {
+          initialAnswers[index] = "";
+        });
+        setQuestionAnswers(initialAnswers);
+      }
+    } catch (error) {
+      console.error("Error fetching exam details:", error);
+      Alert.alert("Error", "No se pudieron cargar los detalles del examen");
+    } finally {
+      setLoading(false);
+    }
+  };
+  
   // Función para seleccionar archivos (limitado a 1 archivo)
   const pickDocuments = async () => {
     try {
@@ -89,8 +139,19 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle }: ExamSubm
 
   // Eliminar un archivo de la lista
   const removeFile = (index: number) => {
-    setSelectedFiles(prevFiles => prevFiles.filter((_, i) => i !== index));
+    setSelectedFiles((prevFiles: DocumentPicker.DocumentPickerAsset[]) => 
+      prevFiles.filter((_: DocumentPicker.DocumentPickerAsset, i: number) => i !== index)
+    );
   };
+  
+  // Función para actualizar la respuesta a una pregunta específica
+  const updateQuestionAnswer = (questionIndex: number, answer: string) => {
+    setQuestionAnswers((prev: {[key: number]: string}) => ({
+      ...prev,
+      [questionIndex]: answer
+    }));
+  };
+
   // Función para enviar la entrega del examen
   const submitExam = async () => {
     if (!studentId) {
@@ -98,11 +159,37 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle }: ExamSubm
       return;
     }
 
-    if (!answers.trim()) {
+    // Verificar si estamos usando el formato estructurado de preguntas
+    const usingStructuredQuestions = examQuestions.length > 0;
+    
+    if (usingStructuredQuestions) {
+      // Verificar si todas las preguntas tienen respuestas
+      const unansweredQuestions = examQuestions.filter((_: string, index: number) => 
+        !questionAnswers[index] || questionAnswers[index].trim() === ""
+      );
+      
+      if (unansweredQuestions.length > 0) {
+        Alert.alert(
+          "Respuestas incompletas", 
+          `Hay ${unansweredQuestions.length} pregunta(s) sin responder. ¿Desea continuar de todos modos?`,
+          [
+            { text: "Cancelar", style: "cancel" },
+            { text: "Continuar", onPress: () => processSubmission() }
+          ]
+        );
+        return;
+      }
+    } else if (!answers.trim()) {
       Alert.alert("Aviso", "Por favor, ingresa tus respuestas antes de enviar");
       return;
     }
-
+    
+    // Si todas las preguntas tienen respuestas o estamos usando el formato antiguo, proceder con el envío
+    processSubmission();
+  };
+  
+  // Función para procesar la entrega del examen
+  const processSubmission = async () => {
     setUploading(true);
 
     try {
@@ -115,9 +202,20 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle }: ExamSubm
       // Agregar el ID del estudiante
       formData.append("user_id", studentId);
       
-      // Agregar las respuestas
-      formData.append("answers", answers);
-        // Agregar el archivo seleccionado (máximo 1)
+      // Determinar el formato de las respuestas según si estamos usando preguntas estructuradas
+      if (examQuestions.length > 0) {
+        // Convertir las respuestas a un formato estructurado para enviar al servidor
+        const formattedAnswers = examQuestions.map((question: string, index: number) => {
+          return `PREGUNTA ${index + 1}: ${question}\n\nRESPUESTA ${index + 1}: ${questionAnswers[index] || "Sin respuesta"}\n\n---\n`;
+        }).join("\n");
+        
+        formData.append("answers", formattedAnswers);
+      } else {
+        // Usar el campo de respuestas tradicional
+        formData.append("answers", answers);
+      }
+      
+      // Agregar el archivo seleccionado (máximo 1)
       if (selectedFiles.length > 0) {
         // Solo tomamos el primer archivo de la lista
         const file = selectedFiles[0];
@@ -142,7 +240,8 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle }: ExamSubm
         },
       });
       
-      console.log("Respuesta del servidor:", response.data);      // Guardar los datos de la respuesta
+      console.log("Respuesta del servidor:", response.data);
+      // Guardar los datos de la respuesta
       const submissionResponse: ExamSubmissionResponse = response.data;
       setSubmissionData(submissionResponse);
       
@@ -188,6 +287,7 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle }: ExamSubm
       setUploading(false);
     }
   };
+  
   // Función para formatear la fecha de envío
   const formatSubmissionDate = (dateString: string) => {
     try {
@@ -208,17 +308,20 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle }: ExamSubm
       }
     });
   };
+  
   // Función para resetear el formulario y volver al modo de envío
   const resetForm = () => {
     setAnswers("");
     setSelectedFiles([]);
     setSubmissionData(null);
     setSubmissionSuccess(false);
+    setQuestionAnswers({});
     console.log("Form state reset completed");
   };
 
   return (
-    <Portal>      <Modal
+    <Portal>
+      <Modal
         visible={visible}
         onDismiss={() => {
           if (!uploading) {
@@ -256,9 +359,36 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle }: ExamSubm
                   left={props => <List.Icon {...props} icon="calendar-clock" />}
                 />
                 <Divider />
-                  <Text style={styles.sectionTitle}>Tus Respuestas:</Text>
+                <Text style={styles.sectionTitle}>Tus Respuestas:</Text>
                 <View style={styles.answersContainer}>
-                  <Text style={styles.submittedAnswers}>{submissionData.answers}</Text>
+                  {/* Parse and display formatted answers if they contain structured questions */}
+                  {submissionData.answers.includes("PREGUNTA") && submissionData.answers.includes("RESPUESTA") ? (
+                    <View>
+                      {submissionData.answers.split(/---\n/).map((qa, index) => {
+                        if (!qa.trim()) return null;
+                        const parts = qa.split(/RESPUESTA \d+:/);
+                        if (parts.length !== 2) return <Text key={index}>{qa}</Text>;
+                        
+                        const questionPart = parts[0].replace(/PREGUNTA \d+:/, '').trim();
+                        const answerPart = parts[1].trim();
+                        
+                        return (
+                          <View key={index} style={styles.submittedQuestionContainer}>
+                            <Text style={styles.submittedQuestionText}>
+                              {`Pregunta ${index + 1}: ${questionPart}`}
+                            </Text>
+                            <View style={styles.submittedAnswerContainer}>
+                              <Text style={styles.submittedAnswerText}>
+                                {`${answerPart}`}
+                              </Text>
+                            </View>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ) : (
+                    <Text style={styles.submittedAnswers}>{submissionData.answers}</Text>
+                  )}
                 </View>
                 
                 {submissionData.is_late && (
@@ -268,7 +398,8 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle }: ExamSubm
                     </Text>
                   </View>
                 )}
-                  {submissionData.file_urls && submissionData.file_urls.length > 0 && (
+                
+                {submissionData.file_urls && submissionData.file_urls.length > 0 && (
                   <>
                     <Text style={styles.sectionTitle}>Archivo Adjunto:</Text>
                     <View style={styles.fileUrlsList}>
@@ -299,7 +430,7 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle }: ExamSubm
                 >
                   Nueva Entrega
                 </Button> */}
-                  <Button 
+                <Button 
                   mode="contained" 
                   onPress={() => {
                     resetForm();
@@ -310,24 +441,62 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle }: ExamSubm
                   Finalizar
                 </Button>
               </View>
-            </>
-          ) : (
+            </>          ) : (
             // Vista de formulario para enviar el examen
             <>
               <Title style={styles.title}>Enviar Examen</Title>
               <Text style={styles.examTitle}>{examTitle}</Text>
               <Divider style={styles.divider} />
               
-              <Text style={styles.sectionTitle}>Respuestas:</Text>
-              <TextInput
-                multiline
-                numberOfLines={8}
-                value={answers}
-                onChangeText={setAnswers}
-                placeholder="Escribe tus respuestas aquí..."
-                style={styles.answersInput}
-              />
-                <Text style={styles.sectionTitle}>Archivo adjunto (máximo 1):</Text>
+              {loading ? (
+                <View style={styles.loaderContainer}>
+                  <ActivityIndicator size="large" color="#0000ff" />
+                  <Text style={styles.loadingText}>Cargando detalles del examen...</Text>
+                </View>
+              ) : examQuestions.length > 0 ? (
+                // Mostrar formato estructurado de preguntas
+                <>
+                  {examDetails?.description && (
+                    <View style={styles.instructionsContainer}>
+                      <Text style={styles.sectionTitle}>Instrucciones Generales:</Text>
+                      <Text style={styles.instructionsText}>{examDetails.description}</Text>
+                    </View>
+                  )}
+                  
+                  <Text style={styles.sectionTitle}>Preguntas:</Text>
+                  
+                  {examQuestions.map((question, index) => (
+                    <View key={index} style={styles.questionContainer}>
+                      <Text style={styles.questionText}>
+                        {index + 1}. {question}
+                      </Text>
+                      <TextInput
+                        multiline
+                        numberOfLines={4}
+                        value={questionAnswers[index] || ""}
+                        onChangeText={(text) => updateQuestionAnswer(index, text)}
+                        placeholder={`Escribe tu respuesta a la pregunta ${index + 1} aquí...`}
+                        style={styles.answerInput}
+                      />
+                    </View>
+                  ))}
+                </>
+              ) : (
+                // Mostrar formato tradicional (texto libre)
+                <>
+                  <Text style={styles.sectionTitle}>Respuestas:</Text>
+                  <TextInput
+                    multiline
+                    numberOfLines={8}
+                    value={answers}
+                    onChangeText={setAnswers}
+                    placeholder="Escribe tus respuestas aquí..."
+                    style={styles.answersInput}
+                  />
+                </>
+              )}
+              
+              <Text style={styles.sectionTitle}>Archivo adjunto (máximo 1):</Text>
               {selectedFiles.length > 0 ? (
                 <View style={styles.fileList}>
                   {selectedFiles.map((file, index) => (
@@ -361,7 +530,8 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle }: ExamSubm
                 Adjuntar Archivo
               </Button>
               
-              <View style={styles.buttonContainer}>                <Button 
+              <View style={styles.buttonContainer}>
+                <Button 
                   mode="outlined" 
                   onPress={() => {
                     resetForm();
@@ -372,13 +542,12 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle }: ExamSubm
                 >
                   Cancelar
                 </Button>
-                
                 <Button 
                   mode="contained" 
                   onPress={submitExam}
                   style={styles.submitButton}
                   loading={uploading}
-                  disabled={uploading || !answers.trim()}
+                  disabled={uploading || (examQuestions.length === 0 && !answers.trim())}
                 >
                   Enviar Examen
                 </Button>
@@ -431,6 +600,51 @@ const styles = StyleSheet.create({
   },
   answersInput: {
     marginBottom: 15,
+  },
+  // Nuevos estilos para las preguntas estructuradas
+  loaderContainer: {
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 100,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
+  },
+  instructionsContainer: {
+    backgroundColor: '#f5f5f5',
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 15,
+  },
+  instructionsText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#444',
+  },
+  questionContainer: {
+    backgroundColor: 'white',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 15,
+  },
+  questionText: {
+    fontSize: 15,
+    marginBottom: 10,
+    fontWeight: '500',
+  },
+  answerInput: {
+    backgroundColor: '#f9f9f9',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 5,
+    padding: 8,
+    minHeight: 100,
+    textAlignVertical: 'top',
   },
   fileList: {
     marginBottom: 15,
@@ -504,12 +718,38 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
+  // Styles for structured submitted answers
+  submittedQuestionContainer: {
+    marginBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    paddingBottom: 10,
+  },
+  submittedQuestionText: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 5,
+    color: '#333',
+  },
+  submittedAnswerContainer: {
+    backgroundColor: '#ffffff',
+    padding: 10,
+    borderRadius: 5,
+    borderLeftWidth: 3,
+    borderLeftColor: '#2196F3',
+  },
+  submittedAnswerText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#444',
+  },
   fileUrlsList: {
     marginVertical: 10,
   },
   fileUrlButton: {
     marginVertical: 5,
-  },  resetButton: {
+  },
+  resetButton: {
     flex: 1,
     marginRight: 10,
   },
