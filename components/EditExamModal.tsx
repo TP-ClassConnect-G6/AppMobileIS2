@@ -19,6 +19,7 @@ type Exam = {
     open_book: boolean;
     grace_period?: string;
     submission_rules?: string;
+    questions?: string;
   };
   published: boolean;
   created_at: string;
@@ -58,8 +59,7 @@ const updateExam = async (exam: Exam): Promise<any> => {
 
 const EditExamModal = ({ visible, onDismiss, exam, courseId }: EditExamModalProps) => {
   const queryClient = useQueryClient();
-  
-  // Estados para los campos del formulario
+    // Estados para los campos del formulario
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [examDate, setExamDate] = useState(new Date());
@@ -69,10 +69,11 @@ const EditExamModal = ({ visible, onDismiss, exam, courseId }: EditExamModalProp
   const [openBook, setOpenBook] = useState(false);
   const [gracePeriod, setGracePeriod] = useState("");
   const [submissionRules, setSubmissionRules] = useState("");
+  const [questions, setQuestions] = useState<string[]>([]);
+  const [newQuestion, setNewQuestion] = useState("");
   
   // Estado para manejar el botón de guardar
   const [isSaving, setIsSaving] = useState(false);
-
   // Actualizar los estados cuando el examen cambia
   useEffect(() => {
     if (exam) {
@@ -84,6 +85,18 @@ const EditExamModal = ({ visible, onDismiss, exam, courseId }: EditExamModalProp
       setOpenBook(exam.additional_info?.open_book || false);
       setGracePeriod(exam.additional_info?.grace_period || "");
       setSubmissionRules(exam.additional_info?.submission_rules || "");
+      
+      // Cargar preguntas si existen
+      if (exam.additional_info?.questions) {
+        const questionsText = exam.additional_info.questions;
+        // Split questions by the delimiter "---"
+        const questionsArray = questionsText.split(/\s*---\s*/).filter((q: string) => q.trim());
+        setQuestions(questionsArray);
+      } else {
+        setQuestions([]);
+      }
+      
+      setNewQuestion("");
     }
   }, [exam]);
 
@@ -126,12 +139,24 @@ const EditExamModal = ({ visible, onDismiss, exam, courseId }: EditExamModalProp
       setIsSaving(false);
     }
   });
-
   // Manejar el cambio de fecha
   const handleDateChange = (event: any, selectedDate: Date | undefined) => {
     const currentDate = selectedDate || examDate;
     setShowDatePicker(false);
     setExamDate(currentDate);
+  };
+
+  // Añadir una nueva pregunta
+  const addQuestion = () => {
+    if (newQuestion.trim()) {
+      setQuestions([...questions, newQuestion.trim()]);
+      setNewQuestion("");
+    }
+  };
+
+  // Eliminar una pregunta
+  const removeQuestion = (index: number) => {
+    setQuestions(questions.filter((_, i) => i !== index));
   };
 
   // Manejar el guardado del examen
@@ -142,9 +167,7 @@ const EditExamModal = ({ visible, onDismiss, exam, courseId }: EditExamModalProp
     if (!title.trim() || !description.trim() || !duration || !location.trim()) {
       Alert.alert("Error", "Por favor complete todos los campos obligatorios.");
       return;
-    }
-
-    // Crear el objeto de examen actualizado
+    }    // Crear el objeto de examen actualizado
     const updatedExam: Exam = {
       ...exam,
       title: title.trim(),
@@ -156,7 +179,9 @@ const EditExamModal = ({ visible, onDismiss, exam, courseId }: EditExamModalProp
         open_book: openBook,
         // Solo incluimos estos campos si tienen valor
         ...(gracePeriod.trim() ? { grace_period: gracePeriod.trim() } : {}),
-        ...(submissionRules.trim() ? { submission_rules: submissionRules.trim() } : {})
+        ...(submissionRules.trim() ? { submission_rules: submissionRules.trim() } : {}),
+        // Incluir preguntas si hay
+        ...(questions.length > 0 ? { questions: questions.join("\n---\n") } : {})
       }
     };
 
@@ -249,9 +274,7 @@ const EditExamModal = ({ visible, onDismiss, exam, courseId }: EditExamModalProp
             mode="outlined"
             keyboardType="numeric"
             style={styles.input}
-          />
-
-          <TextInput
+          />          <TextInput
             label="Reglas de entrega"
             value={submissionRules}
             onChangeText={setSubmissionRules}
@@ -260,6 +283,47 @@ const EditExamModal = ({ visible, onDismiss, exam, courseId }: EditExamModalProp
             numberOfLines={3}
             style={styles.input}
           />
+
+          {/* Sección de preguntas dinámicas */}
+          <Text style={styles.sectionTitle}>Preguntas</Text>
+          <Divider style={styles.divider} />
+          
+          {questions.length > 0 && (
+            <View style={styles.questionsContainer}>
+              {questions.map((question, index) => (
+                <View key={index} style={styles.questionItem}>
+                  <Text>{`Pregunta ${index + 1}: ${question}`}</Text>
+                  <Button 
+                    icon="delete" 
+                    mode="text" 
+                    onPress={() => removeQuestion(index)}
+                  >
+                    Eliminar
+                  </Button>
+                </View>
+              ))}
+            </View>
+          )}
+          
+          <View style={styles.addQuestionContainer}>
+            <TextInput
+              label="Nueva pregunta"
+              value={newQuestion}
+              onChangeText={setNewQuestion}
+              mode="outlined"
+              multiline
+              numberOfLines={2}
+              style={styles.input}
+            />
+            <Button 
+              mode="contained"
+              onPress={addQuestion}
+              disabled={!newQuestion.trim()}
+              style={[styles.button, { marginBottom: 20 }]}
+            >
+              Añadir Pregunta
+            </Button>
+          </View>
 
           <View style={styles.buttonContainer}>
             <Button 
@@ -333,6 +397,25 @@ const styles = StyleSheet.create({
   button: {
     flex: 1,
     marginHorizontal: 5,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  questionsContainer: {
+    marginBottom: 15,
+  },
+  questionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  addQuestionContainer: {
+    marginBottom: 20,
   }
 });
 
