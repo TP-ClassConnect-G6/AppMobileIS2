@@ -20,7 +20,7 @@ type CreateTaskRequest = {
   extra_conditions: {
     type: string;
   };
-  owner: string;
+  user_id: string;
 };
 
 // Respuesta del servidor al crear una tarea
@@ -30,7 +30,7 @@ type CreateTaskResponse = {
   title: string;
   description: string;
   due_date: string;
-  owner: string;
+  user_id: string;
   instructions: string;
   extra_conditions: {
     type: string;
@@ -156,7 +156,7 @@ export default function CreateTaskScreen() {
         extra_conditions: {
           type: data.task_type
         },
-        owner: userId
+        user_id: userId
       };
 
       console.log("Enviando solicitud:", request);

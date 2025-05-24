@@ -23,7 +23,7 @@ type CreateExamRequest = {
     grace_period?: string;
     submission_rules?: string;
   };
-  owner: string;
+  user_id: string;
   published: boolean;
 };
 
@@ -39,7 +39,7 @@ type CreateExamResponse = {
   additional_info: {
     [key: string]: any;
   };
-  owner: string;
+  user_id: string;
   published: boolean;
   created_at: string;
   updated_at: string;
@@ -239,7 +239,7 @@ export default function CreateExamScreen() {
           grace_period: data.grace_period || "",
           submission_rules: data.submission_rules || ""
         },
-        owner: userId,
+        user_id: userId,
         published: false // Los exámenes se crean como no publicados por defecto
       };
 
