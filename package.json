@@ -10,8 +10,13 @@
     "web": "expo start --web",
     "test": "jest --watchAll",
     "lint": "expo lint",
-    "phone": "npx expo start",
-    "build_dev": "eas build --platform android --profile development"
+
+    "dev:expo_go": "expo start --go",
+    "dev:build": "expo run:android --device",
+    "dev": "expo start",
+
+    "build:apk": "eas build --plataform android --profile preview"
+
   },
   "jest": {
     "preset": "jest-expo"
