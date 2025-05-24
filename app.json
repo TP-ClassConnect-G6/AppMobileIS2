@@ -17,7 +17,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.gpanaccio.classConnect",
-      "googleServicesFile": "./android/app/google-services.json",
+      "googleServicesFile": "./app/google-services.json",
       "useNextNotificationsApi": true
     },
     "web": {
