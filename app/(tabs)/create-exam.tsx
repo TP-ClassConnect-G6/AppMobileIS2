@@ -387,7 +387,8 @@ export default function CreateExamScreen() {
           />
           {errors.title && (
             <HelperText type="error">{errors.title.message}</HelperText>
-          )}          {/* Descripción e Instrucciones Generales */}
+          )}
+          {/* Descripción e Instrucciones Generales */}
           <Controller
             control={control}
             name="description"
