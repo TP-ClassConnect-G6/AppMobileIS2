@@ -39,6 +39,3 @@ app-example
 
 # builds
 android
-
-# api
-app/google-services.json
