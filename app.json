@@ -17,7 +17,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.gpanaccio.classConnect",
-      "googleServicesFile": "./app/google-services.json",
+      "googleServicesFile": "./google-services.json",
       "useNextNotificationsApi": true
     },
     "web": {
@@ -38,7 +38,7 @@
       ],
       "expo-secure-store",
       "expo-notifications",
-      "expo-firebase-core"
+      "@react-native-firebase/app"
     ],
     "experiments": {
       "typedRoutes": true
