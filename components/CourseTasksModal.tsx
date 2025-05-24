@@ -288,7 +288,8 @@ const CourseTasksModal = ({ visible, onDismiss, courseId, courseName }: CourseTa
             Cerrar
           </Button>
         </ScrollView>
-      </Modal>      {/* Modal para enviar respuestas de tarea */}
+      </Modal>
+      {/* Modal para enviar respuestas de tarea */}
       {selectedTask && (
         <TaskSubmissionModal
           visible={submissionModalVisible}
