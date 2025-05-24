@@ -155,9 +155,12 @@ const CourseExamsModal = ({ visible, onDismiss, courseId, courseName }: CourseEx
     retry: 1, // Intentar nuevamente 1 vez en caso de error
     retryDelay: 1000, // Esperar 1 segundo entre reintentos
   });
-
   // Función para abrir el modal de envío de examen
   const openSubmissionModal = (exam: Exam) => {
+    // If we're selecting a new exam, clear any previous state
+    if (selectedExam?.id !== exam.id) {
+      console.log(`Switching from exam ${selectedExam?.id} to ${exam.id}`);
+    }
     setSelectedExam(exam);
     setSubmissionModalVisible(true);
   };
@@ -270,14 +273,14 @@ const CourseExamsModal = ({ visible, onDismiss, courseId, courseName }: CourseEx
             Cerrar
           </Button>
         </ScrollView>
-      </Modal>
-
+      </Modal>      
       {/* Modal para enviar respuestas de examen */}
       {selectedExam && (
         <ExamSubmissionModal
           visible={submissionModalVisible}
           onDismiss={() => {
             setSubmissionModalVisible(false);
+            setSelectedExam(null); // Clear selected exam when modal is dismissed
             refreshSubmissions();
           }}
           examId={selectedExam.id}

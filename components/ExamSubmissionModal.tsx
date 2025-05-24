@@ -36,7 +36,6 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle }: ExamSubm
   const [studentId, setStudentId] = useState<string>("");
   const [submissionData, setSubmissionData] = useState<ExamSubmissionResponse | null>(null);
   const [submissionSuccess, setSubmissionSuccess] = useState(false);
-
   // Extraer el ID del estudiante del token JWT
   useEffect(() => {
     if (session?.token) {
@@ -51,6 +50,14 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle }: ExamSubm
       }
     }
   }, [session]);
+  
+  // Reset form state when examId changes or when modal becomes visible
+  useEffect(() => {
+    if (visible) {
+      resetForm();
+      console.log(`Modal opened for exam: ${examId}, resetting form state`);
+    }
+  }, [examId, visible]);
   // Función para seleccionar archivos (limitado a 1 archivo)
   const pickDocuments = async () => {
     try {
@@ -201,20 +208,24 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle }: ExamSubm
       }
     });
   };
-
   // Función para resetear el formulario y volver al modo de envío
   const resetForm = () => {
     setAnswers("");
     setSelectedFiles([]);
     setSubmissionData(null);
     setSubmissionSuccess(false);
+    console.log("Form state reset completed");
   };
 
   return (
-    <Portal>
-      <Modal
+    <Portal>      <Modal
         visible={visible}
-        onDismiss={(uploading || submissionSuccess) ? undefined : onDismiss} // Prevenir cierre durante la carga o después del éxito
+        onDismiss={() => {
+          if (!uploading) {
+            resetForm();
+            onDismiss();
+          }
+        }}
         contentContainerStyle={styles.modalContainer}
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -288,10 +299,12 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle }: ExamSubm
                 >
                   Nueva Entrega
                 </Button> */}
-                
-                <Button 
+                  <Button 
                   mode="contained" 
-                  onPress={onDismiss}
+                  onPress={() => {
+                    resetForm();
+                    onDismiss();
+                  }}
                   style={styles.doneButton}
                 >
                   Finalizar
@@ -348,10 +361,12 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle }: ExamSubm
                 Adjuntar Archivo
               </Button>
               
-              <View style={styles.buttonContainer}>
-                <Button 
+              <View style={styles.buttonContainer}>                <Button 
                   mode="outlined" 
-                  onPress={onDismiss} 
+                  onPress={() => {
+                    resetForm();
+                    onDismiss();
+                  }} 
                   style={styles.cancelButton}
                   disabled={uploading}
                 >
