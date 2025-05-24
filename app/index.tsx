@@ -2,12 +2,22 @@ import React, { useEffect } from "react";
 import { useSession } from "@/contexts/session";
 import { Redirect, router } from "expo-router";
 import { View, Text, ActivityIndicator } from "react-native";
+import { registerForPushNotificationsAsync } from "@/lib/notifications";
 
 export default function App() {
   const { session } = useSession();
 
   // Usamos useEffect para navegar después de que el componente esté montado
   useEffect(() => {
+    console.log("INICIO")
+
+    //Obtener token notificaciones.
+    registerForPushNotificationsAsync().then(token => {
+      if (token) {
+        console.log("FCM Token:", token);
+      }
+    });
+
     // Pequeño delay para asegurar que el Root Layout está montado
     const timer = setTimeout(() => {
       if (session) {

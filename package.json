@@ -9,7 +9,9 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "test": "jest --watchAll",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "phone": "npx expo start",
+    "build_dev": "eas build --platform android --profile development"
   },
   "jest": {
     "preset": "jest-expo"
@@ -25,15 +27,22 @@
     "@types/lodash": "^4.17.16",
     "axios": "^1.8.4",
     "date-fns": "^4.1.0",
-    "expo": "~52.0.40",
+    "eas-cli": "^16.6.2",
+    "expo": "~52.0.0",
     "expo-blur": "~14.0.3",
     "expo-constants": "~17.0.8",
+    "expo-dev-client": "~5.0.20",
+    "expo-device": "~7.0.3",
+    "expo-document-picker": "~13.0.3",
+    "expo-file-system": "~18.0.12",
+    "expo-firebase-core": "~6.0.0",
     "expo-font": "~13.0.4",
     "expo-haptics": "~14.0.1",
     "expo-image-picker": "~16.0.6",
     "expo-linking": "~7.0.5",
     "expo-local-authentication": "~15.0.2",
-    "expo-location": "^18.0.10",
+    "expo-location": "~18.0.10",
+    "expo-notifications": "~0.29.14",
     "expo-router": "~4.0.19",
     "expo-secure-store": "~14.0.1",
     "expo-splash-screen": "~0.29.22",
@@ -56,12 +65,11 @@
     "react-native-web": "~0.19.13",
     "react-native-webview": "13.12.5",
     "undici": "^7.7.0",
-    "zod": "^3.24.3",
-    "expo-document-picker": "~13.0.3",
-    "expo-file-system": "~18.0.12"
+    "zod": "^3.24.3"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
+    "@react-native/gradle-plugin": "^0.79.2",
     "@types/jest": "^29.5.12",
     "@types/react": "~18.3.12",
     "@types/react-native": "^0.72.8",
