@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "74189621277",
+    "project_id": "classconnect-c4968",
+    "storage_bucket": "classconnect-c4968.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:74189621277:android:b19c7662a49c2054d85ef4",
+        "android_client_info": {
+          "package_name": "com.gpanaccio.classConnect"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDh9ko26FMAgK2jlClpXqxh-tT9msQb6VE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
