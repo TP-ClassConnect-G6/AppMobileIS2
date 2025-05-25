@@ -693,75 +693,29 @@ export default function ProfileScreen() {
               )}
             />
 
-            {/* Nueva sección para búsqueda de perfil por email */}
-            <Text style={styles.sectionTitle}>Buscar perfil por email</Text>
-            <View style={styles.emailSearchContainer}>
-              <TextInput
-                label="Email del usuario"
-                value={emailSearch}
-                onChangeText={setEmailSearch}
-                style={styles.emailSearchInput}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-
+            {/* Botones para guardar o cancelar cambios */}
+            <View style={styles.buttonGroup}>
+              <Button 
+                mode="outlined" 
+                onPress={cancelEditing} 
+                style={styles.cancelButton}
+              >
+                Cancelar
+              </Button>
               <Button 
                 mode="contained" 
-                onPress={() => searchProfileByEmail()} 
-                style={styles.searchButton}
-                loading={searchingProfile}
-                disabled={searchingProfile}
+                onPress={handleSubmit(onSubmit)} 
+                style={styles.saveButton}
+                loading={loading}
+                disabled={loading}
               >
-                Buscar
+                Guardar
               </Button>
             </View>
 
             {error && <Text style={styles.errorMessage}>{error}</Text>}
 
-            {showFoundProfile && foundProfile && (
-              <View style={styles.foundProfileContainer}>
-                <View style={styles.foundProfileHeader}>
-                  <Text style={styles.foundProfileTitle}>Perfil encontrado</Text>
-                  <TouchableOpacity onPress={closeFoundProfile} style={styles.closeButton}>
-                    <Text style={styles.closeButtonText}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-                
-                <View style={styles.foundProfileContent}>
-                  <View style={styles.foundProfileAvatarContainer}>
-                    <Image
-                      source={{
-                        uri: foundProfilePhoto || "https://via.placeholder.com/100",
-                      }}
-                      style={styles.foundProfileAvatar}
-                    />
-                  </View>
-                  
-                  <Text style={styles.foundProfileName}>{foundProfile.name || "Usuario"}</Text>
-                  <Text style={styles.foundProfileEmail}>{foundProfile.email}</Text>
-                  
-                  {foundProfile.bio && <Text style={styles.foundProfileBio}>{foundProfile.bio}</Text>}
-                  
-                  {foundProfile.phone_number && (
-                    <Text style={styles.foundProfileInfo}>Teléfono: {foundProfile.phone_number}</Text>
-                  )}
-                  
-                  {foundProfile.location && (
-                    <Text style={styles.foundProfileInfo}>Ubicación: {foundProfile.location}</Text>
-                  )}
-                  
-                  <Text style={styles.foundProfileInfo}>
-                    Tipo de usuario: {foundProfile.user_type}
-                  </Text>
-                  
-                  {foundProfile.created_at && (
-                    <Text style={styles.foundProfileInfo}>
-                      Miembro desde: {new Date(foundProfile.created_at).toLocaleDateString()}
-                    </Text>
-                  )}
-                </View>
-              </View>
-            )}          </View>
+          </View>
         )}
 
         {/* Sección de búsqueda de perfiles por email - solo visible cuando no estás editando */}
