@@ -575,7 +575,7 @@ export default function CourseListScreen() {
             </Text>
           </TouchableOpacity>
 
-          <Button
+          {/* <Button
             mode="outlined"
             icon={showOnlyFavourites ? "heart" : "heart-outline"}
             onPress={() => {
@@ -587,7 +587,7 @@ export default function CourseListScreen() {
             color={showOnlyFavourites ? "#e91e63" : "#999"}
           >
             {showOnlyFavourites ? "Mostrando favoritos" : "Mostrar favoritos"}
-          </Button>
+          </Button> */}
         </View>
 
         {filtersVisible && (
