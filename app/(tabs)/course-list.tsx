@@ -51,7 +51,7 @@ type FavouriteCourseResponse = {
 };
 
 // Función para obtener los cursos desde la API
-const fetchCourses = async (filters?: { course_name?: string; category?: string; date_init?: Date | null; date_end?: Date | null }, userId?: string): Promise<Course[]> => {
+const fetchCourses = async (filters?: { course_name?: string; category?: string; date_init?: Date | null; date_end?: Date | null }, userId?: string, showOnlyFavorites: boolean = false): Promise<Course[]> => {
   const params: Record<string, string> = {};
 
   if (filters?.course_name) {
@@ -66,23 +66,41 @@ const fetchCourses = async (filters?: { course_name?: string; category?: string;
   if (filters?.date_end) {
     params.date_end = formatDate(filters.date_end, 'yyyy-MM-dd');
   }
-   console.log("userId", userId);
+  console.log("userId", userId);
 
   if (userId) {
     params.user_login = userId;  
   }
+  
   try {
-    const response = await courseClient.get('/courses', { params });
+    let response;
+    
+    // Si queremos mostrar solo favoritos, usamos el endpoint específico
+    if (showOnlyFavorites && userId) {
+      response = await courseClient.get('/favourite-courses', { params });
+    } else {
+      response = await courseClient.get('/courses', { params });
+    }
     
     // Verificar diferentes formatos posibles de respuesta
     if (response.data && Array.isArray(response.data.courses)) {
-      return response.data.courses;
+      // Marcar todos los cursos favoritos
+      return response.data.courses.map((course: any) => ({
+        ...course,
+        isFavourite: showOnlyFavorites ? true : !!course.isFavourite
+      }));
     } else if (response.data && Array.isArray(response.data)) {
       // Si la respuesta es directamente un array
-      return response.data;
+      return response.data.map((course: any) => ({
+        ...course,
+        isFavourite: showOnlyFavorites ? true : !!course.isFavourite
+      }));
     } else if (response.data && response.data.response && Array.isArray(response.data.response)) {
       // El formato que estás recibiendo actualmente: { response: [...] }
-      return response.data.response;
+      return response.data.response.map((course: any) => ({
+        ...course,
+        isFavourite: showOnlyFavorites ? true : !!course.isFavourite
+      }));
     } else {
       console.warn('La respuesta del API no tiene el formato esperado:', response.data);
       return []; // Devolver un array vacío para evitar errores
@@ -131,8 +149,9 @@ const deleteCourse = async (courseId: string): Promise<void> => {
 
 
 
-// Función para marcar un curso como favorito
+// Función para marcar un curso como favorito - solo permite agregar, no quitar
 const toggleFavouriteCourse = async (courseId: string, userId: string): Promise<FavouriteCourseResponse> => {
+  // Se hace POST siempre, sin opción a desmarcar favoritos
   const response = await courseClient.post('/favourite-courses', {
     user_login: userId,
     course_id: courseId
@@ -146,6 +165,9 @@ export default function CourseListScreen() {
   const { session } = useSession();
   const isTeacher = session?.userType === "teacher" || session?.userType === "administrator";
   const queryClient = useQueryClient();
+  
+  // Estado para mostrar solo favoritos
+  const [showOnlyFavourites, setShowOnlyFavourites] = useState(false);
 
   const [filters, setFilters] = useState({ 
     course_name: '', 
@@ -174,8 +196,8 @@ export default function CourseListScreen() {
   const [filtersVisible, setFiltersVisible] = useState(false);
   // Configuración de la consulta de cursos para siempre buscar datos actualizados
   const { data: courses = [], isLoading, error, refetch } = useQuery({
-    queryKey: ['courses', searchFilters], 
-    queryFn: () => fetchCourses(searchFilters, session?.userId),
+    queryKey: ['courses', searchFilters, showOnlyFavourites], 
+    queryFn: () => fetchCourses(searchFilters, session?.userId, showOnlyFavourites),
     staleTime: 0, // Considera los datos obsoletos inmediatamente
     gcTime: 0, // No guarda en caché los resultados (reemplaza a cacheTime)
     refetchOnWindowFocus: true, // Actualiza al enfocar la ventana
@@ -297,21 +319,27 @@ export default function CourseListScreen() {
                   Alert.alert("Error", "Necesitas iniciar sesión para marcar favoritos");
                   return;
                 }
-                await toggleFavouriteCourse(item.course_id, session.userId);
-                // Actualizar el estado local del curso como favorito
-                queryClient.setQueryData(['courses', searchFilters], (oldData: Course[] | undefined) => 
-                  oldData?.map(course => 
-                    course.course_id === item.course_id 
-                      ? { ...course, isFavourite: !course.isFavourite } 
-                      : course
-                  )
-                );
+                
+                // Solo permitimos marcar como favorito, no desmarcarlo
+                if (!item.isFavourite) {
+                  await toggleFavouriteCourse(item.course_id, session.userId);
+                  // Actualizar el estado local del curso como favorito
+                  queryClient.setQueryData(['courses', searchFilters, showOnlyFavourites], 
+                    (oldData: Course[] | undefined) => 
+                      oldData?.map(course => 
+                        course.course_id === item.course_id 
+                          ? { ...course, isFavourite: true } 
+                          : course
+                      )
+                  );
+                }
               } catch (error) {
                 console.error("Error al actualizar favorito:", error);
                 Alert.alert("Error", "No se pudo actualizar el estado de favorito. Inténtalo de nuevo.");
               }
             }}
             style={styles.favoriteButton}
+            disabled={item.isFavourite} // Deshabilitar si ya es favorito
           >
             <MaterialCommunityIcons
               name={item.isFavourite ? "heart" : "heart-outline"}
@@ -498,11 +526,27 @@ export default function CourseListScreen() {
       <View style={styles.container}>
         <Text style={styles.header}>Cursos Disponibles</Text>
 
-        <TouchableOpacity onPress={() => setFiltersVisible(!filtersVisible)} style={{ marginBottom: 16 }}>
-          <Text style={{ fontSize: 18, fontWeight: 'bold' }}>
-            {filtersVisible ? "Ocultar filtros ▲" : "Mostrar filtros ▼"}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.headerControls}>
+          <TouchableOpacity onPress={() => setFiltersVisible(!filtersVisible)} style={{ marginBottom: 16 }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold' }}>
+              {filtersVisible ? "Ocultar filtros ▲" : "Mostrar filtros ▼"}
+            </Text>
+          </TouchableOpacity>
+
+          <Button
+            mode="outlined"
+            icon={showOnlyFavourites ? "heart" : "heart-outline"}
+            onPress={() => {
+              setShowOnlyFavourites(!showOnlyFavourites);
+            }}
+            style={{ marginBottom: 16 }}
+            labelStyle={{ fontSize: 14 }}
+            contentStyle={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 8 }}
+            color={showOnlyFavourites ? "#e91e63" : "#999"}
+          >
+            {showOnlyFavourites ? "Mostrando favoritos" : "Mostrar favoritos"}
+          </Button>
+        </View>
 
         {filtersVisible && (
           <>
@@ -640,6 +684,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f5f5f5",
     padding: 10,
+  },
+  headerControls: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   titleContainer: {
     flexDirection: 'row',
