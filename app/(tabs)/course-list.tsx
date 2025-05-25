@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { StyleSheet, View, Text, FlatList, ActivityIndicator, RefreshControl, TouchableOpacity, Alert } from "react-native";
 import { Card, Title, Paragraph, Chip, Divider, Button, Provider } from "react-native-paper";
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { courseClient } from "@/lib/http";
 import { format, formatDate } from "date-fns";
@@ -31,6 +32,7 @@ export type Course = {
   modality?: string;
   schedule?: { day: string; time: string }[];
   message?: string;
+  isFavourite?: boolean;
 };
 
 // Tipo para la respuesta de registro en un curso
@@ -41,6 +43,11 @@ type CourseRegistrationResponse = {
     registration_date: string;
     course_date_init: string;
   }
+};
+
+// Tipo para la respuesta al marcar un curso como favorito
+type FavouriteCourseResponse = {
+  message: string;
 };
 
 // Función para obtener los cursos desde la API
@@ -120,6 +127,18 @@ const registerInCourse = async (courseId: string, email: string, academicLevel: 
 // Función para eliminar un curso
 const deleteCourse = async (courseId: string): Promise<void> => {
   await courseClient.delete(`/courses/${courseId}`);
+};
+
+
+
+// Función para marcar un curso como favorito
+const toggleFavouriteCourse = async (courseId: string, userId: string): Promise<FavouriteCourseResponse> => {
+  const response = await courseClient.post('/favourite-courses', {
+    user_login: userId,
+    course_id: courseId
+  });
+  
+  return response.data;
 };
 
 // Componente principal para mostrar la lista de cursos
@@ -269,7 +288,39 @@ export default function CourseListScreen() {
   const renderCourseCard = ({ item }: { item: Course }) => (
     <Card style={styles.card}>
       <Card.Content>
-        <Title>{item.course_name}</Title>
+        <View style={styles.titleContainer}>
+          <Title style={{ flex: 1 }}>{item.course_name}</Title>
+          <TouchableOpacity
+            onPress={async () => {
+              try {
+                if (!session || !session.userId) {
+                  Alert.alert("Error", "Necesitas iniciar sesión para marcar favoritos");
+                  return;
+                }
+                await toggleFavouriteCourse(item.course_id, session.userId);
+                // Actualizar el estado local del curso como favorito
+                queryClient.setQueryData(['courses', searchFilters], (oldData: Course[] | undefined) => 
+                  oldData?.map(course => 
+                    course.course_id === item.course_id 
+                      ? { ...course, isFavourite: !course.isFavourite } 
+                      : course
+                  )
+                );
+              } catch (error) {
+                console.error("Error al actualizar favorito:", error);
+                Alert.alert("Error", "No se pudo actualizar el estado de favorito. Inténtalo de nuevo.");
+              }
+            }}
+            style={styles.favoriteButton}
+          >
+            <MaterialCommunityIcons
+              name={item.isFavourite ? "heart" : "heart-outline"}
+              size={24}
+              color={item.isFavourite ? "#e91e63" : "#999"}
+              style={{ paddingHorizontal: 8 }}
+            />
+          </TouchableOpacity>
+        </View>
         <Paragraph>{item.description}</Paragraph>
 
         <View style={styles.infoContainer}>
@@ -589,6 +640,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f5f5f5",
     padding: 10,
+  },
+  titleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  favoriteButton: {
+    margin: 0,
+    padding: 0,
+    minWidth: 40,
   },
   header: {
     fontSize: 24,
