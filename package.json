@@ -15,7 +15,7 @@
     "dev:build": "expo run:android --device",
     "dev": "expo start",
 
-    "build:apk": "eas build --plataform android --profile preview"
+    "build:apk": "eas build -p android --profile preview"
 
   },
   "jest": {
