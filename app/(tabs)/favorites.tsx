@@ -1,30 +1,76 @@
-import React from "react";
+import React, { useState } from "react";
 import { StyleSheet, View, Text, ActivityIndicator, FlatList, RefreshControl, TouchableOpacity, Alert, Platform } from "react-native";
-import { Card, Title, Paragraph, Chip, Divider, Button } from "react-native-paper";
+import { Card, Title, Paragraph, Chip, Divider, Button, TextInput, Provider } from "react-native-paper";
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { courseClient } from "@/lib/http";
-import { format } from "date-fns";
+import { format, formatDate } from "date-fns";
 import { es } from "date-fns/locale";
 import { useSession } from "@/contexts/session";
 import CourseDetailModal from "@/components/CourseDetailModal";
 import { Course } from "./course-list";
 import { useNavigation } from "expo-router";
 import * as Haptics from 'expo-haptics';
+import { Picker } from '@react-native-picker/picker';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
-// Función para obtener los cursos favoritos desde la API
-const fetchFavoriteCourses = async (userId: string): Promise<Course[]> => {
-  if (!userId) return [];
+// Función para obtener los cursos favoritos desde la API con filtros
+const fetchFavoriteCourses = async (
+  userId: string, 
+  filters?: { 
+    course_name?: string; 
+    category?: string; 
+    academic_level?: string;
+    content?: string;
+    date_init?: Date | null; 
+    date_end?: Date | null;
+    page?: number;
+    limit?: number;
+  }
+): Promise<{courses: Course[], pagination?: {total: number, totalPages: number, currentPage: number}}> => {
+  if (!userId) return {courses: []};
   
   try {
-    const params = { user_login: userId };
+    // Parámetros base
+    const params: Record<string, string | number> = { user_login: userId };
+    
+    // Añadir filtros si existen
+    if (filters) {
+      if (filters.course_name) params.course_name = filters.course_name;
+      if (filters.category) params.category = filters.category;
+      if (filters.academic_level) params.academic_level = filters.academic_level;
+      if (filters.content) params.content = filters.content;
+      
+      // Formatear fechas si existen
+      if (filters.date_init) {
+        params.date_init = formatDate(filters.date_init, 'yyyy-MM-dd');
+      }
+      if (filters.date_end) {
+        params.date_end = formatDate(filters.date_end, 'yyyy-MM-dd');
+      }
+      
+      // Paginación
+      if (filters.page) params.page = filters.page;
+      if (filters.limit) params.limit = filters.limit;
+    }
+    
+    // Realizar la petición con los filtros
     const response = await courseClient.get('/favourite-courses', { params });
     
     // Verificar diferentes formatos posibles de respuesta
     let courses: Course[] = [];
+    let pagination = undefined;
     
     if (response.data && Array.isArray(response.data.courses)) {
       courses = response.data.courses;
+      // Extraer información de paginación si existe
+      if (response.data.total !== undefined) {
+        pagination = {
+          total: response.data.total,
+          totalPages: response.data.totalPages || 1,
+          currentPage: response.data.currentPage || 1
+        };
+      }
     } else if (response.data && Array.isArray(response.data)) {
       courses = response.data;
     } else if (response.data && response.data.response && Array.isArray(response.data.response)) {
@@ -32,13 +78,16 @@ const fetchFavoriteCourses = async (userId: string): Promise<Course[]> => {
     }
     
     // Marcar todos como favoritos
-    return courses.map(course => ({
-      ...course,
-      isFavourite: true
-    }));
+    return {
+      courses: courses.map(course => ({
+        ...course,
+        isFavourite: true
+      })),
+      pagination
+    };
   } catch (error) {
     console.error('Error al obtener cursos favoritos:', error);
-    return [];
+    return {courses: []};
   }
 };
 
@@ -77,8 +126,37 @@ export default function FavoritesScreen() {
   const queryClient = useQueryClient();
 
   // Estado para el modal de detalles del curso
-  const [detailModalVisible, setDetailModalVisible] = React.useState(false);
-  const [selectedCourseId, setSelectedCourseId] = React.useState<string | null>(null);
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
+  
+  // Estados para filtros y paginación
+  const [filters, setFilters] = useState({ 
+    course_name: '', 
+    category: '',
+    academic_level: '',
+    content: '', 
+    date_init: null as Date | null, 
+    date_end: null as Date | null,
+    page: 1,
+    limit: 3
+  });
+  
+  // Estado para los filtros actuales de búsqueda
+  const [searchFilters, setSearchFilters] = useState({ 
+    course_name: '', 
+    category: '',
+    academic_level: '',
+    content: '', 
+    date_init: null as Date | null, 
+    date_end: null as Date | null,
+    page: 1,
+    limit: 3
+  });
+  
+  // Estados para UI de los filtros
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  const [filtersVisible, setFiltersVisible] = useState(false);
   
   // Efecto para refrescar los favoritos cuando cambia la sesión
   React.useEffect(() => {
@@ -103,20 +181,35 @@ export default function FavoritesScreen() {
     return refreshOnFocus;
   }, [navigation, queryClient, session?.userId]);
 
-  // Configuración de la consulta de cursos favoritos
-  const { data: favoriteCourses = [], isLoading, error, refetch } = useQuery({
-    queryKey: ['favorite-courses'],
-    queryFn: () => fetchFavoriteCourses(session?.userId || ''),
+  // Estado para metadatos de paginación
+  const [pagination, setPagination] = useState({
+    total: 0,
+    totalPages: 1,
+    currentPage: 1
+  });
+
+  // Configuración de la consulta de cursos favoritos con filtros
+  const { data: favoriteCoursesData = {courses: []}, isLoading, error, refetch } = useQuery({
+    queryKey: ['favorite-courses', searchFilters],
+    queryFn: async () => {
+      const result = await fetchFavoriteCourses(session?.userId || '', searchFilters);
+      // Procesar los datos de paginación después de la consulta
+      if (result.pagination) {
+        setPagination(result.pagination);
+      }
+      return result;
+    },
     staleTime: 0,
     gcTime: 0,
     refetchOnWindowFocus: true,
     retry: 2,
     retryDelay: 1000,
     // Solo habilitamos la consulta si hay una sesión activa
-    enabled: !!session,
-    // Asegurarnos de que siempre devolvemos un array
-    select: (data) => Array.isArray(data) ? data : []
+    enabled: !!session
   });
+  
+  // Extraer cursos del resultado
+  const favoriteCourses = favoriteCoursesData.courses || [];
 
   // Función para formatear fechas con manejo correcto de zonas horarias
   const formatDate = (dateString: string) => {
@@ -303,36 +396,195 @@ export default function FavoritesScreen() {
     );
   }
 
+  // Función para cambiar página en la paginación
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= pagination.totalPages) {
+      setSearchFilters(prev => ({ ...prev, page: newPage }));
+    }
+  };
+
   // Renderizar la lista de cursos favoritos
   return (
-    <View style={styles.container}>
-      <View style={styles.headerContainer}>
-        <Text style={styles.header}>Mis Cursos Favoritos</Text>
-        <MaterialCommunityIcons name="heart" size={28} color="#e91e63" />
-      </View>
-      
-      <FlatList
-        data={favoriteCourses}
-        keyExtractor={(item) => item.course_id}
-        renderItem={renderCourseCard}
-        contentContainerStyle={styles.listContent}
-        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={() => refetch()} />}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <MaterialCommunityIcons name="heart-outline" size={48} color="#999" style={{ marginBottom: 16 }} />
-            <Text style={styles.emptyText}>No tienes cursos favoritos aún</Text>
-            <Text style={styles.hintText}>Busca cursos en la pestaña "Cursos" y marca el corazón para agregarlos a favoritos</Text>
-            <Button 
-              mode="outlined" 
-              onPress={() => navigation.navigate('course-list')}
-              style={{ marginTop: 24 }}
-              icon="magnify"
+    <Provider>
+      <View style={styles.container}>
+        <View style={styles.headerContainer}>
+          <Text style={styles.header}>Mis Cursos Favoritos</Text>
+          <MaterialCommunityIcons name="heart" size={28} color="#e91e63" />
+        </View>
+        
+        {/* Control para mostrar/ocultar filtros */}
+        <View style={styles.headerControls}>
+          <TouchableOpacity onPress={() => setFiltersVisible(!filtersVisible)} style={{ marginBottom: 16 }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold' }}>
+              {filtersVisible ? "Ocultar filtros ▲" : "Mostrar filtros ▼"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        
+        {/* Filtros para los cursos favoritos */}
+        {filtersVisible && (
+          <>
+            <TextInput
+              label="Buscar por nombre"
+              value={filters.course_name}
+              onChangeText={(text) => setFilters((prev) => ({ ...prev, course_name: text }))}
+              mode="outlined"
+              style={{ marginBottom: 16 }}
+            />
+
+            <View style={styles.dropdownContainer}>
+              <Picker
+                selectedValue={filters.category}
+                onValueChange={(text) => setFilters((prev) => ({ ...prev, category: text }))}
+                style={styles.picker}
+              >
+                <Picker.Item label="Todas las categorías" value="" />
+                <Picker.Item label="Art" value="Art" />
+                <Picker.Item label="Science" value="Science" />
+                <Picker.Item label="Technology" value="Technology" />
+              </Picker>
+            </View>
+            
+            <TextInput
+              label="Nivel académico"
+              value={filters.academic_level}
+              onChangeText={(text) => setFilters((prev) => ({ ...prev, academic_level: text }))}
+              mode="outlined"
+              style={{ marginBottom: 16 }}
+            />
+            
+            <TextInput
+              label="Buscar en contenido"
+              value={filters.content}
+              onChangeText={(text) => setFilters((prev) => ({ ...prev, content: text }))}
+              mode="outlined"
+              style={{ marginBottom: 16 }}
+            />
+
+            <View style={styles.dateFilterContainer}>
+              <Button mode="outlined" onPress={() => setShowStartDatePicker(true)}>
+                {filters.date_init ? `Desde: ${format(filters.date_init, 'dd/MM/yyyy')}` : "Fecha de inicio"}
+              </Button>
+              <Button mode="outlined" onPress={() => setShowEndDatePicker(true)}>
+                {filters.date_end ? `Hasta: ${format(filters.date_end, 'dd/MM/yyyy')}` : "Fecha de fin"}
+              </Button>
+            </View>
+
+            {showStartDatePicker && (
+              <DateTimePicker
+                value={filters.date_init || new Date()}
+                mode="date"
+                display="default"
+                onChange={(event, selectedDate) => {
+                  setShowStartDatePicker(false);
+                  if (selectedDate) {
+                    const dateWithInitOfDay = new Date(selectedDate);
+                    dateWithInitOfDay.setHours(0, 0, 0, 0);
+                    setFilters((prev) => ({ ...prev, date_init: dateWithInitOfDay }));
+                  }
+                }}
+              />
+            )}
+
+            {showEndDatePicker && (
+              <DateTimePicker
+                value={filters.date_end || new Date()}
+                mode="date"
+                display="default"
+                onChange={(event, selectedDate) => {
+                  setShowEndDatePicker(false);
+                  if (selectedDate) {
+                    const dateWithEndOfDay = new Date(selectedDate);
+                    dateWithEndOfDay.setHours(23, 59, 59, 999);
+                    setFilters((prev) => ({ ...prev, date_end: dateWithEndOfDay }));
+                  }
+                }}
+              />
+            )}
+
+            <Button
+              mode="contained"
+              onPress={() => {
+                setSearchFilters({...filters, page: 1}); // Reset a la página 1 al aplicar nuevos filtros
+              }}
+              style={{ marginTop: 16 }}
             >
-              Explorar cursos
+              Buscar
             </Button>
-          </View>
-        }
-      />
+
+            <Button
+              mode="outlined"
+              onPress={() => {
+                const resetFilters = {
+                  course_name: '',
+                  category: '',
+                  academic_level: '',
+                  content: '',
+                  date_init: null,
+                  date_end: null,
+                  page: 1,
+                  limit: 10
+                };
+                setFilters(resetFilters);
+                setSearchFilters(resetFilters);
+              }}
+              style={{ marginTop: 16, marginBottom: 16 }}
+            >
+              Limpiar Filtros
+            </Button>
+          </>
+        )}
+      
+        <FlatList
+          data={favoriteCourses}
+          keyExtractor={(item) => item.course_id}
+          renderItem={renderCourseCard}
+          contentContainerStyle={styles.listContent}
+          refreshControl={<RefreshControl refreshing={isLoading} onRefresh={() => refetch()} />}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <MaterialCommunityIcons name="heart-outline" size={48} color="#999" style={{ marginBottom: 16 }} />
+              <Text style={styles.emptyText}>No tienes cursos favoritos aún</Text>
+              <Text style={styles.hintText}>Busca cursos en la pestaña "Cursos" y marca el corazón para agregarlos a favoritos</Text>
+              <Button 
+                mode="outlined" 
+                onPress={() => navigation.navigate('course-list')}
+                style={{ marginTop: 24 }}
+                icon="magnify"
+              >
+                Explorar cursos
+              </Button>
+            </View>
+          }
+          ListFooterComponent={
+            favoriteCourses.length > 0 ? (
+              <View style={styles.paginationContainer}>
+                <Button
+                  mode="outlined"
+                  disabled={pagination.currentPage <= 1}
+                  onPress={() => handlePageChange(pagination.currentPage - 1)}
+                  style={styles.paginationButton}
+                  icon="chevron-left"
+                >
+                  Anterior
+                </Button>
+                <Text style={styles.paginationText}>
+                  Página {pagination.currentPage} de {pagination.totalPages || 1}
+                </Text>
+                <Button
+                  mode="outlined"
+                  disabled={!pagination.totalPages || pagination.currentPage >= pagination.totalPages}
+                  onPress={() => handlePageChange(pagination.currentPage + 1)}
+                  style={styles.paginationButton}
+                  icon="chevron-right"
+                  contentStyle={{ flexDirection: 'row-reverse' }}
+                >
+                  Siguiente
+                </Button>
+              </View>
+            ) : null
+          }
+        />
 
       {/* Modal de detalles del curso */}
       <CourseDetailModal
@@ -341,6 +593,7 @@ export default function FavoritesScreen() {
         courseId={selectedCourseId}
       />
     </View>
+    </Provider>
   );
 }
 
@@ -368,6 +621,47 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "bold",
     textAlign: "center",
+  },
+  headerControls: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  dropdownContainer: {
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  picker: {
+    height: 50,
+    width: '100%',
+  },
+  dateFilterContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 16,
+    gap: 8,
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+    backgroundColor: '#f9f9f9',
+  },
+  paginationButton: {
+    marginHorizontal: 8,
+  },
+  paginationText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
   },
   listContent: {
     paddingBottom: 20,
