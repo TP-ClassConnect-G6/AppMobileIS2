@@ -74,6 +74,30 @@ const fetchCourses = async (filters?: { course_name?: string; category?: string;
   
   try {
     let response;
+    let favouriteCourseIds: string[] = [];
+    
+    // Si el usuario está logueado, obtenemos primero la lista de sus cursos favoritos
+    if (userId && !showOnlyFavorites) {
+      try {
+        const favouriteResponse = await courseClient.get('/favourite-courses', { 
+          params: { user_login: userId } 
+        });
+        
+        // Extraer los IDs de los cursos favoritos
+        if (favouriteResponse.data && Array.isArray(favouriteResponse.data.response)) {
+          favouriteCourseIds = favouriteResponse.data.response.map((course: Course) => course.course_id);
+        } else if (favouriteResponse.data && Array.isArray(favouriteResponse.data)) {
+          favouriteCourseIds = favouriteResponse.data.map((course: Course) => course.course_id);
+        } else if (favouriteResponse.data && favouriteResponse.data.courses && Array.isArray(favouriteResponse.data.courses)) {
+          favouriteCourseIds = favouriteResponse.data.courses.map((course: Course) => course.course_id);
+        }
+        
+        console.log("Cursos favoritos cargados:", favouriteCourseIds.length);
+      } catch (error) {
+        console.error("Error al obtener cursos favoritos:", error);
+        // Continuar con la lista vacía de favoritos si hay error
+      }
+    }
     
     // Si queremos mostrar solo favoritos, usamos el endpoint específico
     if (showOnlyFavorites && userId) {
@@ -82,25 +106,21 @@ const fetchCourses = async (filters?: { course_name?: string; category?: string;
       response = await courseClient.get('/courses', { params });
     }
     
+    // Función para procesar los cursos y marcar los favoritos
+    const processCourses = (courses: any[]) => {
+      return courses.map((course: any) => ({
+        ...course,
+        isFavourite: showOnlyFavorites ? true : favouriteCourseIds.includes(course.course_id)
+      }));
+    };
+    
     // Verificar diferentes formatos posibles de respuesta
     if (response.data && Array.isArray(response.data.courses)) {
-      // Marcar todos los cursos favoritos
-      return response.data.courses.map((course: any) => ({
-        ...course,
-        isFavourite: showOnlyFavorites ? true : !!course.isFavourite
-      }));
+      return processCourses(response.data.courses);
     } else if (response.data && Array.isArray(response.data)) {
-      // Si la respuesta es directamente un array
-      return response.data.map((course: any) => ({
-        ...course,
-        isFavourite: showOnlyFavorites ? true : !!course.isFavourite
-      }));
+      return processCourses(response.data);
     } else if (response.data && response.data.response && Array.isArray(response.data.response)) {
-      // El formato que estás recibiendo actualmente: { response: [...] }
-      return response.data.response.map((course: any) => ({
-        ...course,
-        isFavourite: showOnlyFavorites ? true : !!course.isFavourite
-      }));
+      return processCourses(response.data.response);
     } else {
       console.warn('La respuesta del API no tiene el formato esperado:', response.data);
       return []; // Devolver un array vacío para evitar errores
@@ -313,7 +333,7 @@ export default function CourseListScreen() {
         <View style={styles.titleContainer}>
           <Title style={{ flex: 1 }}>{item.course_name}</Title>
           <TouchableOpacity
-            onPress={async () => {
+            onPress={() => {
               try {
                 if (!session || !session.userId) {
                   Alert.alert("Error", "Necesitas iniciar sesión para marcar favoritos");
@@ -322,20 +342,42 @@ export default function CourseListScreen() {
                 
                 // Solo permitimos marcar como favorito, no desmarcarlo
                 if (!item.isFavourite) {
-                  await toggleFavouriteCourse(item.course_id, session.userId);
-                  // Actualizar el estado local del curso como favorito
-                  queryClient.setQueryData(['courses', searchFilters, showOnlyFavourites], 
-                    (oldData: Course[] | undefined) => 
-                      oldData?.map(course => 
-                        course.course_id === item.course_id 
-                          ? { ...course, isFavourite: true } 
-                          : course
-                      )
+                  // Mostrar alerta de confirmación
+                  Alert.alert(
+                    "Confirmar favorito",
+                    `¿Estás segura de que deseas marcar "${item.course_name}" como favorito?`,
+                    [
+                      { 
+                        text: "Cancelar", 
+                        style: "cancel" 
+                      },
+                      {
+                        text: "Confirmar",
+                        style: "default",
+                        onPress: async () => {
+                          try {
+                            await toggleFavouriteCourse(item.course_id, session.userId);
+                            // Actualizar el estado local del curso como favorito
+                            queryClient.setQueryData(['courses', searchFilters, showOnlyFavourites], 
+                              (oldData: Course[] | undefined) => 
+                                oldData?.map(course => 
+                                  course.course_id === item.course_id 
+                                    ? { ...course, isFavourite: true } 
+                                    : course
+                                )
+                            );
+                          } catch (error) {
+                            console.error("Error al actualizar favorito:", error);
+                            Alert.alert("Error", "No se pudo actualizar el estado de favorito. Inténtalo de nuevo.");
+                          }
+                        }
+                      }
+                    ]
                   );
                 }
               } catch (error) {
-                console.error("Error al actualizar favorito:", error);
-                Alert.alert("Error", "No se pudo actualizar el estado de favorito. Inténtalo de nuevo.");
+                console.error("Error al manejar favorito:", error);
+                Alert.alert("Error", "Ocurrió un error inesperado. Inténtalo de nuevo más tarde.");
               }
             }}
             style={styles.favoriteButton}
