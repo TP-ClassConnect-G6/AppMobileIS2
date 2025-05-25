@@ -70,6 +70,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color }: { color: string }) => (
             <IconSymbol size={28} name="heart.fill" color={color} />
           ),
+          href: !isTeacher ? "/favorites" : null, // Solo mostrar para estudiantes
         }}
       />
       <Tabs.Screen

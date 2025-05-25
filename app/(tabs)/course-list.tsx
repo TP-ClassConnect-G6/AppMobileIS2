@@ -332,64 +332,66 @@ export default function CourseListScreen() {
       <Card.Content>
         <View style={styles.titleContainer}>
           <Title style={{ flex: 1 }}>{item.course_name}</Title>
-          <TouchableOpacity
-            onPress={() => {
-              try {
-                if (!session || !session.userId) {
-                  Alert.alert("Error", "Necesitas iniciar sesión para marcar favoritos");
-                  return;
-                }
-                
-                // Solo permitimos marcar como favorito, no desmarcarlo
-                if (!item.isFavourite) {
-                  // Mostrar alerta de confirmación
-                  Alert.alert(
-                    "Confirmar favorito",
-                    `¿Estás segura de que deseas marcar "${item.course_name}" como favorito?`,
-                    [
-                      { 
-                        text: "Cancelar", 
-                        style: "cancel" 
-                      },
-                      {
-                        text: "Confirmar",
-                        style: "default",
-                        onPress: async () => {
-                          try {
-                            await toggleFavouriteCourse(item.course_id, session.userId);
-                            // Actualizar el estado local del curso como favorito
-                            queryClient.setQueryData(['courses', searchFilters, showOnlyFavourites], 
-                              (oldData: Course[] | undefined) => 
-                                oldData?.map(course => 
-                                  course.course_id === item.course_id 
-                                    ? { ...course, isFavourite: true } 
-                                    : course
-                                )
-                            );
-                          } catch (error) {
-                            console.error("Error al actualizar favorito:", error);
-                            Alert.alert("Error", "No se pudo actualizar el estado de favorito. Inténtalo de nuevo.");
+          {!isTeacher && (
+            <TouchableOpacity
+              onPress={() => {
+                try {
+                  if (!session || !session.userId) {
+                    Alert.alert("Error", "Necesitas iniciar sesión para marcar favoritos");
+                    return;
+                  }
+                  
+                  // Solo permitimos marcar como favorito, no desmarcarlo
+                  if (!item.isFavourite) {
+                    // Mostrar alerta de confirmación
+                    Alert.alert(
+                      "Confirmar favorito",
+                      `¿Estás segura de que deseas marcar "${item.course_name}" como favorito?`,
+                      [
+                        { 
+                          text: "Cancelar", 
+                          style: "cancel" 
+                        },
+                        {
+                          text: "Confirmar",
+                          style: "default",
+                          onPress: async () => {
+                            try {
+                              await toggleFavouriteCourse(item.course_id, session.userId);
+                              // Actualizar el estado local del curso como favorito
+                              queryClient.setQueryData(['courses', searchFilters, showOnlyFavourites], 
+                                (oldData: Course[] | undefined) => 
+                                  oldData?.map(course => 
+                                    course.course_id === item.course_id 
+                                      ? { ...course, isFavourite: true } 
+                                      : course
+                                  )
+                              );
+                            } catch (error) {
+                              console.error("Error al actualizar favorito:", error);
+                              Alert.alert("Error", "No se pudo actualizar el estado de favorito. Inténtalo de nuevo.");
+                            }
                           }
                         }
-                      }
-                    ]
-                  );
+                      ]
+                    );
+                  }
+                } catch (error) {
+                  console.error("Error al manejar favorito:", error);
+                  Alert.alert("Error", "Ocurrió un error inesperado. Inténtalo de nuevo más tarde.");
                 }
-              } catch (error) {
-                console.error("Error al manejar favorito:", error);
-                Alert.alert("Error", "Ocurrió un error inesperado. Inténtalo de nuevo más tarde.");
-              }
-            }}
-            style={styles.favoriteButton}
-            disabled={item.isFavourite} // Deshabilitar si ya es favorito
-          >
-            <MaterialCommunityIcons
-              name={item.isFavourite ? "heart" : "heart-outline"}
-              size={24}
-              color={item.isFavourite ? "#e91e63" : "#999"}
-              style={{ paddingHorizontal: 8 }}
-            />
-          </TouchableOpacity>
+              }}
+              style={styles.favoriteButton}
+              disabled={item.isFavourite} // Deshabilitar si ya es favorito
+            >
+              <MaterialCommunityIcons
+                name={item.isFavourite ? "heart" : "heart-outline"}
+                size={24}
+                color={item.isFavourite ? "#e91e63" : "#999"}
+                style={{ paddingHorizontal: 8 }}
+              />
+            </TouchableOpacity>
+          )}
         </View>
         <Paragraph>{item.description}</Paragraph>
 
