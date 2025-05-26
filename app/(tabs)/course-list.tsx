@@ -356,17 +356,22 @@ export default function CourseListScreen() {
                           text: "Confirmar",
                           style: "default",
                           onPress: async () => {
-                            try {
-                              await toggleFavouriteCourse(item.course_id, session.userId);
-                              // Actualizar el estado local del curso como favorito
-                              queryClient.setQueryData(['courses', searchFilters, showOnlyFavourites], 
-                                (oldData: Course[] | undefined) => 
-                                  oldData?.map(course => 
-                                    course.course_id === item.course_id 
-                                      ? { ...course, isFavourite: true } 
-                                      : course
-                                  )
-                              );
+                            try {                            await toggleFavouriteCourse(item.course_id, session.userId);
+                            // Actualizar el estado local del curso como favorito
+                            queryClient.setQueryData(['courses', searchFilters, showOnlyFavourites], 
+                              (oldData: Course[] | undefined) => 
+                                oldData?.map(course => 
+                                  course.course_id === item.course_id 
+                                    ? { ...course, isFavourite: true } 
+                                    : course
+                                )
+                            );
+                            // Mostrar mensaje de confirmación de éxito
+                            Alert.alert(
+                              "Curso agregado a favoritos",
+                              `"${item.course_name}" ha sido agregado exitosamente a tus favoritos.`,
+                              [{ text: "OK" }]
+                            );
                             } catch (error) {
                               console.error("Error al actualizar favorito:", error);
                               Alert.alert("Error", "No se pudo actualizar el estado de favorito. Inténtalo de nuevo.");
