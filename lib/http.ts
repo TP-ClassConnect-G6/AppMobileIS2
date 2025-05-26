@@ -5,7 +5,7 @@ export const client = axios.create({
 });
 
 export const courseClient = axios.create({
-  baseURL: "https://cursosis2-production-94bb.up.railway.app",
+  baseURL: "https://apigatewayis2-production.up.railway.app/courses",
 });
 
 // https://axios-http.com/docs/interceptors
