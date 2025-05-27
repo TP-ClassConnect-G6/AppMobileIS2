@@ -169,12 +169,24 @@ const deleteCourse = async (courseId: string): Promise<void> => {
 
 
 
-// Función para marcar un curso como favorito - solo permite agregar, no quitar
-const toggleFavouriteCourse = async (courseId: string, userId: string): Promise<FavouriteCourseResponse> => {
-  // Se hace POST siempre, sin opción a desmarcar favoritos
+// Función para marcar un curso como favorito
+const addFavouriteCourse = async (courseId: string, userId: string): Promise<FavouriteCourseResponse> => {
   const response = await courseClient.post('/favourite-courses', {
     user_login: userId,
     course_id: courseId
+  });
+  
+  return response.data;
+};
+
+// Función para quitar un curso de favoritos
+const removeFavouriteCourse = async (courseId: string, userId: string): Promise<FavouriteCourseResponse> => {
+  // Usar DELETE con query params según el endpoint proporcionado
+  const response = await courseClient.delete('/favourite-courses', {
+    params: {
+      user_login: userId,
+      course_id: courseId
+    }
   });
   
   return response.data;
@@ -341,12 +353,12 @@ export default function CourseListScreen() {
                     return;
                   }
                   
-                  // Solo permitimos marcar como favorito, no desmarcarlo
-                  if (!item.isFavourite) {
-                    // Mostrar alerta de confirmación
+                  // Si ya es favorito, permitimos quitarlo
+                  if (item.isFavourite) {
+                    // Mostrar alerta de confirmación para quitar de favoritos
                     Alert.alert(
-                      "Confirmar favorito",
-                      `¿Estás segura de que deseas marcar "${item.course_name}" como favorito?`,
+                      "Quitar de favoritos",
+                      `¿Estás seguro de que deseas quitar "${item.course_name}" de tus favoritos?`,
                       [
                         { 
                           text: "Cancelar", 
@@ -356,25 +368,69 @@ export default function CourseListScreen() {
                           text: "Confirmar",
                           style: "default",
                           onPress: async () => {
-                            try {                            await toggleFavouriteCourse(item.course_id, session.userId);
-                            // Actualizar el estado local del curso como favorito
-                            queryClient.setQueryData(['courses', searchFilters, showOnlyFavourites], 
-                              (oldData: Course[] | undefined) => 
-                                oldData?.map(course => 
-                                  course.course_id === item.course_id 
-                                    ? { ...course, isFavourite: true } 
-                                    : course
-                                )
-                            );
-                            // Mostrar mensaje de confirmación de éxito
-                            Alert.alert(
-                              "Curso agregado a favoritos",
-                              `"${item.course_name}" ha sido agregado exitosamente a tus favoritos.`,
-                              [{ text: "OK" }]
-                            );
+                            try {
+                              await removeFavouriteCourse(item.course_id, session.userId);
+                              // Actualizar el estado local del curso
+                              queryClient.setQueryData(['courses', searchFilters, showOnlyFavourites], 
+                                (oldData: Course[] | undefined) => 
+                                  oldData?.map(course => 
+                                    course.course_id === item.course_id 
+                                      ? { ...course, isFavourite: false } 
+                                      : course
+                                  )
+                              );
+                              // Invalidar consultas de favoritos para actualizar la pestaña de favoritos
+                              queryClient.invalidateQueries({ queryKey: ['favorite-courses'] });
+                              // Mostrar mensaje de confirmación de éxito
+                              Alert.alert(
+                                "Curso eliminado de favoritos",
+                                `"${item.course_name}" ha sido eliminado de tus favoritos.`,
+                                [{ text: "OK" }]
+                              );
                             } catch (error) {
-                              console.error("Error al actualizar favorito:", error);
-                              Alert.alert("Error", "No se pudo actualizar el estado de favorito. Inténtalo de nuevo.");
+                              console.error("Error al quitar favorito:", error);
+                              Alert.alert("Error", "No se pudo quitar el curso de favoritos. Inténtalo de nuevo.");
+                            }
+                          }
+                        }
+                      ]
+                    );
+                  } else {
+                    // Mostrar alerta de confirmación para agregar a favoritos
+                    Alert.alert(
+                      "Confirmar favorito",
+                      `¿Estás seguro de que deseas marcar "${item.course_name}" como favorito?`,
+                      [
+                        { 
+                          text: "Cancelar", 
+                          style: "cancel" 
+                        },
+                        {
+                          text: "Confirmar",
+                          style: "default",
+                          onPress: async () => {
+                            try {
+                              await addFavouriteCourse(item.course_id, session.userId);
+                              // Actualizar el estado local del curso como favorito
+                              queryClient.setQueryData(['courses', searchFilters, showOnlyFavourites], 
+                                (oldData: Course[] | undefined) => 
+                                  oldData?.map(course => 
+                                    course.course_id === item.course_id 
+                                      ? { ...course, isFavourite: true } 
+                                      : course
+                                  )
+                              );
+                              // Invalidar consultas de favoritos para actualizar la pestaña de favoritos
+                              queryClient.invalidateQueries({ queryKey: ['favorite-courses'] });
+                              // Mostrar mensaje de confirmación de éxito
+                              Alert.alert(
+                                "Curso agregado a favoritos",
+                                `"${item.course_name}" ha sido agregado exitosamente a tus favoritos.`,
+                                [{ text: "OK" }]
+                              );
+                            } catch (error) {
+                              console.error("Error al agregar favorito:", error);
+                              Alert.alert("Error", "No se pudo agregar el curso a favoritos. Inténtalo de nuevo.");
                             }
                           }
                         }
@@ -387,7 +443,6 @@ export default function CourseListScreen() {
                 }
               }}
               style={styles.favoriteButton}
-              disabled={item.isFavourite} // Deshabilitar si ya es favorito
             >
               <MaterialCommunityIcons
                 name={item.isFavourite ? "heart" : "heart-outline"}
