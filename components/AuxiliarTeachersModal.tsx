@@ -213,9 +213,68 @@ const AuxiliarTeachersModal = ({ visible, onDismiss, courseId, courseName }: Aux
       );
     } catch (error) {
       console.error('Error general:', error);
-      Alert.alert('Error', 'Ocurrió un error al procesar la solicitud');      setIsSubmitting(false);
+      Alert.alert('Error', 'Ocurrió un error al procesar la solicitud');
+      setIsSubmitting(false);
     }
   };
+  // Función para eliminar un docente auxiliar
+  const deleteAuxiliarTeacher = async (auxiliarEmail: string) => {
+    console.log('Eliminando docente auxiliar:', courseId);
+    if (!courseId || !session?.token) {
+      return;
+    }
+
+    // Mostrar confirmación antes de eliminar
+    Alert.alert(
+      'Confirmación',
+      `¿Está seguro que desea eliminar a ${auxiliarEmail} como docente auxiliar?`,
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel'
+        },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            setIsLoading(true);            
+            try {
+              // Enviar la petición DELETE
+              await courseClient.delete(`/courses/${courseId}/${encodeURIComponent(auxiliarEmail)}`, {
+                headers: {
+                  Authorization: `Bearer ${session.token}`
+                }
+              });
+
+              // Actualizar la lista de docentes auxiliares
+              fetchAuxiliarTeachers();
+              Alert.alert('Éxito', 'Docente auxiliar eliminado correctamente');
+            } catch (err: any) {
+              console.error('Error al eliminar docente auxiliar:', err);
+              
+              let errorMessage = 'Error al eliminar docente auxiliar';
+              if (err.response) {
+                if (err.response.status === 401) {
+                  errorMessage = 'No autorizado. Inicie sesión nuevamente.';
+                } else if (err.response.status === 403) {
+                  errorMessage = 'No tiene permisos para realizar esta acción.';
+                } else if (err.response.status === 404) {
+                  errorMessage = 'Curso o docente auxiliar no encontrado.';
+                } else if (err.response.data?.message) {
+                  errorMessage = err.response.data.message;
+                }
+              }
+              
+              Alert.alert('Error', errorMessage);
+            } finally {
+              setIsLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+  
   // Función para limpiar el formulario
   const resetForm = () => {
     setAuxiliarEmail('');
@@ -223,13 +282,11 @@ const AuxiliarTeachersModal = ({ visible, onDismiss, courseId, courseName }: Aux
     setCreateExamPermission(false);
     setAddDialogVisible(false);
   };
-
   // Cargar los docentes auxiliares cuando se abre el modal
   useEffect(() => {
     if (visible && courseId) {
       fetchAuxiliarTeachers();
-    }
-  }, [visible, courseId]);
+    }  }, [visible, courseId]);
 
   // Renderizar un item de la lista de docentes auxiliares
   const renderAuxiliarItem = ({ item }: { item: AuxiliarTeacher }) => (
@@ -249,6 +306,17 @@ const AuxiliarTeachersModal = ({ visible, onDismiss, courseId, courseName }: Aux
         </View>
       )}
       left={props => <List.Icon {...props} icon="account" />}
+      right={props => (
+        <Button 
+          {...props} 
+          icon="trash-can" 
+          mode="contained" 
+          onPress={() => deleteAuxiliarTeacher(item.auxiliar)}
+          style={styles.deleteButton}
+        >
+          Eliminar
+        </Button>
+      )}
     />
   );
 
@@ -467,7 +535,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 5,
     marginBottom: 15,
-    fontStyle: 'italic',
+    fontStyle: 'italic',  },
+  deleteButton: {
+    marginLeft: 10,
+    backgroundColor: '#D32F2F', // Color rojo para indicar eliminación
   },
 });
 
