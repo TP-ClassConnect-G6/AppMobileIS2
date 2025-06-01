@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { StyleSheet, View, FlatList, ActivityIndicator, Alert } from "react-native";
 import { Modal, Portal, Text, Title, Button, Divider, Chip, List, Dialog, TextInput, Checkbox } from "react-native-paper";
-import { courseClient } from "@/lib/http";
+import { client, courseClient } from "@/lib/http";
 import { useSession } from "@/contexts/session";
 
 type Permission = {
@@ -39,8 +39,10 @@ const AuxiliarTeachersModal = ({ visible, onDismiss, courseId, courseName }: Aux
   const [auxiliarEmail, setAuxiliarEmail] = useState('');
   const [auxiliarId, setAuxiliarId] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingTeacherId, setIsLoadingTeacherId] = useState(false);
   const [createTaskPermission, setCreateTaskPermission] = useState(false);
   const [createExamPermission, setCreateExamPermission] = useState(false);
+
   // Función para obtener los docentes auxiliares del curso
   const fetchAuxiliarTeachers = async () => {
     if (!courseId || !session?.token) {
@@ -71,10 +73,43 @@ const AuxiliarTeachersModal = ({ visible, onDismiss, courseId, courseName }: Aux
       setIsLoading(false);
     }
   };
+
+  // Función para obtener el ID del docente a partir de su email
+  const fetchTeacherIdByEmail = async (email: string): Promise<string | null> => {
+    if (!email || !session?.token) {
+      return null;
+    }
+
+    setIsLoadingTeacherId(true);
+
+    try {
+      console.log(`Buscando ID para el email: ${email}`);
+      const response = await client.get(`/profile/from_email/${encodeURIComponent(email)}`, {
+        headers: {
+          Authorization: `Bearer ${session.token}`
+        }
+      });
+
+      console.log('Respuesta del servidor (perfil):', response.data);
+      
+      if (response.data?.user_id) {
+        return response.data.user_id;
+      } else {
+        console.warn('No se encontró el ID del docente:', response.data);
+        return null;
+      }
+    } catch (err: any) {
+      console.error('Error al obtener el ID del docente:', err);
+      return null;
+    } finally {
+      setIsLoadingTeacherId(false);
+    }
+  };
+
   // Función para añadir un docente auxiliar
   const addAuxiliarTeacher = async () => {
-    if (!courseId || !session?.token || !auxiliarEmail || !auxiliarId) {
-      Alert.alert('Error', 'Todos los campos son obligatorios');
+    if (!courseId || !session?.token || !auxiliarEmail) {
+      Alert.alert('Error', 'El email del docente es obligatorio');
       return;
     }
 
@@ -84,92 +119,106 @@ const AuxiliarTeachersModal = ({ visible, onDismiss, courseId, courseName }: Aux
       return;
     }
 
-    // Mostrar confirmación antes de proceder
-    Alert.alert(
-      'Confirmación',
-      `¿Está seguro que desea añadir a ${auxiliarEmail} como docente auxiliar?`,
-      [
-        {
-          text: 'Cancelar',
-          style: 'cancel'
-        },
-        {
-          text: 'Confirmar',
-          onPress: async () => {
-            setIsSubmitting(true);
+    setIsSubmitting(true);
 
-            try {
-              // Preparar las permisiones seleccionadas
-              const permissions = [];
-              if (createTaskPermission) permissions.push('create task');
-              if (createExamPermission) permissions.push('create exam');
+    try {
+      // Obtener el ID del docente a partir del email
+      const teacherId = await fetchTeacherIdByEmail(auxiliarEmail);
+      
+      if (!teacherId) {
+        setIsSubmitting(false);
+        Alert.alert('Error', 'No se pudo obtener el ID del docente. Verifique que el email sea correcto y que el docente esté registrado en el sistema.');
+        return;
+      }
 
-              // Crear el cuerpo de la petición
-              const requestBody = {
-                auxiliar: auxiliarEmail,
-                auxiliar_id: auxiliarId,
-                auxiliar_role: 'teacher',
-                permissions: permissions
-              };
+      // Mostrar confirmación antes de proceder
+      Alert.alert(
+        'Confirmación',
+        `¿Está seguro que desea añadir a ${auxiliarEmail} como docente auxiliar?`,
+        [
+          {
+            text: 'Cancelar',
+            style: 'cancel',
+            onPress: () => setIsSubmitting(false)
+          },
+          {
+            text: 'Confirmar',
+            onPress: async () => {
+              try {
+                // Preparar las permisiones seleccionadas
+                const permissions = [];
+                if (createTaskPermission) permissions.push('create task');
+                if (createExamPermission) permissions.push('create exam');
 
-              console.log('Enviando solicitud para añadir docente auxiliar:', requestBody);
+                // Crear el cuerpo de la petición
+                const requestBody = {
+                  auxiliar: auxiliarEmail,
+                  auxiliar_id: teacherId,
+                  auxiliar_role: 'teacher',
+                  permissions: permissions
+                };
 
-              // Enviar la petición
-              const response = await courseClient.post(`/courses/${courseId}/auxiliars`, requestBody, {
-                headers: {
-                  Authorization: `Bearer ${session.token}`
+                console.log('Enviando solicitud para añadir docente auxiliar:', requestBody);
+
+                // Enviar la petición
+                const response = await courseClient.post(`/courses/${courseId}/auxiliars`, requestBody, {
+                  headers: {
+                    Authorization: `Bearer ${session.token}`
+                  }
+                });
+
+                console.log('Respuesta del servidor:', response.data);
+
+                // Verificar la respuesta
+                if (response.data?.response?.auxiliars) {
+                  // Actualizar la lista de docentes auxiliares
+                  setAuxiliarTeachers(response.data.response.auxiliars);
+                  // Cerrar el diálogo y limpiar el formulario
+                  resetForm();
+                  Alert.alert('Éxito', 'Docente auxiliar añadido correctamente');
+                } else {
+                  // Si la respuesta no contiene la lista actualizada, realizar una nueva consulta
+                  fetchAuxiliarTeachers();
+                  resetForm();
+                  Alert.alert('Éxito', 'Docente auxiliar añadido correctamente');
                 }
-              });
-
-              console.log('Respuesta del servidor:', response.data);
-
-              // Verificar la respuesta
-              if (response.data?.response?.auxiliars) {
-                // Actualizar la lista de docentes auxiliares
-                setAuxiliarTeachers(response.data.response.auxiliars);
-                // Cerrar el diálogo y limpiar el formulario
-                resetForm();
-                Alert.alert('Éxito', 'Docente auxiliar añadido correctamente');
-              } else {
-                // Si la respuesta no contiene la lista actualizada, realizar una nueva consulta
-                fetchAuxiliarTeachers();
-                resetForm();
-                Alert.alert('Éxito', 'Docente auxiliar añadido correctamente');
-              }
-            } catch (err: any) {
-              console.error('Error al añadir docente auxiliar:', err);
-              
-              let errorMessage = 'Error al añadir docente auxiliar';
-              if (err.response) {
-                if (err.response.status === 400) {
-                  errorMessage = 'Datos inválidos. Verifique el email y el ID del docente.';
-                } else if (err.response.status === 401) {
-                  errorMessage = 'No autorizado. Inicie sesión nuevamente.';
-                } else if (err.response.status === 403) {
-                  errorMessage = 'No tiene permisos para realizar esta acción.';
-                } else if (err.response.status === 404) {
-                  errorMessage = 'Curso o usuario no encontrado.';
-                } else if (err.response.status === 409) {
-                  errorMessage = 'El docente ya es auxiliar en este curso.';
-                } else if (err.response.data?.message) {
-                  errorMessage = err.response.data.message;
+              } catch (err: any) {
+                console.error('Error al añadir docente auxiliar:', err);
+                
+                let errorMessage = 'Error al añadir docente auxiliar';
+                if (err.response) {
+                  if (err.response.status === 400) {
+                    errorMessage = 'Datos inválidos. Verifique el email y el ID del docente.';
+                  } else if (err.response.status === 401) {
+                    errorMessage = 'No autorizado. Inicie sesión nuevamente.';
+                  } else if (err.response.status === 403) {
+                    errorMessage = 'No tiene permisos para realizar esta acción.';
+                  } else if (err.response.status === 404) {
+                    errorMessage = 'Curso o usuario no encontrado.';
+                  } else if (err.response.status === 409) {
+                    errorMessage = 'El docente ya es auxiliar en este curso.';
+                  } else if (err.response.data?.message) {
+                    errorMessage = err.response.data.message;
+                  }
                 }
+                
+                Alert.alert('Error', errorMessage);
+              } finally {
+                setIsSubmitting(false);
               }
-              
-              Alert.alert('Error', errorMessage);
-            } finally {
-              setIsSubmitting(false);
             }
           }
-        }
-      ]
-    );
+        ],
+        { cancelable: true, onDismiss: () => setIsSubmitting(false) }
+      );
+    } catch (error) {
+      console.error('Error general:', error);
+      Alert.alert('Error', 'Ocurrió un error al procesar la solicitud');      setIsSubmitting(false);
+    }
   };
-
   // Función para limpiar el formulario
   const resetForm = () => {
     setAuxiliarEmail('');
-    setAuxiliarId('');
     setCreateTaskPermission(false);
     setCreateExamPermission(false);
     setAddDialogVisible(false);
@@ -268,7 +317,7 @@ const AuxiliarTeachersModal = ({ visible, onDismiss, courseId, courseName }: Aux
         {/* Diálogo para añadir docente auxiliar */}
         <Dialog visible={addDialogVisible} onDismiss={resetForm}>
           <Dialog.Title>Añadir Docente Auxiliar</Dialog.Title>
-          <Dialog.Content>
+          <Dialog.Content> 
             <TextInput
               label="Email del docente"
               value={auxiliarEmail}
@@ -281,18 +330,6 @@ const AuxiliarTeachersModal = ({ visible, onDismiss, courseId, courseName }: Aux
             />
             {auxiliarEmail !== '' && !auxiliarEmail.includes('@') && (
               <Text style={styles.errorInputText}>Ingrese un email válido</Text>
-            )}
-            
-            <TextInput
-              label="ID del docente"
-              value={auxiliarId}
-              onChangeText={setAuxiliarId}
-              style={styles.input}
-              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-              error={auxiliarId !== '' && auxiliarId.length < 8}
-            />
-            {auxiliarId !== '' && auxiliarId.length < 8 && (
-              <Text style={styles.errorInputText}>El ID debe tener al menos 8 caracteres</Text>
             )}
             
             <Text style={styles.permissionsTitle}>Permisos:</Text>
@@ -326,7 +363,7 @@ const AuxiliarTeachersModal = ({ visible, onDismiss, courseId, courseName }: Aux
             <Button 
               onPress={addAuxiliarTeacher} 
               loading={isSubmitting}
-              disabled={isSubmitting || !auxiliarEmail || !auxiliarId || (!createTaskPermission && !createExamPermission)}
+              disabled={isSubmitting || !auxiliarEmail || (!createTaskPermission && !createExamPermission)}
             >
               Añadir
             </Button>
@@ -420,11 +457,17 @@ const styles = StyleSheet.create({
   },
   checkboxLabel: {
     marginLeft: 8,
-  },
-  errorInputText: {
+  },  errorInputText: {
     color: 'red',
     fontSize: 12,
     marginTop: 5,
+  },
+  helpText: {
+    color: '#666',
+    fontSize: 12,
+    marginTop: 5,
+    marginBottom: 15,
+    fontStyle: 'italic',
   },
 });
 
