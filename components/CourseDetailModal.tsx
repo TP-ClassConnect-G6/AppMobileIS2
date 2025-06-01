@@ -87,9 +87,18 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
   // Obtener la sesión del usuario para verificar su rol
   const { session } = useSession();
   const isTeacher = session?.userType === "teacher" || session?.userType === "admin" || session?.userType === "administrator";
-  
-  // Estado para almacenar el email del usuario logueado
+    // Estado para almacenar el email del usuario logueado
   const [userEmail, setUserEmail] = useState<string | null>(null);
+
+  // Consulta para obtener los detalles del curso
+  const { data: courseDetail, isLoading, error, refetch } = useQuery({
+    queryKey: ['courseDetail', courseId],
+    queryFn: () => courseId ? fetchCourseDetail(courseId) : Promise.reject('No courseId provided'),
+    enabled: !!courseId && visible, // Solo consultar cuando hay un courseId y el modal está visible
+    staleTime: 60000, // Datos frescos por 1 minuto
+    retry: 1, // Intentar nuevamente 1 vez en caso de error
+    retryDelay: 1000, // Esperar 1 segundo entre reintentos
+  });
 
   // Extraer el email del token JWT
   useEffect(() => {
@@ -101,7 +110,8 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
         setUserEmail(email);
       } catch (error) {
         console.error("Error al decodificar el token:", error);
-      }    }
+      }    
+    }
   }, [session]);
 
   // Efecto para verificar si el profesor es el asignado cuando cambian los datos del curso
@@ -109,17 +119,7 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
     if (isTeacher && courseDetail && userEmail) {
       checkTeacherAssignedStatus();
     }
-  }, [courseDetail, userEmail]);
-
-  // Consulta para obtener los detalles del curso
-  const { data: courseDetail, isLoading, error, refetch } = useQuery({
-    queryKey: ['courseDetail', courseId],
-    queryFn: () => courseId ? fetchCourseDetail(courseId) : Promise.reject('No courseId provided'),
-    enabled: !!courseId && visible, // Solo consultar cuando hay un courseId y el modal está visible
-    staleTime: 60000, // Datos frescos por 1 minuto
-    retry: 1, // Intentar nuevamente 1 vez en caso de error
-    retryDelay: 1000, // Esperar 1 segundo entre reintentos
-  });
+  }, [courseDetail, userEmail, isTeacher]);
 
   // Verificar si el estudiante está inscrito en el curso
   const checkEnrollmentStatus = async () => {
