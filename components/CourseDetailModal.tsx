@@ -408,13 +408,13 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                   </Button>
                     {/* Botón de agregar docente auxiliar solo visible si el profesor logueado es el asignado al curso */}
                   {isTeacherAssigned && (
-                    <Button 
+                    <Button                      
                       mode="contained" 
                       style={[styles.examButton, {backgroundColor: '#FF9800'}]} 
                       onPress={() => console.log('Agregar docente auxiliar - Teacher:', courseDetail.teacher, 'UserEmail:', userEmail)}
                       icon="account-plus"
                     >
-                      Agregar Docente Auxiliar
+                      Gestionar Docente Auxiliar
                     </Button>
                   )}
                 </>
