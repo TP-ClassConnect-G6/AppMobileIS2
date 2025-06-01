@@ -132,12 +132,19 @@ const fetchCourses = async (filters?: { course_name?: string; category?: string;
 };
 
 // Función para registrarse en un curso
-const registerInCourse = async (courseId: string, email: string, academicLevel: string): Promise<CourseRegistrationResponse> => {
+const registerInCourse = async (courseId: string, academicLevel: string, token?: string): Promise<CourseRegistrationResponse> => {
   console.log("Academic Level:", academicLevel);
+  
+  if (!token) {
+    throw new Error("No hay token de sesión disponible. Por favor, inicia sesión nuevamente.");
+  }
+  
   const response = await courseClient.post(`/courses/${courseId}/registrations`, {
-    user_login: email,
-    role: "student",
     user_academic_level: academicLevel
+  }, {
+    headers: {
+      "Authorization": `Bearer ${token}`
+    }
   });
   
   // Manejar diferentes posibles formatos de respuesta
@@ -507,7 +514,7 @@ export default function CourseListScreen() {
               }
 
               // Obtener el email del usuario desde la sesión
-              let userEmail = session.userId;
+              let token = session.token;
               // El nivel académico se puede pedir al usuario o usar un valor predeterminado
               // Usaremos "Primary School" como nivel académico predeterminado o el del curso si está disponible
               const academicLevel = item.academic_level || "Primary School";
@@ -519,8 +526,9 @@ export default function CourseListScreen() {
                   { text: "Cancelar", style: "cancel" },
                   { 
                     text: "Inscribirse", 
-                    onPress: async () => {                    try {
-                        const response = await registerInCourse(item.course_id, userEmail, academicLevel);
+                    onPress: async () => {                    
+                      try {
+                        const response = await registerInCourse(item.course_id, academicLevel, token);
                         // Acceder a los datos de la respuesta de forma segura
                         const courseName = response.response?.course_name || item.course_name;
                         const courseStart = response.response?.course_date_init || item.date_init;
