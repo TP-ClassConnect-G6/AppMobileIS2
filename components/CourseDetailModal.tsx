@@ -9,6 +9,7 @@ import CourseExamsModal from "./CourseExamsModal";
 import CourseTasksModal from "./CourseTasksModal";
 import TeacherExamsModal from "./TeacherExamsModal";
 import TeacherTasksModal from "./TeacherTasksModal";
+import AuxiliarTeachersModal from "./AuxiliarTeachersModal";
 import { useSession } from "@/contexts/session";
 import jwtDecode from "jwt-decode";
 
@@ -81,7 +82,9 @@ type CourseDetailModalProps = {
 const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalProps) => {  // Estado para controlar la visibilidad del modal de exámenes
   const [examModalVisible, setExamModalVisible] = useState(false);
   const [taskModalVisible, setTaskModalVisible] = useState(false);
-  const [teacherExamModalVisible, setTeacherExamModalVisible] = useState(false);  const [teacherTaskModalVisible, setTeacherTaskModalVisible] = useState(false);
+  const [teacherExamModalVisible, setTeacherExamModalVisible] = useState(false);  
+  const [teacherTaskModalVisible, setTeacherTaskModalVisible] = useState(false);
+  const [auxiliarTeachersModalVisible, setAuxiliarTeachersModalVisible] = useState(false);
   const [isEnrolled, setIsEnrolled] = useState(false);
   const [isTeacherAssigned, setIsTeacherAssigned] = useState(false);
   // Obtener la sesión del usuario para verificar su rol
@@ -406,12 +409,12 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                   >
                     Ver tareas como estudiantes
                   </Button>
-                    {/* Botón de agregar docente auxiliar solo visible si el profesor logueado es el asignado al curso */}
+                  {/* Botón de agregar docente auxiliar solo visible si el profesor logueado es el asignado al curso */}
                   {isTeacherAssigned && (
-                    <Button                      
+                    <Button 
                       mode="contained" 
                       style={[styles.examButton, {backgroundColor: '#FF9800'}]} 
-                      onPress={() => console.log('Agregar docente auxiliar - Teacher:', courseDetail.teacher, 'UserEmail:', userEmail)}
+                      onPress={() => setAuxiliarTeachersModalVisible(true)}
                       icon="account-plus"
                     >
                       Gestionar Docente Auxiliar
@@ -474,10 +477,16 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
         onDismiss={() => setTeacherTaskModalVisible(false)}
         courseId={courseId}
         courseName={courseDetail?.course_name || null}
-      />
+      />      
       <CourseTasksModal
         visible={taskModalVisible}
         onDismiss={() => setTaskModalVisible(false)}
+        courseId={courseId}
+        courseName={courseDetail?.course_name || null}
+      />
+      <AuxiliarTeachersModal
+        visible={auxiliarTeachersModalVisible}
+        onDismiss={() => setAuxiliarTeachersModalVisible(false)}
         courseId={courseId}
         courseName={courseDetail?.course_name || null}
       />
