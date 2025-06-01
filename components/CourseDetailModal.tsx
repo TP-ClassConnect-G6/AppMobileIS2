@@ -321,12 +321,12 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                 </Text>
               </View>
               
-              {courseDetail.course_status && (
+              {/* {courseDetail.course_status && (
                 <View style={styles.infoItem}>
                   <Text style={styles.infoLabel}>Estado:</Text>
                   <Text style={styles.infoValue}>{courseDetail.course_status}</Text>
                 </View>
-              )}
+              )} */}
               
               <Divider style={styles.divider} />
               
@@ -377,22 +377,34 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
               )}
               {isTeacher ? (
                 <>
-                  <Button 
-                    mode="contained" 
-                    style={styles.examButton} 
-                    onPress={() => setTeacherExamModalVisible(true)}
-                    icon="book-open-variant"
-                  >
-                    Gestionar exámenes
-                  </Button>
-                  <Button 
-                    mode="contained" 
-                    style={[styles.examButton, {backgroundColor: '#7B1FA2'}]} 
-                    onPress={() => setTeacherTaskModalVisible(true)}
-                    icon="clipboard-text"
-                  >
-                    Gestionar tareas
-                  </Button>                  
+                  {isTeacherAssigned ? (
+                    <>
+                      <Button 
+                        mode="contained" 
+                        style={styles.examButton} 
+                        onPress={() => setTeacherExamModalVisible(true)}
+                        icon="book-open-variant"
+                      >
+                        Gestionar exámenes
+                      </Button>
+                      <Button 
+                        mode="contained" 
+                        style={[styles.examButton, {backgroundColor: '#7B1FA2'}]} 
+                        onPress={() => setTeacherTaskModalVisible(true)}
+                        icon="clipboard-text"
+                      >
+                        Gestionar tareas
+                      </Button>
+                      <Button 
+                        mode="contained" 
+                        style={[styles.examButton, {backgroundColor: '#FF9800'}]} 
+                        onPress={() => setAuxiliarTeachersModalVisible(true)}
+                        icon="account-plus"
+                      >
+                        Gestionar Docente Auxiliar
+                      </Button>
+                    </>
+                  ) : null }
                   <Button 
                     mode="outlined" 
                     style={[styles.examButton, {backgroundColor: '#E8F5E9'}]} 
@@ -409,17 +421,6 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                   >
                     Ver tareas como estudiantes
                   </Button>
-                  {/* Botón de agregar docente auxiliar solo visible si el profesor logueado es el asignado al curso */}
-                  {isTeacherAssigned && (
-                    <Button 
-                      mode="contained" 
-                      style={[styles.examButton, {backgroundColor: '#FF9800'}]} 
-                      onPress={() => setAuxiliarTeachersModalVisible(true)}
-                      icon="account-plus"
-                    >
-                      Gestionar Docente Auxiliar
-                    </Button>
-                  )}
                 </>
               ) : isEnrolled ? (
                 <>
