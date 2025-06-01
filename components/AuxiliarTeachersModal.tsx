@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { StyleSheet, View, FlatList, ActivityIndicator, Alert } from "react-native";
-import { Modal, Portal, Text, Title, Button, Divider, Chip, List, Dialog, TextInput, Checkbox } from "react-native-paper";
+import { Modal, Portal, Text, Title, Button, Divider, Chip, List, Dialog, TextInput, Checkbox, IconButton } from "react-native-paper";
 import { client, courseClient } from "@/lib/http";
 import { useSession } from "@/contexts/session";
 
@@ -219,7 +219,6 @@ const AuxiliarTeachersModal = ({ visible, onDismiss, courseId, courseName }: Aux
   };
   // Función para eliminar un docente auxiliar
   const deleteAuxiliarTeacher = async (auxiliarEmail: string) => {
-    console.log('Eliminando docente auxiliar:', courseId);
     if (!courseId || !session?.token) {
       return;
     }
@@ -307,15 +306,13 @@ const AuxiliarTeachersModal = ({ visible, onDismiss, courseId, courseName }: Aux
       )}
       left={props => <List.Icon {...props} icon="account" />}
       right={props => (
-        <Button 
-          {...props} 
+        <IconButton 
           icon="trash-can" 
-          mode="contained" 
+          iconColor="white"
+          size={20}
           onPress={() => deleteAuxiliarTeacher(item.auxiliar)}
           style={styles.deleteButton}
-        >
-          Eliminar
-        </Button>
+        />
       )}
     />
   );
@@ -535,10 +532,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 5,
     marginBottom: 15,
-    fontStyle: 'italic',  },
-  deleteButton: {
+    fontStyle: 'italic',  },  deleteButton: {
     marginLeft: 10,
     backgroundColor: '#D32F2F', // Color rojo para indicar eliminación
+    height: 35,
+    width: 35,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 0,
+  },
+  deleteButtonContent: {
+    margin: 0,
+    padding: 0,
   },
 });
 
