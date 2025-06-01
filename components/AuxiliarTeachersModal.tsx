@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { StyleSheet, View, FlatList, ActivityIndicator } from "react-native";
-import { Modal, Portal, Text, Title, Button, Divider, Chip, List } from "react-native-paper";
+import { StyleSheet, View, FlatList, ActivityIndicator, Alert } from "react-native";
+import { Modal, Portal, Text, Title, Button, Divider, Chip, List, Dialog, TextInput, Checkbox } from "react-native-paper";
 import { courseClient } from "@/lib/http";
 import { useSession } from "@/contexts/session";
 
@@ -33,7 +33,14 @@ const AuxiliarTeachersModal = ({ visible, onDismiss, courseId, courseName }: Aux
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { session } = useSession();
-
+  
+  // Estados para el formulario de añadir docente auxiliar
+  const [addDialogVisible, setAddDialogVisible] = useState(false);
+  const [auxiliarEmail, setAuxiliarEmail] = useState('');
+  const [auxiliarId, setAuxiliarId] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [createTaskPermission, setCreateTaskPermission] = useState(false);
+  const [createExamPermission, setCreateExamPermission] = useState(false);
   // Función para obtener los docentes auxiliares del curso
   const fetchAuxiliarTeachers = async () => {
     if (!courseId || !session?.token) {
@@ -63,6 +70,109 @@ const AuxiliarTeachersModal = ({ visible, onDismiss, courseId, courseName }: Aux
     } finally {
       setIsLoading(false);
     }
+  };
+  // Función para añadir un docente auxiliar
+  const addAuxiliarTeacher = async () => {
+    if (!courseId || !session?.token || !auxiliarEmail || !auxiliarId) {
+      Alert.alert('Error', 'Todos los campos son obligatorios');
+      return;
+    }
+
+    // Verificar que al menos un permiso esté seleccionado
+    if (!createTaskPermission && !createExamPermission) {
+      Alert.alert('Error', 'Debe seleccionar al menos un permiso');
+      return;
+    }
+
+    // Mostrar confirmación antes de proceder
+    Alert.alert(
+      'Confirmación',
+      `¿Está seguro que desea añadir a ${auxiliarEmail} como docente auxiliar?`,
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel'
+        },
+        {
+          text: 'Confirmar',
+          onPress: async () => {
+            setIsSubmitting(true);
+
+            try {
+              // Preparar las permisiones seleccionadas
+              const permissions = [];
+              if (createTaskPermission) permissions.push('create task');
+              if (createExamPermission) permissions.push('create exam');
+
+              // Crear el cuerpo de la petición
+              const requestBody = {
+                auxiliar: auxiliarEmail,
+                auxiliar_id: auxiliarId,
+                auxiliar_role: 'teacher',
+                permissions: permissions
+              };
+
+              console.log('Enviando solicitud para añadir docente auxiliar:', requestBody);
+
+              // Enviar la petición
+              const response = await courseClient.post(`/courses/${courseId}/auxiliars`, requestBody, {
+                headers: {
+                  Authorization: `Bearer ${session.token}`
+                }
+              });
+
+              console.log('Respuesta del servidor:', response.data);
+
+              // Verificar la respuesta
+              if (response.data?.response?.auxiliars) {
+                // Actualizar la lista de docentes auxiliares
+                setAuxiliarTeachers(response.data.response.auxiliars);
+                // Cerrar el diálogo y limpiar el formulario
+                resetForm();
+                Alert.alert('Éxito', 'Docente auxiliar añadido correctamente');
+              } else {
+                // Si la respuesta no contiene la lista actualizada, realizar una nueva consulta
+                fetchAuxiliarTeachers();
+                resetForm();
+                Alert.alert('Éxito', 'Docente auxiliar añadido correctamente');
+              }
+            } catch (err: any) {
+              console.error('Error al añadir docente auxiliar:', err);
+              
+              let errorMessage = 'Error al añadir docente auxiliar';
+              if (err.response) {
+                if (err.response.status === 400) {
+                  errorMessage = 'Datos inválidos. Verifique el email y el ID del docente.';
+                } else if (err.response.status === 401) {
+                  errorMessage = 'No autorizado. Inicie sesión nuevamente.';
+                } else if (err.response.status === 403) {
+                  errorMessage = 'No tiene permisos para realizar esta acción.';
+                } else if (err.response.status === 404) {
+                  errorMessage = 'Curso o usuario no encontrado.';
+                } else if (err.response.status === 409) {
+                  errorMessage = 'El docente ya es auxiliar en este curso.';
+                } else if (err.response.data?.message) {
+                  errorMessage = err.response.data.message;
+                }
+              }
+              
+              Alert.alert('Error', errorMessage);
+            } finally {
+              setIsSubmitting(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // Función para limpiar el formulario
+  const resetForm = () => {
+    setAuxiliarEmail('');
+    setAuxiliarId('');
+    setCreateTaskPermission(false);
+    setCreateExamPermission(false);
+    setAddDialogVisible(false);
   };
 
   // Cargar los docentes auxiliares cuando se abre el modal
@@ -136,13 +246,12 @@ const AuxiliarTeachersModal = ({ visible, onDismiss, courseId, courseName }: Aux
               style={styles.list}
             />
           )}
-
           <View style={styles.buttonContainer}>
             <Button 
               mode="contained" 
               style={styles.addButton} 
               icon="account-plus"
-              onPress={() => console.log('Añadir docente auxiliar')}
+              onPress={() => setAddDialogVisible(true)}
             >
               Añadir Docente Auxiliar
             </Button>
@@ -155,6 +264,74 @@ const AuxiliarTeachersModal = ({ visible, onDismiss, courseId, courseName }: Aux
             </Button>
           </View>
         </View>
+
+        {/* Diálogo para añadir docente auxiliar */}
+        <Dialog visible={addDialogVisible} onDismiss={resetForm}>
+          <Dialog.Title>Añadir Docente Auxiliar</Dialog.Title>
+          <Dialog.Content>
+            <TextInput
+              label="Email del docente"
+              value={auxiliarEmail}
+              onChangeText={setAuxiliarEmail}
+              style={styles.input}
+              placeholder="ejemplo@correo.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              error={auxiliarEmail !== '' && !auxiliarEmail.includes('@')}
+            />
+            {auxiliarEmail !== '' && !auxiliarEmail.includes('@') && (
+              <Text style={styles.errorInputText}>Ingrese un email válido</Text>
+            )}
+            
+            <TextInput
+              label="ID del docente"
+              value={auxiliarId}
+              onChangeText={setAuxiliarId}
+              style={styles.input}
+              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+              error={auxiliarId !== '' && auxiliarId.length < 8}
+            />
+            {auxiliarId !== '' && auxiliarId.length < 8 && (
+              <Text style={styles.errorInputText}>El ID debe tener al menos 8 caracteres</Text>
+            )}
+            
+            <Text style={styles.permissionsTitle}>Permisos:</Text>
+            
+            <View style={styles.checkboxContainer}>
+              <Checkbox
+                status={createTaskPermission ? 'checked' : 'unchecked'}
+                onPress={() => setCreateTaskPermission(!createTaskPermission)}
+              />
+              <Text onPress={() => setCreateTaskPermission(!createTaskPermission)} style={styles.checkboxLabel}>
+                Crear tareas (create task)
+              </Text>
+            </View>
+            
+            <View style={styles.checkboxContainer}>
+              <Checkbox
+                status={createExamPermission ? 'checked' : 'unchecked'}
+                onPress={() => setCreateExamPermission(!createExamPermission)}
+              />
+              <Text onPress={() => setCreateExamPermission(!createExamPermission)} style={styles.checkboxLabel}>
+                Crear exámenes (create exam)
+              </Text>
+            </View>
+            
+            {!createTaskPermission && !createExamPermission && (
+              <Text style={styles.errorInputText}>Debe seleccionar al menos un permiso</Text>
+            )}
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={resetForm}>Cancelar</Button>
+            <Button 
+              onPress={addAuxiliarTeacher} 
+              loading={isSubmitting}
+              disabled={isSubmitting || !auxiliarEmail || !auxiliarId || (!createTaskPermission && !createExamPermission)}
+            >
+              Añadir
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
       </Modal>
     </Portal>
   );
@@ -227,6 +404,27 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     marginBottom: 5,
+  },
+  input: {
+    marginBottom: 15,
+  },
+  permissionsTitle: {
+    marginTop: 10,
+    marginBottom: 5,
+    fontWeight: 'bold',
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 5,
+  },
+  checkboxLabel: {
+    marginLeft: 8,
+  },
+  errorInputText: {
+    color: 'red',
+    fontSize: 12,
+    marginTop: 5,
   },
 });
 
