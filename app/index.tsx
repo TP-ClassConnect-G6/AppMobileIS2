@@ -3,6 +3,14 @@ import { useSession } from "@/contexts/session";
 import { Redirect, router } from "expo-router";
 import { View, Text, ActivityIndicator } from "react-native";
 
+/*
+  config de adb:
+    $env:Path += ";C:\Users\%USERNAME%\AppData\Local\Android\Sdk\platform-tools"
+  
+    prueba:
+    adb shell am start -W -a android.intent.action.VIEW -d "classconnect://course/abc123" com.gpanaccio.classconnect
+    Starting: Intent { act=android.intent.action.VIEW dat=classconnect://course/... pkg=com.gpanaccio.classconnect }
+*/
 export default function App() {
   const { session } = useSession();
 
