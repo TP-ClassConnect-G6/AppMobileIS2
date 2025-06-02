@@ -81,12 +81,14 @@ type CourseDetailModalProps = {
 
 const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalProps) => {  // Estado para controlar la visibilidad del modal de exámenes
   const [examModalVisible, setExamModalVisible] = useState(false);
-  const [taskModalVisible, setTaskModalVisible] = useState(false);
-  const [teacherExamModalVisible, setTeacherExamModalVisible] = useState(false);  
+  const [taskModalVisible, setTaskModalVisible] = useState(false);  const [teacherExamModalVisible, setTeacherExamModalVisible] = useState(false);  
   const [teacherTaskModalVisible, setTeacherTaskModalVisible] = useState(false);
   const [auxiliarTeachersModalVisible, setAuxiliarTeachersModalVisible] = useState(false);
   const [isEnrolled, setIsEnrolled] = useState(false);
   const [isTeacherAssigned, setIsTeacherAssigned] = useState(false);
+  const [isAuxiliar, setIsAuxiliar] = useState(false);
+  const [canCreateExam, setCanCreateExam] = useState(false);
+  const [canCreateTask, setCanCreateTask] = useState(false);
   // Obtener la sesión del usuario para verificar su rol
   const { session } = useSession();
   const isTeacher = session?.userType === "teacher" || session?.userType === "admin" || session?.userType === "administrator";
@@ -116,23 +118,22 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
       }    
     }
   }, [session]);
-
   // Efecto para verificar si el profesor es el asignado cuando cambian los datos del curso
   useEffect(() => {
     if (isTeacher && courseDetail && userEmail) {
       checkTeacherAssignedStatus();
     }
   }, [courseDetail, userEmail, isTeacher]);
-
   // Fetch auxiliar teachers when the modal becomes visible
   useEffect(() => {
-    if (visible && courseId && session?.token) {
+    if (visible && courseId && session?.token && userEmail) {
       fetchAuxiliarTeachers();
     }
-  }, [visible, courseId, session?.token]);
+  }, [visible, courseId, session?.token, userEmail]);
+
   // Función para obtener los docentes auxiliares del curso
   const fetchAuxiliarTeachers = async () => {
-    if (!courseId || !session?.token) {
+    if (!courseId || !session?.token || !userEmail) {
       return;
     }
     
@@ -144,6 +145,32 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
       });
       
       console.log("Auxiliar teachers response:", JSON.stringify(response.data, null, 2));
+        // Check if the current user is an auxiliary teacher
+      if (response.data?.response?.auxiliars) {
+        const auxiliars = response.data.response.auxiliars;
+        const currentUserAsAuxiliar = auxiliars.find((aux: { auxiliar: string; permissions: { permission: string }[] }) => aux.auxiliar === userEmail);
+          if (currentUserAsAuxiliar) {
+          setIsAuxiliar(true);
+          
+          // Check permissions
+          const hasCreateExamPermission = currentUserAsAuxiliar.permissions.some(
+            (perm: { permission: string }) => perm.permission === "create exam"
+          );
+          
+          const hasCreateTaskPermission = currentUserAsAuxiliar.permissions.some(
+            (perm: { permission: string }) => perm.permission === "create task"
+          );
+          
+          setCanCreateExam(hasCreateExamPermission);
+          setCanCreateTask(hasCreateTaskPermission);
+          
+          console.log(`User is auxiliar with permissions: createExam=${hasCreateExamPermission}, createTask=${hasCreateTaskPermission}`);
+        } else {
+          setIsAuxiliar(false);
+          setCanCreateExam(false);
+          setCanCreateTask(false);
+        }
+      }
     } catch (error: any) {
       // Format and log the error in the required format
       const errorResponse = error.response?.data || {};
@@ -156,6 +183,11 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
       
       console.log("Error formatted:", JSON.stringify(formattedError, null, 2));
       console.error("Error fetching auxiliar teachers:", error);
+      
+      // Reset permissions if there's an error
+      setIsAuxiliar(false);
+      setCanCreateExam(false);
+      setCanCreateTask(false);
     }
   };
 
@@ -412,32 +444,43 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
               )}
               {isTeacher ? (
                 <>
-                  {isTeacherAssigned ? (
+                  {isTeacherAssigned || (isAuxiliar && (canCreateExam || canCreateTask)) ? (
                     <>
-                      <Button 
-                        mode="contained" 
-                        style={styles.examButton} 
-                        onPress={() => setTeacherExamModalVisible(true)}
-                        icon="book-open-variant"
-                      >
-                        Gestionar exámenes
-                      </Button>
-                      <Button 
-                        mode="contained" 
-                        style={[styles.examButton, {backgroundColor: '#7B1FA2'}]} 
-                        onPress={() => setTeacherTaskModalVisible(true)}
-                        icon="clipboard-text"
-                      >
-                        Gestionar tareas
-                      </Button>
-                      <Button 
-                        mode="contained" 
-                        style={[styles.examButton, {backgroundColor: '#FF9800'}]} 
-                        onPress={() => setAuxiliarTeachersModalVisible(true)}
-                        icon="account-plus"
-                      >
-                        Gestionar Docente Auxiliar
-                      </Button>
+                      {/* Mostrar botones de gestión de exámenes si es profesor asignado o auxiliar con permiso */}
+                      {(isTeacherAssigned || (isAuxiliar && canCreateExam)) && (
+                        <Button 
+                          mode="contained" 
+                          style={styles.examButton} 
+                          onPress={() => setTeacherExamModalVisible(true)}
+                          icon="book-open-variant"
+                        >
+                          Gestionar exámenes
+                        </Button>
+                      )}
+                      
+                      {/* Mostrar botones de gestión de tareas si es profesor asignado o auxiliar con permiso */}
+                      {(isTeacherAssigned || (isAuxiliar && canCreateTask)) && (
+                        <Button 
+                          mode="contained" 
+                          style={[styles.examButton, {backgroundColor: '#7B1FA2'}]} 
+                          onPress={() => setTeacherTaskModalVisible(true)}
+                          icon="clipboard-text"
+                        >
+                          Gestionar tareas
+                        </Button>
+                      )}
+                      
+                      {/* Botón para gestionar docentes auxiliares, solo para profesor asignado */}
+                      {isTeacherAssigned && (
+                        <Button 
+                          mode="contained" 
+                          style={[styles.examButton, {backgroundColor: '#FF9800'}]} 
+                          onPress={() => setAuxiliarTeachersModalVisible(true)}
+                          icon="account-plus"
+                        >
+                          Gestionar Docente Auxiliar
+                        </Button>
+                      )}
                     </>
                   ) : null }
                   <Button 

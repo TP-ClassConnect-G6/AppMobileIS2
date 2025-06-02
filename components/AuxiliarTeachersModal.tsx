@@ -405,7 +405,7 @@ const AuxiliarTeachersModal = ({ visible, onDismiss, courseId, courseName }: Aux
                 onPress={() => setCreateTaskPermission(!createTaskPermission)}
               />
               <Text onPress={() => setCreateTaskPermission(!createTaskPermission)} style={styles.checkboxLabel}>
-                Crear tareas (create task)
+                Crear tareas
               </Text>
             </View>
             
@@ -415,7 +415,7 @@ const AuxiliarTeachersModal = ({ visible, onDismiss, courseId, courseName }: Aux
                 onPress={() => setCreateExamPermission(!createExamPermission)}
               />
               <Text onPress={() => setCreateExamPermission(!createExamPermission)} style={styles.checkboxLabel}>
-                Crear exámenes (create exam)
+                Crear exámenes
               </Text>
             </View>
             
