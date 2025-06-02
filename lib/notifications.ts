@@ -1,7 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 
-export async function registerForPushNotificationsAsync(): Promise<string | null> {
+export async function getFCMPushToken(): Promise<string | null> {
   if (!Device.isDevice) {
     console.log('Must use physical device for Push Notifications');
     return null;

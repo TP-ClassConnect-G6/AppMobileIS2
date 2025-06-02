@@ -5,7 +5,7 @@ import {
   useState,
   useEffect,
 } from "react";
-import { client } from "@/lib/http";
+import { client, notificationClient } from "@/lib/http";
 import { router } from "expo-router";
 import { deleteItemAsync, getItemAsync, setItemAsync } from "@/lib/storage";
 import jwtDecode from "jwt-decode";
@@ -14,6 +14,7 @@ import * as WebBrowser from "expo-web-browser";
 import * as SecureStore from "expo-secure-store";
 import axios from "axios";
 import { Alert } from "react-native";
+import { getFCMPushToken } from "@/lib/notifications";
 
 
 type Session = {
@@ -61,12 +62,51 @@ export function useSession() {
 async function startSession(sessionData: Session) {
   await setItemAsync("session", JSON.stringify(sessionData));//key, value almaceno en el storage
   client.defaults.headers.common["Authorization"] = `Bearer ${sessionData.token}`;// agrego el token a los headers de la peticion
-  return sessionData; 
+
+  console.log("Session started with token:", sessionData.token);
+  console.log("Session started with userId:", sessionData.userId);
+  console.log("Session started with userType:", sessionData.userType);
+
+  // Get the FCM token before making the request
+  const fcm_token = await getFCMPushToken();
+
+  if (!fcm_token) {
+    console.warn("No FCM token available, skipping server notification registration.");
+    return sessionData; // Return session data even if FCM token is not available
+  }
+  
+  notificationClient.post(
+    "/config/add_device",
+    { fcm_token },
+    {
+      headers: {
+        Authorization: `Bearer ${sessionData.token}`,
+      },
+    }
+  );
+  console.log("FCM Token sent to server:", fcm_token);
+
+  return sessionData;
 }
 
 async function endSession() {
-  await deleteItemAsync("session");//key, elimino la sesion del storage
-  delete client.defaults.headers.common["Authorization"]; //elimino el token de los headers de la peticion
+  console.log("Ending session and clearing storage");
+  // No se puede usar useSession() fuera de un componente React o hook.
+  // Si necesitas el token del usuario, puedes obtenerlo directamente del storage:
+  const sessionString = await getItemAsync("session");
+  const session = sessionString ? JSON.parse(sessionString) : undefined;
+
+  console.log("Ending session for userId:", session?.userId);
+  console.log("Ending session with token:", session?.token);
+
+  client.post("/logoff", {}, {
+    headers: {
+      Authorization: `Bearer ${session?.token}`,
+    },
+  });
+
+    await deleteItemAsync("session");//key, elimino la sesion del storage
+    delete client.defaults.headers.common["Authorization"]; //elimino el token de los headers de la peticion
 }
 
 

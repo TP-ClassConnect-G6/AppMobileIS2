@@ -8,6 +8,10 @@ export const courseClient = axios.create({
   baseURL: "https://apigatewayis2-production.up.railway.app/courses",
 });
 
+export const notificationClient = axios.create({
+  baseURL: "https://apigatewayis2-production.up.railway.app/notifications",
+});
+
 // https://axios-http.com/docs/interceptors
 //
 // client.interceptors.request.use(

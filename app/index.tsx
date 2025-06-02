@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import { useSession } from "@/contexts/session";
 import { Redirect, router } from "expo-router";
 import { View, Text, ActivityIndicator } from "react-native";
-import { registerForPushNotificationsAsync } from "@/lib/notifications";
+import { getFCMPushToken } from "@/lib/notifications";
 
 export default function App() {
   const { session } = useSession();
@@ -12,7 +12,7 @@ export default function App() {
     console.log("INICIO")
 
     //Obtener token notificaciones.
-    registerForPushNotificationsAsync().then(token => {
+    getFCMPushToken().then(token => {
       if (token) {
         console.log("FCM Token:", token);
       }
