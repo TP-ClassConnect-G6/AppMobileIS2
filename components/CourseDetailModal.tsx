@@ -9,7 +9,9 @@ import CourseExamsModal from "./CourseExamsModal";
 import CourseTasksModal from "./CourseTasksModal";
 import TeacherExamsModal from "./TeacherExamsModal";
 import TeacherTasksModal from "./TeacherTasksModal";
+import AuxiliarTeachersModal from "./AuxiliarTeachersModal";
 import { useSession } from "@/contexts/session";
+import jwtDecode from "jwt-decode";
 
 // Tipos para la respuesta detallada del curso
 type ScheduleItem = {
@@ -79,14 +81,19 @@ type CourseDetailModalProps = {
 
 const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalProps) => {  // Estado para controlar la visibilidad del modal de exámenes
   const [examModalVisible, setExamModalVisible] = useState(false);
-  const [taskModalVisible, setTaskModalVisible] = useState(false);
-  const [teacherExamModalVisible, setTeacherExamModalVisible] = useState(false);
+  const [taskModalVisible, setTaskModalVisible] = useState(false);  const [teacherExamModalVisible, setTeacherExamModalVisible] = useState(false);  
   const [teacherTaskModalVisible, setTeacherTaskModalVisible] = useState(false);
+  const [auxiliarTeachersModalVisible, setAuxiliarTeachersModalVisible] = useState(false);
   const [isEnrolled, setIsEnrolled] = useState(false);
-  
+  const [isTeacherAssigned, setIsTeacherAssigned] = useState(false);
+  const [isAuxiliar, setIsAuxiliar] = useState(false);
+  const [canCreateExam, setCanCreateExam] = useState(false);
+  const [canCreateTask, setCanCreateTask] = useState(false);
   // Obtener la sesión del usuario para verificar su rol
   const { session } = useSession();
   const isTeacher = session?.userType === "teacher" || session?.userType === "admin" || session?.userType === "administrator";
+  // Estado para almacenar el email del usuario logueado
+  const [userEmail, setUserEmail] = useState<string | null>(null);
 
   // Consulta para obtener los detalles del curso
   const { data: courseDetail, isLoading, error, refetch } = useQuery({
@@ -97,6 +104,92 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
     retry: 1, // Intentar nuevamente 1 vez en caso de error
     retryDelay: 1000, // Esperar 1 segundo entre reintentos
   });
+
+  // Extraer el email del token JWT
+  useEffect(() => {
+    if (session?.token) {
+      try {
+        const decodedToken: any = jwtDecode(session.token);
+        // Obtenemos el email del token
+        const email = decodedToken.email || decodedToken.sub || "";
+        setUserEmail(email);
+      } catch (error) {
+        console.error("Error al decodificar el token:", error);
+      }    
+    }
+  }, [session]);
+  // Efecto para verificar si el profesor es el asignado cuando cambian los datos del curso
+  useEffect(() => {
+    if (isTeacher && courseDetail && userEmail) {
+      checkTeacherAssignedStatus();
+    }
+  }, [courseDetail, userEmail, isTeacher]);
+  // Fetch auxiliar teachers when the modal becomes visible
+  useEffect(() => {
+    if (visible && courseId && session?.token && userEmail) {
+      fetchAuxiliarTeachers();
+    }
+  }, [visible, courseId, session?.token, userEmail]);
+
+  // Función para obtener los docentes auxiliares del curso
+  const fetchAuxiliarTeachers = async () => {
+    if (!courseId || !session?.token || !userEmail) {
+      return;
+    }
+    
+    try {
+      const response = await courseClient.get(`/courses/${courseId}/auxiliars`, {
+        headers: {
+          Authorization: `Bearer ${session.token}`
+        }
+      });
+      
+      console.log("Auxiliar teachers response:", JSON.stringify(response.data, null, 2));
+        // Check if the current user is an auxiliary teacher
+      if (response.data?.response?.auxiliars) {
+        const auxiliars = response.data.response.auxiliars;
+        const currentUserAsAuxiliar = auxiliars.find((aux: { auxiliar: string; permissions: { permission: string }[] }) => aux.auxiliar === userEmail);
+          if (currentUserAsAuxiliar) {
+          setIsAuxiliar(true);
+          
+          // Check permissions
+          const hasCreateExamPermission = currentUserAsAuxiliar.permissions.some(
+            (perm: { permission: string }) => perm.permission === "create exam"
+          );
+          
+          const hasCreateTaskPermission = currentUserAsAuxiliar.permissions.some(
+            (perm: { permission: string }) => perm.permission === "create task"
+          );
+          
+          setCanCreateExam(hasCreateExamPermission);
+          setCanCreateTask(hasCreateTaskPermission);
+          
+          console.log(`User is auxiliar with permissions: createExam=${hasCreateExamPermission}, createTask=${hasCreateTaskPermission}`);
+        } else {
+          setIsAuxiliar(false);
+          setCanCreateExam(false);
+          setCanCreateTask(false);
+        }
+      }
+    } catch (error: any) {
+      // Format and log the error in the required format
+      const errorResponse = error.response?.data || {};
+      const formattedError = {
+        type: errorResponse.type || 'unknown',
+        title: errorResponse.title || 'Error',
+        status: errorResponse.status || error.response?.status || 500,
+        detail: errorResponse.detail || error.message || 'Unknown error'
+      };
+      
+      console.log("Error formatted:", JSON.stringify(formattedError, null, 2));
+      console.error("Error fetching auxiliar teachers:", error);
+      
+      // Reset permissions if there's an error
+      setIsAuxiliar(false);
+      setCanCreateExam(false);
+      setCanCreateTask(false);
+    }
+  };
 
   // Verificar si el estudiante está inscrito en el curso
   const checkEnrollmentStatus = async () => {
@@ -131,13 +224,30 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
       console.error('Error al verificar inscripción:', error);
     }
   };
-
-  // Verificar inscripción cuando se carga el componente o cambia el courseId
-  useEffect(() => {
-    if (visible && !isTeacher) {
-      checkEnrollmentStatus();
+  // Verificar si el profesor logueado es el mismo que está asignado al curso
+  const checkTeacherAssignedStatus = () => {
+    if (!courseDetail?.teacher || !userEmail) {
+      setIsTeacherAssigned(false);
+      return;
     }
-  }, [courseId, visible, session?.userId]);
+      // Verificar si el email del usuario coincide con el teacher asignado al curso
+    const isAssigned = courseDetail.teacher === userEmail;
+    setIsTeacherAssigned(isAssigned);
+    console.log(`Profesor asignado al curso ${courseId}: ${isAssigned}`);
+    console.log(`Profesor del curso: "${courseDetail.teacher}"`);
+    console.log(`Email del usuario: "${userEmail}"`);
+  };
+
+  // Verificar inscripción y profesor asignado cuando se carga el componente o cambia el courseId
+  useEffect(() => {
+    if (visible) {
+      if (!isTeacher) {
+        checkEnrollmentStatus();
+      } else if (courseDetail) {
+        checkTeacherAssignedStatus();
+      }
+    }
+  }, [courseId, visible, userEmail, courseDetail]);
 
   // Formatear fecha
   const formatDateString = (dateString: string) => {
@@ -278,12 +388,12 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                 </Text>
               </View>
               
-              {courseDetail.course_status && (
+              {/* {courseDetail.course_status && (
                 <View style={styles.infoItem}>
                   <Text style={styles.infoLabel}>Estado:</Text>
                   <Text style={styles.infoValue}>{courseDetail.course_status}</Text>
                 </View>
-              )}
+              )} */}
               
               <Divider style={styles.divider} />
               
@@ -334,22 +444,45 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
               )}
               {isTeacher ? (
                 <>
-                  <Button 
-                    mode="contained" 
-                    style={styles.examButton} 
-                    onPress={() => setTeacherExamModalVisible(true)}
-                    icon="book-open-variant"
-                  >
-                    Gestionar exámenes
-                  </Button>
-                  <Button 
-                    mode="contained" 
-                    style={[styles.examButton, {backgroundColor: '#7B1FA2'}]} 
-                    onPress={() => setTeacherTaskModalVisible(true)}
-                    icon="clipboard-text"
-                  >
-                    Gestionar tareas
-                  </Button>                  
+                  {isTeacherAssigned || (isAuxiliar && (canCreateExam || canCreateTask)) ? (
+                    <>
+                      {/* Mostrar botones de gestión de exámenes si es profesor asignado o auxiliar con permiso */}
+                      {(isTeacherAssigned || (isAuxiliar && canCreateExam)) && (
+                        <Button 
+                          mode="contained" 
+                          style={styles.examButton} 
+                          onPress={() => setTeacherExamModalVisible(true)}
+                          icon="book-open-variant"
+                        >
+                          Gestionar exámenes
+                        </Button>
+                      )}
+                      
+                      {/* Mostrar botones de gestión de tareas si es profesor asignado o auxiliar con permiso */}
+                      {(isTeacherAssigned || (isAuxiliar && canCreateTask)) && (
+                        <Button 
+                          mode="contained" 
+                          style={[styles.examButton, {backgroundColor: '#7B1FA2'}]} 
+                          onPress={() => setTeacherTaskModalVisible(true)}
+                          icon="clipboard-text"
+                        >
+                          Gestionar tareas
+                        </Button>
+                      )}
+                      
+                      {/* Botón para gestionar docentes auxiliares, solo para profesor asignado */}
+                      {isTeacherAssigned && (
+                        <Button 
+                          mode="contained" 
+                          style={[styles.examButton, {backgroundColor: '#FF9800'}]} 
+                          onPress={() => setAuxiliarTeachersModalVisible(true)}
+                          icon="account-plus"
+                        >
+                          Gestionar Docente Auxiliar
+                        </Button>
+                      )}
+                    </>
+                  ) : null }
                   <Button 
                     mode="outlined" 
                     style={[styles.examButton, {backgroundColor: '#E8F5E9'}]} 
@@ -357,7 +490,7 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                     icon="eye-outline"
                   >
                     Ver exámenes como estudiante
-                  </Button>
+                  </Button>                  
                   <Button 
                     mode="outlined" 
                     style={[styles.examButton, {backgroundColor: '#F3E5F5'}]} 
@@ -423,10 +556,16 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
         onDismiss={() => setTeacherTaskModalVisible(false)}
         courseId={courseId}
         courseName={courseDetail?.course_name || null}
-      />
+      />      
       <CourseTasksModal
         visible={taskModalVisible}
         onDismiss={() => setTaskModalVisible(false)}
+        courseId={courseId}
+        courseName={courseDetail?.course_name || null}
+      />
+      <AuxiliarTeachersModal
+        visible={auxiliarTeachersModalVisible}
+        onDismiss={() => setAuxiliarTeachersModalVisible(false)}
         courseId={courseId}
         courseName={courseDetail?.course_name || null}
       />
@@ -520,11 +659,11 @@ const styles = StyleSheet.create({
   },
   scheduleTime: {
     fontSize: 16,
-  },
-  prerequisiteItem: {
+  },  prerequisiteItem: {
     fontSize: 16,
     marginBottom: 5,
-  },  examButton: {
+  },  
+  examButton: {
     marginTop: 20,
     marginBottom: 10,
     backgroundColor: '#2E7D32',

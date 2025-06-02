@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { StyleSheet, View, Text, FlatList, ActivityIndicator, RefreshControl, TouchableOpacity, Alert } from "react-native";
 import { Card, Title, Paragraph, Chip, Divider, Button, Provider } from "react-native-paper";
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { courseClient } from "@/lib/http";
 import { format, formatDate } from "date-fns";
@@ -31,6 +32,7 @@ export type Course = {
   modality?: string;
   schedule?: { day: string; time: string }[];
   message?: string;
+  isFavourite?: boolean;
 };
 
 // Tipo para la respuesta de registro en un curso
@@ -43,8 +45,13 @@ type CourseRegistrationResponse = {
   }
 };
 
+// Tipo para la respuesta al marcar un curso como favorito
+type FavouriteCourseResponse = {
+  message: string;
+};
+
 // Función para obtener los cursos desde la API
-const fetchCourses = async (filters?: { course_name?: string; category?: string; date_init?: Date | null; date_end?: Date | null }, userId?: string): Promise<Course[]> => {
+const fetchCourses = async (filters?: { course_name?: string; category?: string; date_init?: Date | null; date_end?: Date | null }, userId?: string, showOnlyFavorites: boolean = false): Promise<Course[]> => {
   const params: Record<string, string> = {};
 
   if (filters?.course_name) {
@@ -59,23 +66,61 @@ const fetchCourses = async (filters?: { course_name?: string; category?: string;
   if (filters?.date_end) {
     params.date_end = formatDate(filters.date_end, 'yyyy-MM-dd');
   }
-   console.log("userId", userId);
+  console.log("userId", userId);
 
   if (userId) {
     params.user_login = userId;  
   }
+  
   try {
-    const response = await courseClient.get('/courses', { params });
+    let response;
+    let favouriteCourseIds: string[] = [];
+    
+    // Si el usuario está logueado, obtenemos primero la lista de sus cursos favoritos
+    if (userId && !showOnlyFavorites) {
+      try {
+        const favouriteResponse = await courseClient.get('/favourite-courses', { 
+          params: { user_login: userId } 
+        });
+        
+        // Extraer los IDs de los cursos favoritos
+        if (favouriteResponse.data && Array.isArray(favouriteResponse.data.response)) {
+          favouriteCourseIds = favouriteResponse.data.response.map((course: Course) => course.course_id);
+        } else if (favouriteResponse.data && Array.isArray(favouriteResponse.data)) {
+          favouriteCourseIds = favouriteResponse.data.map((course: Course) => course.course_id);
+        } else if (favouriteResponse.data && favouriteResponse.data.courses && Array.isArray(favouriteResponse.data.courses)) {
+          favouriteCourseIds = favouriteResponse.data.courses.map((course: Course) => course.course_id);
+        }
+        
+        console.log("Cursos favoritos cargados:", favouriteCourseIds.length);
+      } catch (error) {
+        console.error("Error al obtener cursos favoritos:", error);
+        // Continuar con la lista vacía de favoritos si hay error
+      }
+    }
+    
+    // Si queremos mostrar solo favoritos, usamos el endpoint específico
+    if (showOnlyFavorites && userId) {
+      response = await courseClient.get('/favourite-courses', { params });
+    } else {
+      response = await courseClient.get('/courses', { params });
+    }
+    
+    // Función para procesar los cursos y marcar los favoritos
+    const processCourses = (courses: any[]) => {
+      return courses.map((course: any) => ({
+        ...course,
+        isFavourite: showOnlyFavorites ? true : favouriteCourseIds.includes(course.course_id)
+      }));
+    };
     
     // Verificar diferentes formatos posibles de respuesta
     if (response.data && Array.isArray(response.data.courses)) {
-      return response.data.courses;
+      return processCourses(response.data.courses);
     } else if (response.data && Array.isArray(response.data)) {
-      // Si la respuesta es directamente un array
-      return response.data;
+      return processCourses(response.data);
     } else if (response.data && response.data.response && Array.isArray(response.data.response)) {
-      // El formato que estás recibiendo actualmente: { response: [...] }
-      return response.data.response;
+      return processCourses(response.data.response);
     } else {
       console.warn('La respuesta del API no tiene el formato esperado:', response.data);
       return []; // Devolver un array vacío para evitar errores
@@ -87,12 +132,19 @@ const fetchCourses = async (filters?: { course_name?: string; category?: string;
 };
 
 // Función para registrarse en un curso
-const registerInCourse = async (courseId: string, email: string, academicLevel: string): Promise<CourseRegistrationResponse> => {
+const registerInCourse = async (courseId: string, academicLevel: string, token?: string): Promise<CourseRegistrationResponse> => {
   console.log("Academic Level:", academicLevel);
+  
+  if (!token) {
+    throw new Error("No hay token de sesión disponible. Por favor, inicia sesión nuevamente.");
+  }
+  
   const response = await courseClient.post(`/courses/${courseId}/registrations`, {
-    user_login: email,
-    role: "student",
     user_academic_level: academicLevel
+  }, {
+    headers: {
+      "Authorization": `Bearer ${token}`
+    }
   });
   
   // Manejar diferentes posibles formatos de respuesta
@@ -122,11 +174,39 @@ const deleteCourse = async (courseId: string): Promise<void> => {
   await courseClient.delete(`/courses/${courseId}`);
 };
 
+
+
+// Función para marcar un curso como favorito
+const addFavouriteCourse = async (courseId: string, userId: string): Promise<FavouriteCourseResponse> => {
+  const response = await courseClient.post('/favourite-courses', {
+    user_login: userId,
+    course_id: courseId
+  });
+  
+  return response.data;
+};
+
+// Función para quitar un curso de favoritos
+const removeFavouriteCourse = async (courseId: string, userId: string): Promise<FavouriteCourseResponse> => {
+  // Usar DELETE con query params según el endpoint proporcionado
+  const response = await courseClient.delete('/favourite-courses', {
+    params: {
+      user_login: userId,
+      course_id: courseId
+    }
+  });
+  
+  return response.data;
+};
+
 // Componente principal para mostrar la lista de cursos
 export default function CourseListScreen() {
   const { session } = useSession();
   const isTeacher = session?.userType === "teacher" || session?.userType === "administrator";
   const queryClient = useQueryClient();
+  
+  // Estado para mostrar solo favoritos
+  const [showOnlyFavourites, setShowOnlyFavourites] = useState(false);
 
   const [filters, setFilters] = useState({ 
     course_name: '', 
@@ -155,8 +235,8 @@ export default function CourseListScreen() {
   const [filtersVisible, setFiltersVisible] = useState(false);
   // Configuración de la consulta de cursos para siempre buscar datos actualizados
   const { data: courses = [], isLoading, error, refetch } = useQuery({
-    queryKey: ['courses', searchFilters], 
-    queryFn: () => fetchCourses(searchFilters, session?.userId),
+    queryKey: ['courses', searchFilters, showOnlyFavourites], 
+    queryFn: () => fetchCourses(searchFilters, session?.userId, showOnlyFavourites),
     staleTime: 0, // Considera los datos obsoletos inmediatamente
     gcTime: 0, // No guarda en caché los resultados (reemplaza a cacheTime)
     refetchOnWindowFocus: true, // Actualiza al enfocar la ventana
@@ -269,7 +349,117 @@ export default function CourseListScreen() {
   const renderCourseCard = ({ item }: { item: Course }) => (
     <Card style={styles.card}>
       <Card.Content>
-        <Title>{item.course_name}</Title>
+        <View style={styles.titleContainer}>
+          <Title style={{ flex: 1 }}>{item.course_name}</Title>
+          {!isTeacher && (
+            <TouchableOpacity
+              onPress={() => {
+                try {
+                  if (!session || !session.userId) {
+                    Alert.alert("Error", "Necesitas iniciar sesión para marcar favoritos");
+                    return;
+                  }
+                  
+                  // Si ya es favorito, permitimos quitarlo
+                  if (item.isFavourite) {
+                    // Mostrar alerta de confirmación para quitar de favoritos
+                    Alert.alert(
+                      "Quitar de favoritos",
+                      `¿Estás seguro de que deseas quitar "${item.course_name}" de tus favoritos?`,
+                      [
+                        { 
+                          text: "Cancelar", 
+                          style: "cancel" 
+                        },
+                        {
+                          text: "Confirmar",
+                          style: "default",
+                          onPress: async () => {
+                            try {
+                              await removeFavouriteCourse(item.course_id, session.userId);
+                              // Actualizar el estado local del curso
+                              queryClient.setQueryData(['courses', searchFilters, showOnlyFavourites], 
+                                (oldData: Course[] | undefined) => 
+                                  oldData?.map(course => 
+                                    course.course_id === item.course_id 
+                                      ? { ...course, isFavourite: false } 
+                                      : course
+                                  )
+                              );
+                              // Invalidar consultas de favoritos para actualizar la pestaña de favoritos
+                              queryClient.invalidateQueries({ queryKey: ['favorite-courses'] });
+                              // Mostrar mensaje de confirmación de éxito
+                              Alert.alert(
+                                "Curso eliminado de favoritos",
+                                `"${item.course_name}" ha sido eliminado de tus favoritos.`,
+                                [{ text: "OK" }]
+                              );
+                            } catch (error) {
+                              console.error("Error al quitar favorito:", error);
+                              Alert.alert("Error", "No se pudo quitar el curso de favoritos. Inténtalo de nuevo.");
+                            }
+                          }
+                        }
+                      ]
+                    );
+                  } else {
+                    // Mostrar alerta de confirmación para agregar a favoritos
+                    Alert.alert(
+                      "Confirmar favorito",
+                      `¿Estás seguro de que deseas marcar "${item.course_name}" como favorito?`,
+                      [
+                        { 
+                          text: "Cancelar", 
+                          style: "cancel" 
+                        },
+                        {
+                          text: "Confirmar",
+                          style: "default",
+                          onPress: async () => {
+                            try {
+                              await addFavouriteCourse(item.course_id, session.userId);
+                              // Actualizar el estado local del curso como favorito
+                              queryClient.setQueryData(['courses', searchFilters, showOnlyFavourites], 
+                                (oldData: Course[] | undefined) => 
+                                  oldData?.map(course => 
+                                    course.course_id === item.course_id 
+                                      ? { ...course, isFavourite: true } 
+                                      : course
+                                  )
+                              );
+                              // Invalidar consultas de favoritos para actualizar la pestaña de favoritos
+                              queryClient.invalidateQueries({ queryKey: ['favorite-courses'] });
+                              // Mostrar mensaje de confirmación de éxito
+                              Alert.alert(
+                                "Curso agregado a favoritos",
+                                `"${item.course_name}" ha sido agregado exitosamente a tus favoritos.`,
+                                [{ text: "OK" }]
+                              );
+                            } catch (error) {
+                              console.error("Error al agregar favorito:", error);
+                              Alert.alert("Error", "No se pudo agregar el curso a favoritos. Inténtalo de nuevo.");
+                            }
+                          }
+                        }
+                      ]
+                    );
+                  }
+                } catch (error) {
+                  console.error("Error al manejar favorito:", error);
+                  Alert.alert("Error", "Ocurrió un error inesperado. Inténtalo de nuevo más tarde.");
+                }
+              }}
+              style={styles.favoriteButton}
+            >
+              <MaterialCommunityIcons
+                name={item.isFavourite ? "heart" : "heart-outline"}
+                size={24}
+                color={item.isFavourite ? "#e91e63" : "#999"}
+                style={{ paddingHorizontal: 8 }}
+              />
+            </TouchableOpacity>
+          )}
+        </View>
         <Paragraph>{item.description}</Paragraph>
 
         <View style={styles.infoContainer}>
@@ -324,7 +514,7 @@ export default function CourseListScreen() {
               }
 
               // Obtener el email del usuario desde la sesión
-              let userEmail = session.userId;
+              let token = session.token;
               // El nivel académico se puede pedir al usuario o usar un valor predeterminado
               // Usaremos "Primary School" como nivel académico predeterminado o el del curso si está disponible
               const academicLevel = item.academic_level || "Primary School";
@@ -336,8 +526,9 @@ export default function CourseListScreen() {
                   { text: "Cancelar", style: "cancel" },
                   { 
                     text: "Inscribirse", 
-                    onPress: async () => {                    try {
-                        const response = await registerInCourse(item.course_id, userEmail, academicLevel);
+                    onPress: async () => {                    
+                      try {
+                        const response = await registerInCourse(item.course_id, academicLevel, token);
                         // Acceder a los datos de la respuesta de forma segura
                         const courseName = response.response?.course_name || item.course_name;
                         const courseStart = response.response?.course_date_init || item.date_init;
@@ -447,11 +638,27 @@ export default function CourseListScreen() {
       <View style={styles.container}>
         <Text style={styles.header}>Cursos Disponibles</Text>
 
-        <TouchableOpacity onPress={() => setFiltersVisible(!filtersVisible)} style={{ marginBottom: 16 }}>
-          <Text style={{ fontSize: 18, fontWeight: 'bold' }}>
-            {filtersVisible ? "Ocultar filtros ▲" : "Mostrar filtros ▼"}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.headerControls}>
+          <TouchableOpacity onPress={() => setFiltersVisible(!filtersVisible)} style={{ marginBottom: 16 }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold' }}>
+              {filtersVisible ? "Ocultar filtros ▲" : "Mostrar filtros ▼"}
+            </Text>
+          </TouchableOpacity>
+
+          {/* <Button
+            mode="outlined"
+            icon={showOnlyFavourites ? "heart" : "heart-outline"}
+            onPress={() => {
+              setShowOnlyFavourites(!showOnlyFavourites);
+            }}
+            style={{ marginBottom: 16 }}
+            labelStyle={{ fontSize: 14 }}
+            contentStyle={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 8 }}
+            color={showOnlyFavourites ? "#e91e63" : "#999"}
+          >
+            {showOnlyFavourites ? "Mostrando favoritos" : "Mostrar favoritos"}
+          </Button> */}
+        </View>
 
         {filtersVisible && (
           <>
@@ -589,6 +796,23 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f5f5f5",
     padding: 10,
+  },
+  headerControls: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  titleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  favoriteButton: {
+    margin: 0,
+    padding: 0,
+    minWidth: 40,
   },
   header: {
     fontSize: 24,

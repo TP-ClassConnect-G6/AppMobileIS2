@@ -13,11 +13,25 @@ type TaskSubmissionResponse = {
   id: string;
   task_id: string;
   student_id: string;
-  content: string;
+  content?: string;
+  answers?: string;
   submitted_at: string;
   is_late: boolean;
   file_urls: string[];
   is_active: boolean;
+};
+
+// Tipo para detalles de la tarea
+type TaskDetails = {
+  id: string;
+  title: string;
+  description: string;
+  instructions: string;
+  extra_conditions?: {
+    type: string;
+    questions?: string;
+  };
+  [key: string]: any;
 };
 
 // Tipo para las propiedades del componente
@@ -37,7 +51,11 @@ const TaskSubmissionModal = ({ visible, onDismiss, taskId, taskTitle, dueDate }:
   const [studentId, setStudentId] = useState<string>("");
   const [submissionData, setSubmissionData] = useState<TaskSubmissionResponse | null>(null);
   const [submissionSuccess, setSubmissionSuccess] = useState(false);
-
+  const [taskQuestions, setTaskQuestions] = useState<string[]>([]);
+  const [questionAnswers, setQuestionAnswers] = useState<{[key: number]: string}>({});
+  const [taskDetails, setTaskDetails] = useState<TaskDetails | null>(null);
+  const [loading, setLoading] = useState(false);
+  
   // Extraer el ID del estudiante del token JWT
   useEffect(() => {
     if (session?.token) {
@@ -51,6 +69,47 @@ const TaskSubmissionModal = ({ visible, onDismiss, taskId, taskTitle, dueDate }:
       }
     }
   }, [session]);
+  
+  // Reset form state when taskId changes or when modal becomes visible
+  useEffect(() => {
+    if (visible) {
+      resetForm();
+      fetchTaskDetails();
+      console.log(`Modal opened for task: ${taskId}, resetting form state`);
+    }
+  }, [taskId, visible]);
+  
+  // Fetch task details including questions
+  const fetchTaskDetails = async () => {
+    if (!taskId) return;
+    
+    try {
+      setLoading(true);
+      const response = await courseClient.get(`/tasks/${taskId}`);
+      setTaskDetails(response.data);
+      
+      // Extract questions from extra_conditions if available
+      if (response.data?.extra_conditions?.questions) {
+        const questionsText = response.data.extra_conditions.questions;
+        // Split questions by the delimiter "---"
+        const questionsArray = questionsText.split(/\s*---\s*/).filter((q: string) => q.trim());
+        setTaskQuestions(questionsArray);
+        
+        // Initialize answers object
+        const initialAnswers: {[key: number]: string} = {};
+        questionsArray.forEach((_: string, index: number) => {
+          initialAnswers[index] = "";
+        });
+        setQuestionAnswers(initialAnswers);
+      }
+    } catch (error) {
+      console.error("Error fetching task details:", error);
+      Alert.alert("Error", "No se pudieron cargar los detalles de la tarea");
+    } finally {
+      setLoading(false);
+    }
+  };
+  
   // Función para seleccionar archivos (limitado a 1 archivo)
   const pickDocuments = async () => {
     try {
@@ -84,6 +143,14 @@ const TaskSubmissionModal = ({ visible, onDismiss, taskId, taskTitle, dueDate }:
   const removeFile = (index: number) => {
     setSelectedFiles(prevFiles => prevFiles.filter((_, i) => i !== index));
   };
+  
+  // Función para actualizar la respuesta a una pregunta específica
+  const updateQuestionAnswer = (questionIndex: number, answer: string) => {
+    setQuestionAnswers((prev: {[key: number]: string}) => ({
+      ...prev,
+      [questionIndex]: answer
+    }));
+  };
 
   // Función para verificar si la entrega está fuera de plazo
   const isSubmissionLate = (): boolean => {
@@ -101,11 +168,37 @@ const TaskSubmissionModal = ({ visible, onDismiss, taskId, taskTitle, dueDate }:
       return;
     }
 
-    if (!content.trim()) {
+    // Verificar si estamos usando el formato estructurado de preguntas
+    const usingStructuredQuestions = taskQuestions.length > 0;
+    
+    if (usingStructuredQuestions) {
+      // Verificar si todas las preguntas tienen respuestas
+      const unansweredQuestions = taskQuestions.filter((_: string, index: number) =>
+        !questionAnswers[index] || questionAnswers[index].trim() === ""
+      );
+      
+      if (unansweredQuestions.length > 0) {
+        Alert.alert(
+          "Respuestas incompletas", 
+          `Hay ${unansweredQuestions.length} pregunta(s) sin responder. ¿Desea continuar de todos modos?`,
+          [
+            { text: "Cancelar", style: "cancel" },
+            { text: "Continuar", onPress: () => processSubmission() }
+          ]
+        );
+        return;
+      }
+    } else if (!content.trim()) {
       Alert.alert("Aviso", "Por favor, ingresa el contenido de tu tarea antes de enviar");
       return;
     }
+    
+    // Si todas las preguntas tienen respuestas o estamos usando el formato antiguo, proceder con el envío
+    processSubmission();
+  };
 
+  // Función para procesar la entrega de la tarea
+  const processSubmission = async () => {
     setUploading(true);
 
     try {
@@ -116,11 +209,30 @@ const TaskSubmissionModal = ({ visible, onDismiss, taskId, taskTitle, dueDate }:
       formData.append("task_id", taskId);
       
       // Agregar el ID del estudiante
-      formData.append("student_id", studentId);
+      formData.append("user_id", studentId);
       
-      // Agregar el contenido de la tarea
-      formData.append("content", content);
-        // Agregar el archivo seleccionado (máximo 1)
+      // Determinar el formato de las respuestas según si estamos usando preguntas estructuradas
+      if (taskQuestions.length > 0) {
+        // Convertir las respuestas a un formato estructurado para enviar al servidor
+        let formattedAnswers = "";
+        
+        // Recorrer cada pregunta y su respuesta correspondiente
+        for (let i = 0; i < taskQuestions.length; i++) {
+          const question = taskQuestions[i];
+          const answer = questionAnswers[i] || "Sin respuesta";
+          
+          // Formatear cada par pregunta-respuesta
+          formattedAnswers += `PREGUNTA ${i + 1}: ${question}\n\nRESPUESTA ${i + 1}: ${answer}\n\n---\n`;
+        }
+        
+        console.log("Respuestas formateadas:", formattedAnswers);
+        formData.append("answers", formattedAnswers);
+      } else {
+        // Usar el campo de contenido tradicional
+        formData.append("answers", content);
+      }
+      
+      // Agregar el archivo seleccionado (máximo 1)
       if (selectedFiles.length > 0) {
         // Solo tomamos el primer archivo de la lista
         const file = selectedFiles[0];
@@ -202,7 +314,6 @@ const TaskSubmissionModal = ({ visible, onDismiss, taskId, taskTitle, dueDate }:
       return dateString;
     }
   };
-
   // Función para abrir un archivo desde URL
   const openFileUrl = (url: string) => {
     Linking.canOpenURL(url).then(supported => {
@@ -213,12 +324,27 @@ const TaskSubmissionModal = ({ visible, onDismiss, taskId, taskTitle, dueDate }:
       }
     });
   };
+  // Función para resetear el formulario y volver al modo de envío
+  const resetForm = () => {
+    setContent("");
+    setSelectedFiles([]);
+    setSubmissionData(null);
+    setSubmissionSuccess(false);
+    setTaskQuestions([]);
+    setQuestionAnswers({});
+    console.log("Form state reset completed");
+  };
 
   return (
     <Portal>
       <Modal
         visible={visible}
-        onDismiss={(uploading || submissionSuccess) ? undefined : onDismiss} // Prevenir cierre durante la carga o después del éxito
+        onDismiss={() => {
+          if (!uploading) {
+            resetForm();
+            onDismiss();
+          }
+        }}
         contentContainerStyle={styles.modalContainer}
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -246,7 +372,35 @@ const TaskSubmissionModal = ({ visible, onDismiss, taskId, taskTitle, dueDate }:
                 <Divider />
                 <Text style={styles.sectionTitle}>Contenido de tu tarea:</Text>
                 <View style={styles.contentContainer}>
-                  <Text style={styles.submittedContent}>{submissionData.content}</Text>
+                  {submissionData.answers && submissionData.answers.includes("PREGUNTA") && submissionData.answers.includes("RESPUESTA") ? (
+                    <View>
+                      {submissionData.answers.split(/---\n/).filter((qa: string) => qa.trim()).map((qa: string, index: number) => {
+                        // Buscar patrones de pregunta y respuesta
+                        const questionMatch = qa.match(/PREGUNTA \d+:(.*?)(?=\n\nRESPUESTA)/s);
+                        const answerMatch = qa.match(/RESPUESTA \d+:(.*?)$/s);
+                        
+                        if (!questionMatch || !answerMatch) return <Text key={index}>{qa}</Text>;
+                        
+                        const questionPart = questionMatch[1].trim();
+                        const answerPart = answerMatch[1].trim();
+                        
+                        return (
+                          <View key={index} style={styles.submittedQuestionContainer}>
+                            <Text style={styles.submittedQuestionText}>
+                              {`Pregunta ${index + 1}: ${questionPart}`}
+                            </Text>
+                            <View style={styles.submittedAnswerContainer}>
+                              <Text style={styles.submittedAnswerText}>
+                                {answerPart}
+                              </Text>
+                            </View>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ) : (
+                    <Text style={styles.submittedContent}>{submissionData.answers || submissionData.content || "No se encontró contenido"}</Text>
+                  )}
                 </View>
                 
                 {submissionData.is_late && (
@@ -280,10 +434,13 @@ const TaskSubmissionModal = ({ visible, onDismiss, taskId, taskTitle, dueDate }:
                 )}
               </List.Section>
               
-              <View style={styles.buttonContainer}>                
+              <View style={styles.buttonContainer}>
                 <Button 
                   mode="contained" 
-                  onPress={onDismiss}
+                  onPress={() => {
+                    resetForm();
+                    onDismiss();
+                  }}
                   style={styles.doneButton}
                 >
                   Finalizar
@@ -303,15 +460,53 @@ const TaskSubmissionModal = ({ visible, onDismiss, taskId, taskTitle, dueDate }:
               )}
               <Divider style={styles.divider} />
               
-              <Text style={styles.sectionTitle}>Contenido de tu tarea:</Text>
-              <TextInput
-                multiline
-                numberOfLines={8}
-                value={content}
-                onChangeText={setContent}
-                placeholder="Escribe el contenido de tu tarea aquí..."
-                style={styles.contentInput}
-              />
+              {loading ? (
+                <View style={styles.loaderContainer}>
+                  <ActivityIndicator size="large" color="#0000ff" />
+                  <Text style={styles.loadingText}>Cargando detalles de la tarea...</Text>
+                </View>
+              ) : taskQuestions.length > 0 ? (
+                // Mostrar formato estructurado de preguntas
+                <>
+                  {taskDetails?.description && (
+                    <View style={styles.instructionsContainer}>
+                      <Text style={styles.sectionTitle}>Instrucciones Generales:</Text>
+                      <Text style={styles.instructionsText}>{taskDetails.description}</Text>
+                    </View>
+                  )}
+                  
+                  <Text style={styles.sectionTitle}>Preguntas:</Text>
+                  
+                  {taskQuestions.map((question, index) => (
+                    <View key={index} style={styles.questionContainer}>
+                      <Text style={styles.questionText}>
+                        {index + 1}. {question}
+                      </Text>
+                      <TextInput
+                        multiline
+                        numberOfLines={4}
+                        value={questionAnswers[index] || ""}
+                        onChangeText={(text) => updateQuestionAnswer(index, text)}
+                        placeholder={`Escribe tu respuesta a la pregunta ${index + 1} aquí...`}
+                        style={styles.answerInput}
+                      />
+                    </View>
+                  ))}
+                </>
+              ) : (
+                // Mostrar formato tradicional (texto libre)
+                <>
+                  <Text style={styles.sectionTitle}>Contenido de tu tarea:</Text>
+                  <TextInput
+                    multiline
+                    numberOfLines={8}
+                    value={content}
+                    onChangeText={setContent}
+                    placeholder="Escribe el contenido de tu tarea aquí..."
+                    style={styles.contentInput}
+                  />
+                </>
+              )}
                 <Text style={styles.sectionTitle}>Archivo adjunto (máximo 1):</Text>
               {selectedFiles.length > 0 ? (
                 <View style={styles.fileList}>
@@ -357,19 +552,21 @@ const TaskSubmissionModal = ({ visible, onDismiss, taskId, taskTitle, dueDate }:
               <View style={styles.buttonContainer}>
                 <Button 
                   mode="outlined" 
-                  onPress={onDismiss} 
+                  onPress={() => {
+                    resetForm();
+                    onDismiss();
+                  }} 
                   style={styles.cancelButton}
                   disabled={uploading}
                 >
                   Cancelar
                 </Button>
-                
-                <Button 
+                  <Button 
                   mode="contained" 
                   onPress={submitTask}
                   style={styles.submitButton}
                   loading={uploading}
-                  disabled={uploading || !content.trim()}
+                  disabled={uploading || (taskQuestions.length === 0 && !content.trim())}
                 >
                   Enviar Tarea
                 </Button>
@@ -522,6 +719,76 @@ const styles = StyleSheet.create({
   warningText: {
     color: '#E65100',
     fontSize: 14,
+  },
+  // Nuevos estilos para las preguntas estructuradas
+  loaderContainer: {
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 100,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
+  },
+  instructionsContainer: {
+    backgroundColor: '#f5f5f5',
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 15,
+  },
+  instructionsText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#444',
+  },
+  questionContainer: {
+    backgroundColor: 'white',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 15,
+  },
+  questionText: {
+    fontSize: 15,
+    marginBottom: 10,
+    fontWeight: '500',
+  },
+  answerInput: {
+    backgroundColor: '#f9f9f9',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 5,
+    padding: 8,
+    minHeight: 100,
+    textAlignVertical: 'top',
+  },
+  // Styles for structured submitted answers
+  submittedQuestionContainer: {
+    marginBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    paddingBottom: 10,
+  },
+  submittedQuestionText: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 5,
+    color: '#333',
+  },
+  submittedAnswerContainer: {
+    backgroundColor: '#ffffff',
+    padding: 10,
+    borderRadius: 5,
+    borderLeftWidth: 3,
+    borderLeftColor: '#2196F3',
+  },
+  submittedAnswerText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#444',
   },
 });
 

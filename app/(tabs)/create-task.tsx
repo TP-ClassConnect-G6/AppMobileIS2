@@ -19,8 +19,9 @@ type CreateTaskRequest = {
   instructions: string;
   extra_conditions: {
     type: string;
+    questions?: string;
   };
-  owner: string;
+  user_id: string;
 };
 
 // Respuesta del servidor al crear una tarea
@@ -30,10 +31,11 @@ type CreateTaskResponse = {
   title: string;
   description: string;
   due_date: string;
-  owner: string;
+  user_id: string;
   instructions: string;
   extra_conditions: {
     type: string;
+    questions?: string;
   };
 };
 
@@ -53,7 +55,8 @@ type CourseItem = {
 const createTaskSchema = z.object({
   course_id: z.string().nonempty("Debe seleccionar un curso"),
   title: z.string().min(3, "El título debe tener al menos 3 caracteres").nonempty("El título es obligatorio"),
-  description: z.string().min(10, "La descripción debe tener al menos 10 caracteres").nonempty("La descripción es obligatoria"),  due_date: z.string()
+  description: z.string().min(10, "La descripción debe tener al menos 10 caracteres").nonempty("La descripción es obligatoria"),  
+  due_date: z.string()
     .nonempty("La fecha de entrega es obligatoria")
     .regex(/^\d{4}-\d{2}-\d{2}$/, "El formato debe ser YYYY-MM-DD")
     .refine(val => !isNaN(new Date(val).getTime()), "Fecha inválida")
@@ -64,6 +67,7 @@ const createTaskSchema = z.object({
       return selectedDate >= today;
     }, "La fecha de entrega no puede ser anterior a hoy"),
   instructions: z.string().min(10, "Las instrucciones deben tener al menos 10 caracteres").nonempty("Las instrucciones son obligatorias"),
+  questionsList: z.array(z.string()).min(1, "Debe ingresar al menos una pregunta"),
   task_type: z.enum(["individual", "group"], {
     errorMap: () => ({ message: "Debe seleccionar un tipo de tarea" })
   }),
@@ -76,13 +80,15 @@ export default function CreateTaskScreen() {
   const [loading, setLoading] = useState(false);
   const [courses, setCourses] = useState<CourseItem[]>([]);
   const [dueDate, setDueDate] = useState(new Date());
-
+  const [currentQuestion, setCurrentQuestion] = useState("");
+  const [questions, setQuestions] = useState<string[]>([]);
   // Configurar React Hook Form con validación Zod
   const {
     control,
     handleSubmit,
     formState: { errors },
-    reset
+    reset,
+    setValue
   } = useForm<FormValues>({
     defaultValues: {
       course_id: "",
@@ -91,6 +97,7 @@ export default function CreateTaskScreen() {
       due_date: format(dueDate, "yyyy-MM-dd"),
       instructions: "",
       task_type: "individual",
+      questionsList: []
     },
   });
 
@@ -144,9 +151,7 @@ export default function CreateTaskScreen() {
       if (!userId) {
         Alert.alert("Error", "No se pudo obtener la información del usuario");
         return;
-      }
-
-      // Preparar la solicitud
+      }      // Preparar la solicitud
       const request: CreateTaskRequest = {
         course_id: data.course_id,
         title: data.title,
@@ -154,9 +159,10 @@ export default function CreateTaskScreen() {
         due_date: data.due_date,
         instructions: data.instructions,
         extra_conditions: {
-          type: data.task_type
+          type: data.task_type,
+          questions: questions.length > 0 ? questions.join("\n\n---\n\n") : undefined
         },
-        owner: userId
+        user_id: userId
       };
 
       console.log("Enviando solicitud:", request);
@@ -204,7 +210,6 @@ export default function CreateTaskScreen() {
       setLoading(false);
     }
   };
-
   // Función para manejar selección de fecha manualmente
   const handleDateManualInput = (value: string) => {
     setDueDate(new Date(value));
@@ -213,6 +218,25 @@ export default function CreateTaskScreen() {
   // Función para formatear la fecha para mostrarla
   const formatDate = (date: Date): string => {
     return format(date, "yyyy-MM-dd");
+  };  
+  // Función para agregar una nueva pregunta
+  const addQuestion = () => {
+    if (currentQuestion.trim().length === 0) {
+      Alert.alert("Validación", "La pregunta no puede estar vacía");
+      return;
+    }
+    
+    const updatedQuestions = [...questions, currentQuestion.trim()];
+    setQuestions(updatedQuestions);
+    setValue('questionsList', updatedQuestions);
+    setCurrentQuestion("");
+  };
+
+  // Función para eliminar una pregunta
+  const removeQuestion = (index: number) => {
+    const updatedQuestions = questions.filter((_, i) => i !== index);
+    setQuestions(updatedQuestions);
+    setValue('questionsList', updatedQuestions);
   };
 
   return (
@@ -375,6 +399,55 @@ export default function CreateTaskScreen() {
           
           <Divider style={styles.divider} />
           
+          {/* Preguntas adicionales */}
+          <Text style={styles.sectionTitle}>Preguntas Adicionales</Text>
+          <View style={styles.questionsContainer}>
+            {questions.map((question, index) => (
+              <View key={index} style={styles.questionItem}>
+                <TextInput
+                  label={`Pregunta ${index + 1}`}
+                  value={question}
+                  onChangeText={(text) => {
+                    const updatedQuestions = [...questions];
+                    updatedQuestions[index] = text;
+                    setQuestions(updatedQuestions);
+                  }}
+                  style={styles.questionInput}
+                  error={false}
+                />
+                <TouchableOpacity
+                  onPress={() => removeQuestion(index)}
+                  style={styles.removeQuestionButton}
+                >
+                  <Text style={styles.removeQuestionButtonText}>Eliminar</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>          
+          <View style={styles.addQuestionContainer}>
+            <TextInput
+              label="Nueva pregunta"
+              value={currentQuestion}
+              onChangeText={setCurrentQuestion}
+              style={styles.addQuestionInput}
+              multiline
+              numberOfLines={3}
+              error={!!errors.questionsList}
+            />            
+            <Button 
+              mode="contained" 
+              onPress={addQuestion}
+              style={styles.addQuestionButton}
+              icon="plus"
+            >
+              Agregar Pregunta
+            </Button>
+          </View>
+          {errors.questionsList && (
+            <HelperText type="error">{errors.questionsList.message}</HelperText>
+          )}
+          <Divider style={styles.divider} />
+          
           {/* Botones de acción */}
           <View style={styles.buttonContainer}>
             <Button 
@@ -489,5 +562,39 @@ const styles = StyleSheet.create({
   submitButton: {
     flex: 1,
     marginLeft: 10,
+  },
+  questionsContainer: {
+    marginBottom: 15,
+  },
+  questionItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  questionInput: {
+    flex: 1,
+    marginRight: 10,
+    backgroundColor: "white",
+  },
+  removeQuestionButton: {
+    backgroundColor: "#F44336",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+  },
+  removeQuestionButtonText: {
+    color: "white",
+    fontWeight: "bold",
+  },  addQuestionContainer: {
+    marginBottom: 15,
+  },
+  addQuestionInput: {
+    backgroundColor: "white",
+    marginBottom: 10,
+    textAlignVertical: "top",
+  },
+  addQuestionButton: {
+    width: '100%',
+    marginTop: 5,
   },
 });

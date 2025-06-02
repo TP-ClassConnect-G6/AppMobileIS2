@@ -10,6 +10,7 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import "react-native-reanimated";
 import { Provider as PaperProvider } from 'react-native-paper';
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { useColorScheme } from "@/hooks/useColorScheme";
 import {
@@ -19,6 +20,18 @@ import {
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
+
+// Create a global client
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 2,
+      staleTime: 0,
+      gcTime: 0,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -36,13 +49,15 @@ export default function RootLayout() {
     return null;
   }
   return (
-    <SessionProvider value={session}>
-      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-        <PaperProvider>
-          <Slot />
-          <StatusBar style="auto" />
-        </PaperProvider>
-      </ThemeProvider>
-    </SessionProvider>
+    <QueryClientProvider client={queryClient}>
+      <SessionProvider value={session}>
+        <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+          <PaperProvider>
+            <Slot />
+            <StatusBar style="auto" />
+          </PaperProvider>
+        </ThemeProvider>
+      </SessionProvider>
+    </QueryClientProvider>
   );
 }

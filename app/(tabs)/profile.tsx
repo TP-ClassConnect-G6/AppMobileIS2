@@ -17,6 +17,9 @@ type UserProfile = {
   location?: string; // Cambiado a string en lugar de objeto con coordenadas
   user_type: string;
   avatar?: string;
+  is_blocked?: boolean;
+  created_at?: string;
+  date_of_birth?: string | null;
 };
 
 // Tipo para los valores del formulario
@@ -42,6 +45,14 @@ export default function ProfileScreen() {
   const [searchingLocations, setSearchingLocations] = useState(false);
   const [showLocationResults, setShowLocationResults] = useState(false);
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
+  
+  // Estado para la búsqueda de perfiles por email
+  const [emailSearch, setEmailSearch] = useState<string>('');
+  const [foundProfile, setFoundProfile] = useState<UserProfile | null>(null);
+  const [foundProfilePhoto, setFoundProfilePhoto] = useState<string | null>(null);
+  const [searchingProfile, setSearchingProfile] = useState(false);
+  const [showFoundProfile, setShowFoundProfile] = useState(false);
+  
   const { session } = useSession();
 
   // Configurar React Hook Form
@@ -374,6 +385,90 @@ export default function ProfileScreen() {
     }
   };
 
+  // Función para cargar el perfil de otro usuario por email
+  const searchProfileByEmail = async () => {
+    if (!emailSearch.trim()) {
+      Alert.alert("Error", "Por favor ingrese un email para buscar");
+      return;
+    }
+    
+    if (!session?.token) {
+      Alert.alert("Error", "Necesitas iniciar sesión para buscar perfiles");
+      return;
+    }
+    
+    setSearchingProfile(true);
+    setError(null);
+    
+    try {
+      // Hacer la petición para obtener el perfil por email
+      const response = await client.get(`/profile/from_email/${emailSearch}`, {
+        headers: {
+          "Authorization": `Bearer ${session.token}`
+        }
+      });
+      
+      console.log("Perfil encontrado:", response.data);
+      setFoundProfile(response.data);
+      setShowFoundProfile(true);
+      
+      // Intentar obtener la foto del perfil encontrado
+      fetchFoundProfilePhoto(emailSearch);
+    } catch (err: any) {
+      // console.error("Error al buscar perfil:", err);
+      let errorMessage = "No se pudo encontrar el perfil con ese email.";
+      
+      if (err.response) {
+        if (err.response.status === 404) {
+          errorMessage = "No se encontró ningún usuario con ese email.";
+        } else if (err.response.status === 401) {
+          errorMessage = "No autorizado. Por favor, inicia sesión nuevamente.";
+        }
+      }
+      
+      setError(errorMessage);
+      setFoundProfile(null);
+      setShowFoundProfile(false);
+      setFoundProfilePhoto(null);
+      Alert.alert("Error", errorMessage);
+    } finally {
+      setSearchingProfile(false);
+    }
+  };
+  
+  // Función para obtener la foto del perfil encontrado
+  const fetchFoundProfilePhoto = async (email: string) => {
+    if (!session?.token) return;
+    
+    try {
+      const response = await client.get(`/profile/from_email/${email}/photo`, {
+        responseType: "arraybuffer",
+        headers: {
+          "Authorization": `Bearer ${session.token}`
+        }
+      });
+      
+      // Convertimos los datos binarios a base64
+      const base64String = arrayBufferToBase64(response.data);
+      const base64Image = `data:image/jpeg;base64,${base64String}`;
+      setFoundProfilePhoto(base64Image);
+    } catch (err: any) {
+      console.error("Error al obtener la foto del perfil encontrado:", err);
+      // No mostramos error si es 404, simplemente no hay foto
+      if (err.response && err.response.status !== 404) {
+        console.warn("No se pudo cargar la foto del perfil encontrado.");
+      }
+    }
+  };
+  
+  // Función para cerrar la vista del perfil encontrado
+  const closeFoundProfile = () => {
+    setShowFoundProfile(false);
+    setFoundProfile(null);
+    setFoundProfilePhoto(null);
+    setEmailSearch('');
+  };
+
   // Cargar el perfil al montar el componente
   useEffect(() => {
     fetchUserProfile();
@@ -598,16 +693,104 @@ export default function ProfileScreen() {
               )}
             />
 
+            {/* Botones para guardar o cancelar cambios */}
             <View style={styles.buttonGroup}>
-              <Button mode="outlined" onPress={cancelEditing} style={styles.cancelButton}>
+              <Button 
+                mode="outlined" 
+                onPress={cancelEditing} 
+                style={styles.cancelButton}
+              >
                 Cancelar
               </Button>
-
-              <Button mode="contained" onPress={handleSubmit(onSubmit)} style={styles.saveButton}>
+              <Button 
+                mode="contained" 
+                onPress={handleSubmit(onSubmit)} 
+                style={styles.saveButton}
+                loading={loading}
+                disabled={loading}
+              >
                 Guardar
               </Button>
             </View>
+
+            {error && <Text style={styles.errorMessage}>{error}</Text>}
+
           </View>
+        )}
+
+        {/* Sección de búsqueda de perfiles por email - solo visible cuando no estás editando */}
+        {!editing && (
+          <>
+            <View style={styles.searchSection}>
+              <Text style={styles.sectionTitle}>Buscar perfil por email</Text>
+              <View style={styles.searchInputContainer}>
+                <TextInput
+                  label="Email del usuario"
+                  value={emailSearch}
+                  onChangeText={setEmailSearch}
+                  style={styles.searchInput}
+                  placeholder="Ingrese un email para buscar"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+                <Button 
+                  mode="contained" 
+                  onPress={searchProfileByEmail} 
+                  style={styles.searchButton}
+                  loading={searchingProfile}
+                  disabled={searchingProfile || !emailSearch.trim()}
+                >
+                  Buscar
+                </Button>
+              </View>
+            </View>
+
+            {/* Mostrar perfil encontrado */}
+            {showFoundProfile && foundProfile && (
+              <View style={styles.foundProfileContainer}>
+                <View style={styles.foundProfileHeader}>
+                  <Text style={styles.foundProfileTitle}>Perfil encontrado</Text>
+                  <TouchableOpacity onPress={closeFoundProfile} style={styles.closeButton}>
+                    <Text style={styles.closeButtonText}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+                
+                <View style={styles.foundProfileContent}>
+                  <View style={styles.foundProfileAvatarContainer}>
+                    <Image
+                      source={{
+                        uri: foundProfilePhoto || "https://via.placeholder.com/100",
+                      }}
+                      style={styles.foundProfileAvatar}
+                    />
+                  </View>
+                  
+                  <Text style={styles.foundProfileName}>{foundProfile.name || "Usuario"}</Text>
+                  <Text style={styles.foundProfileEmail}>{foundProfile.email}</Text>
+                  
+                  {foundProfile.bio && <Text style={styles.foundProfileBio}>{foundProfile.bio}</Text>}
+                  
+                  {foundProfile.phone_number && (
+                    <Text style={styles.foundProfileInfo}>Teléfono: {foundProfile.phone_number}</Text>
+                  )}
+                  
+                  {foundProfile.location && (
+                    <Text style={styles.foundProfileInfo}>Ubicación: {foundProfile.location}</Text>
+                  )}
+                  
+                  <Text style={styles.foundProfileInfo}>
+                    Tipo de usuario: {foundProfile.user_type}
+                  </Text>
+                  
+                  {foundProfile.created_at && (
+                    <Text style={styles.foundProfileInfo}>
+                      Miembro desde: {new Date(foundProfile.created_at).toLocaleDateString()}
+                    </Text>
+                  )}
+                </View>
+              </View>
+            )}
+          </>
         )}
 
         {error && <Text style={styles.errorMessage}>{error}</Text>}
@@ -839,5 +1022,107 @@ const styles = StyleSheet.create({
   noResultsText: {
     fontSize: 14,
     color: '#666',
+  },
+  // Estilos para la sección de búsqueda de perfiles
+  searchSection: {
+    marginTop: 20,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: "#e0e0e0",
+    width: "100%",
+  },
+  searchInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 10,
+  },
+  searchInput: {
+    flex: 1,
+    marginRight: 10,
+    backgroundColor: "#f5f5f5",
+  },
+  emailSearchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 10,
+  },
+  emailSearchInput: {
+    flex: 1,
+    marginRight: 10,
+    backgroundColor: "#f5f5f5",
+  },
+  searchButton: {
+    height: 50,
+    justifyContent: "center",
+  },
+  foundProfileContainer: {
+    marginTop: 20,
+    width: "100%",
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+    borderRadius: 8,
+    overflow: "hidden",
+    backgroundColor: "#fff",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  foundProfileHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 10,
+    backgroundColor: "#f5f5f5",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e0e0e0",
+  },
+  foundProfileTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  closeButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#e0e0e0",
+  },
+  closeButtonText: {
+    fontSize: 16,
+    color: "#333",
+  },
+  foundProfileContent: {
+    padding: 15,
+    alignItems: "center",
+  },
+  foundProfileAvatarContainer: {
+    marginBottom: 15,
+  },
+  foundProfileAvatar: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+  },
+  foundProfileName: {
+    fontSize: 22,
+    fontWeight: "bold",
+    marginBottom: 5,
+  },
+  foundProfileEmail: {
+    fontSize: 16,
+    color: "gray",
+    marginBottom: 15,
+  },
+  foundProfileBio: {
+    fontSize: 16,
+    marginBottom: 10,
+    fontStyle: "italic",
+  },
+  foundProfileInfo: {
+    fontSize: 16,
+    marginBottom: 5,
   },
 });

@@ -16,6 +16,7 @@ type Task = {
   instructions: string;
   extra_conditions: {
     type: string;
+    questions?: string;
   };
   published: boolean;
   created_at: string;
@@ -33,13 +34,14 @@ interface EditTaskModalProps {
 
 const EditTaskModal = ({ visible, onDismiss, task, courseId }: EditTaskModalProps) => {
   const queryClient = useQueryClient();
-  
-  // Estado del formulario
+    // Estado del formulario
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [instructions, setInstructions] = useState('');
   const [dueDate, setDueDate] = useState(new Date());
   const [type, setType] = useState('individual'); // individual o grupal
+  const [questions, setQuestions] = useState<string[]>([]);
+  const [newQuestion, setNewQuestion] = useState('');
   
   const [showDatePicker, setShowDatePicker] = useState(false);
   
@@ -47,14 +49,23 @@ const EditTaskModal = ({ visible, onDismiss, task, courseId }: EditTaskModalProp
   const [titleError, setTitleError] = useState('');
   const [descriptionError, setDescriptionError] = useState('');
   const [dueDateError, setDueDateError] = useState('');
-  
-  // Inicializar el formulario cuando se abre el modal con una tarea
+    // Inicializar el formulario cuando se abre el modal con una tarea
   useEffect(() => {
     if (task) {
       setTitle(task.title || '');
       setDescription(task.description || '');
       setInstructions(task.instructions || '');
       setType(task.extra_conditions?.type || 'individual');
+      
+      // Cargar preguntas si existen
+      if (task.extra_conditions?.questions) {
+        const questionsText = task.extra_conditions.questions;
+        // Split questions by the delimiter "---"
+        const questionsArray = questionsText.split(/\s*---\s*/).filter((q: string) => q.trim());
+        setQuestions(questionsArray);
+      } else {
+        setQuestions([]);
+      }
       
       if (task.due_date) {
         setDueDate(new Date(task.due_date));
@@ -67,15 +78,31 @@ const EditTaskModal = ({ visible, onDismiss, task, courseId }: EditTaskModalProp
     }
   }, [task, visible]);
   
+  // Reset form state
   const resetForm = () => {
     setTitle('');
     setDescription('');
     setInstructions('');
     setDueDate(new Date());
     setType('individual');
+    setQuestions([]);
+    setNewQuestion('');
     setTitleError('');
     setDescriptionError('');
     setDueDateError('');
+  };
+  
+  // Add a new question to the list
+  const addQuestion = () => {
+    if (newQuestion.trim()) {
+      setQuestions([...questions, newQuestion.trim()]);
+      setNewQuestion('');
+    }
+  };
+  
+  // Remove a question from the list
+  const removeQuestion = (index: number) => {
+    setQuestions(questions.filter((_, i) => i !== index));
   };
   
   // Validar el formulario
@@ -136,8 +163,7 @@ const EditTaskModal = ({ visible, onDismiss, task, courseId }: EditTaskModalProp
       // Aquí se puede manejar el error de manera más específica
     }
   });
-  
-  const handleSave = () => {
+    const handleSave = () => {
     if (!validateForm()) return;
     
     const taskData = {
@@ -147,7 +173,9 @@ const EditTaskModal = ({ visible, onDismiss, task, courseId }: EditTaskModalProp
       due_date: dueDate.toISOString(),
       course_id: courseId,
       extra_conditions: {
-        type
+        type,
+        // Only include questions if there are any
+        ...(questions.length > 0 ? { questions: questions.join("\n---\n") } : {})
       }
     };
     
@@ -242,6 +270,47 @@ const EditTaskModal = ({ visible, onDismiss, task, courseId }: EditTaskModalProp
             </View>
           </View>
           
+          {/* Sección de preguntas dinámicas */}
+          <Text style={styles.sectionTitle}>Preguntas</Text>
+          <Divider style={styles.divider} />
+          
+          {questions.length > 0 && (
+            <View style={styles.questionsContainer}>
+              {questions.map((question, index) => (
+                <View key={index} style={styles.questionItem}>
+                  <Text>{`Pregunta ${index + 1}: ${question}`}</Text>
+                  <Button 
+                    icon="delete" 
+                    mode="text" 
+                    onPress={() => removeQuestion(index)}
+                  >
+                    Eliminar
+                  </Button>
+                </View>
+              ))}
+            </View>
+          )}
+          
+          <View style={styles.addQuestionContainer}>
+            <TextInput
+              label="Nueva pregunta"
+              value={newQuestion}
+              onChangeText={setNewQuestion}
+              mode="outlined"
+              multiline
+              numberOfLines={2}
+              style={styles.input}
+            />
+            <Button 
+              mode="contained"
+              onPress={addQuestion}
+              disabled={!newQuestion.trim()}
+              style={[styles.button, { marginBottom: 20 }]}
+            >
+              Añadir Pregunta
+            </Button>
+          </View>
+          
           <View style={styles.buttonContainer}>
             <Button
               mode="outlined"
@@ -320,6 +389,26 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     borderColor: '#666',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginTop: 10,
+    marginBottom: 5,
+  },
+  questionsContainer: {
+    marginBottom: 15,
+  },
+  questionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  addQuestionContainer: {
+    marginBottom: 20,
   },
 });
 

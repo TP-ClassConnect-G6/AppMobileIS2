@@ -22,8 +22,9 @@ type CreateExamRequest = {
     open_book: boolean;
     grace_period?: string;
     submission_rules?: string;
+    questions?: string;
   };
-  owner: string;
+  user_id: string;
   published: boolean;
 };
 
@@ -39,7 +40,7 @@ type CreateExamResponse = {
   additional_info: {
     [key: string]: any;
   };
-  owner: string;
+  user_id: string;
   published: boolean;
   created_at: string;
   updated_at: string;
@@ -62,7 +63,8 @@ type CourseItem = {
 const createExamSchema = z.object({
   course_id: z.string().min(1, "El curso es requerido"),
   title: z.string().min(3, "El título debe tener al menos 3 caracteres"),
-  description: z.string().min(10, "La descripción debe tener al menos 10 caracteres"),
+  description: z.string().min(10, "Las instrucciones generales deben tener al menos 10 caracteres"),
+  questionsList: z.array(z.string()).min(1, "Debe ingresar al menos una pregunta"),
   date: z.string()
     .min(1, "La fecha es requerida")
     .regex(/^\d{2}\/\d{2}\/\d{2,4}$/, "El formato debe ser DD/MM/YY"),
@@ -86,6 +88,8 @@ export default function CreateExamScreen() {
   const [loading, setLoading] = useState(false);
   const [courses, setCourses] = useState<CourseItem[]>([]);
   const [fetchingCourses, setFetchingCourses] = useState(false);
+  const [currentQuestion, setCurrentQuestion] = useState("");
+  const [questions, setQuestions] = useState<string[]>([]);
 
   // Verificar si el usuario es profesor
   const isTeacher = session?.userType === "teacher" || session?.userType === "admin" || session?.userType === "administrator";
@@ -134,20 +138,20 @@ export default function CreateExamScreen() {
       console.error("Error al convertir formato de fecha:", error);
       return dateStr;
     }
-  };
-
-  // Configurar React Hook Form con validación Zod
+  };  // Configurar React Hook Form con validación Zod
   const {
     control,
     handleSubmit,
     formState: { errors },
     setValue,
     reset,
+    watch,
   } = useForm<FormValues>({
     defaultValues: {
       course_id: "",
       title: "",
       description: "",
+      questionsList: [],
       date: format(new Date(), "dd/MM/yy"), // Formato para UI: DD/MM/YY
       duration: "120",
       location: "",
@@ -185,11 +189,29 @@ export default function CreateExamScreen() {
       setFetchingCourses(false);
     }
   };
-
   // Cargar los cursos al montar el componente
   useEffect(() => {
     fetchCourses();
   }, []);
+
+  // Funciones para manejar las preguntas
+  const addQuestion = () => {
+    if (currentQuestion.trim().length === 0) {
+      Alert.alert("Validación", "La pregunta no puede estar vacía");
+      return;
+    }
+    
+    const updatedQuestions = [...questions, currentQuestion.trim()];
+    setQuestions(updatedQuestions);
+    setValue('questionsList', updatedQuestions);
+    setCurrentQuestion("");
+  };
+
+  const removeQuestion = (index: number) => {
+    const updatedQuestions = questions.filter((_, i) => i !== index);
+    setQuestions(updatedQuestions);
+    setValue('questionsList', updatedQuestions);
+  };
 
   // Función para crear un nuevo examen
   const onSubmit = async (data: FormValues) => {
@@ -225,9 +247,7 @@ export default function CreateExamScreen() {
         Alert.alert("Error", "Solo los profesores pueden crear exámenes");
         setLoading(false);
         return;
-      }
-
-      const request: CreateExamRequest = {
+      }      const request: CreateExamRequest = {
         course_id: data.course_id,
         title: data.title,
         description: data.description,
@@ -237,9 +257,10 @@ export default function CreateExamScreen() {
         additional_info: {
           open_book: data.open_book,
           grace_period: data.grace_period || "",
-          submission_rules: data.submission_rules || ""
+          submission_rules: data.submission_rules || "",
+          questions: data.questionsList.join("\n\n---\n\n"), // Convertir el array de preguntas a formato de texto
         },
-        owner: userId,
+        user_id: userId,
         published: false // Los exámenes se crean como no publicados por defecto
       };
 
@@ -367,14 +388,13 @@ export default function CreateExamScreen() {
           {errors.title && (
             <HelperText type="error">{errors.title.message}</HelperText>
           )}
-
-          {/* Descripción */}
+          {/* Descripción e Instrucciones Generales */}
           <Controller
             control={control}
             name="description"
             render={({ field: { onChange, onBlur, value } }) => (
               <TextInput
-                label="Descripción *"
+                label="Instrucciones Generales *"
                 value={value}
                 onChangeText={onChange}
                 onBlur={onBlur}
@@ -382,12 +402,71 @@ export default function CreateExamScreen() {
                 multiline
                 numberOfLines={3}
                 error={!!errors.description}
+                placeholder="Instrucciones generales del examen"
               />
             )}
           />
           {errors.description && (
             <HelperText type="error">{errors.description.message}</HelperText>
           )}
+          
+          {/* Preguntas del Examen */}
+          <Text style={styles.sectionTitle}>Preguntas del Examen</Text>
+          
+          {/* Lista de preguntas ya agregadas */}
+          {questions.length > 0 ? (
+            <View style={styles.questionsList}>
+              {questions.map((question, index) => (
+                <View key={index} style={styles.questionItem}>
+                  <View style={styles.questionNumberContainer}>
+                    <Text style={styles.questionNumber}>{index + 1}</Text>
+                  </View>
+                  <View style={styles.questionTextContainer}>
+                    <Text style={styles.questionText}>{question}</Text>
+                  </View>
+                  <TouchableOpacity 
+                    onPress={() => removeQuestion(index)}
+                    style={styles.removeQuestionButton}
+                  >
+                    <Text style={styles.removeButtonText}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.noQuestionsContainer}>
+              <Text style={styles.noQuestionsText}>Aún no hay preguntas agregadas</Text>
+            </View>
+          )}
+          
+          {/* Error de validación para preguntas */}
+          {errors.questionsList && (
+            <HelperText type="error">{errors.questionsList.message}</HelperText>
+          )}
+          
+          {/* Campo para agregar nueva pregunta */}
+          <View style={styles.addQuestionContainer}>
+            <TextInput
+              label="Nueva pregunta"
+              value={currentQuestion}
+              onChangeText={setCurrentQuestion}
+              style={styles.questionInput}
+              multiline
+              numberOfLines={3}
+              placeholder="Escribe aquí la pregunta..."
+            />
+            <Button 
+              mode="contained" 
+              onPress={addQuestion}
+              style={styles.addQuestionButton}
+              icon="plus"
+            >
+              Agregar
+            </Button>
+          </View>
+          <HelperText type="info">
+            Agregue las preguntas una por una usando el botón Agregar.
+          </HelperText>
 
           {/* Fecha del examen */}
           <Controller
@@ -565,6 +644,10 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     backgroundColor: "white",
   },
+  questionsInput: {
+    minHeight: 200,
+    textAlignVertical: "top",
+  },
   pickerContainer: {
     backgroundColor: "white",
     borderRadius: 4,
@@ -605,5 +688,79 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 10,
   },
-  // Estilos para el formulario
+  // Estilos para el sistema de preguntas dinámicas
+  questionsList: {
+    marginBottom: 15,
+  },
+  questionItem: {
+    flexDirection: 'row',
+    backgroundColor: 'white',
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: '#2196F3',
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.41,
+    elevation: 2,
+  },
+  questionNumberContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#2196F3',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  questionNumber: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  questionTextContainer: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  questionText: {
+    fontSize: 14,
+    lineHeight: 22,
+  },
+  removeQuestionButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#FFE0E0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  removeButtonText: {
+    color: '#FF5252',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  noQuestionsContainer: {
+    padding: 20,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  noQuestionsText: {
+    color: '#666',
+    fontStyle: 'italic',
+  },
+  addQuestionContainer: {
+    marginBottom: 20,
+  },
+  questionInput: {
+    backgroundColor: 'white',
+    marginBottom: 10,
+    textAlignVertical: 'top',
+  },
+  addQuestionButton: {
+    borderRadius: 8,
+  },
 });
