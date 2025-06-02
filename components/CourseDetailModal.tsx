@@ -90,7 +90,7 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
   // Obtener la sesión del usuario para verificar su rol
   const { session } = useSession();
   const isTeacher = session?.userType === "teacher" || session?.userType === "admin" || session?.userType === "administrator";
-    // Estado para almacenar el email del usuario logueado
+  // Estado para almacenar el email del usuario logueado
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
   // Consulta para obtener los detalles del curso
@@ -123,6 +123,41 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
       checkTeacherAssignedStatus();
     }
   }, [courseDetail, userEmail, isTeacher]);
+
+  // Fetch auxiliar teachers when the modal becomes visible
+  useEffect(() => {
+    if (visible && courseId && session?.token) {
+      fetchAuxiliarTeachers();
+    }
+  }, [visible, courseId, session?.token]);
+  // Función para obtener los docentes auxiliares del curso
+  const fetchAuxiliarTeachers = async () => {
+    if (!courseId || !session?.token) {
+      return;
+    }
+    
+    try {
+      const response = await courseClient.get(`/courses/${courseId}/auxiliars`, {
+        headers: {
+          Authorization: `Bearer ${session.token}`
+        }
+      });
+      
+      console.log("Auxiliar teachers response:", JSON.stringify(response.data, null, 2));
+    } catch (error: any) {
+      // Format and log the error in the required format
+      const errorResponse = error.response?.data || {};
+      const formattedError = {
+        type: errorResponse.type || 'unknown',
+        title: errorResponse.title || 'Error',
+        status: errorResponse.status || error.response?.status || 500,
+        detail: errorResponse.detail || error.message || 'Unknown error'
+      };
+      
+      console.log("Error formatted:", JSON.stringify(formattedError, null, 2));
+      console.error("Error fetching auxiliar teachers:", error);
+    }
+  };
 
   // Verificar si el estudiante está inscrito en el curso
   const checkEnrollmentStatus = async () => {
