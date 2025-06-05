@@ -102,14 +102,6 @@ export default function TabLayout() {
           ),
           href: isTeacher ? "/create-task" : null,
         }}
-      />      <Tabs.Screen
-        name="notification-settings"
-        options={{
-          title: "Notificaciones",
-          tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="bell.fill" color={color} />
-          ),
-        }}
       />
       <Tabs.Screen
         name="mis-cursos"
@@ -119,6 +111,15 @@ export default function TabLayout() {
             <IconSymbol size={28} name="graduationcap.fill" color={color} />
           ),
           href: session?.userType === 'student' ? "/mis-cursos" : null, // Solo mostrar para estudiantes
+        }}
+      />
+      <Tabs.Screen
+        name="notification-settings"
+        options={{
+          title: "Notificaciones",
+          tabBarIcon: ({ color }: { color: string }) => (
+            <IconSymbol size={28} name="bell.fill" color={color} />
+          ),
         }}
       />
     </Tabs>
