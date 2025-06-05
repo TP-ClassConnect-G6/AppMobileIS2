@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { StyleSheet, View, ScrollView, ActivityIndicator, Alert, RefreshControl } from "react-native";
-import { Text, Title, Card, Button, Chip, Divider, Paragraph } from "react-native-paper";
+import { Text, Title, Card, Button, Chip, Divider, Paragraph, Provider } from "react-native-paper";
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSession } from "@/contexts/session";
 import { courseClient } from "@/lib/http";
 import { router } from "expo-router";
+import CourseDetailModal from "@/components/CourseDetailModal";
 
 // Types
 interface Schedule {
@@ -51,6 +52,8 @@ export default function MisCursosScreen() {
   const [endedPage, setEndedPage] = useState(1);
   const [activeLimit] = useState(3); // Fixed limit as requested
   const [endedLimit] = useState(3); // Fixed limit as requested
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCourseHistory();
@@ -210,14 +213,28 @@ export default function MisCursosScreen() {
               </Chip>
             )}
           </View>
-        </Card.Content>
-        <Card.Actions>
+          </Card.Content>
+        <Card.Actions style={{
+          flexDirection: 'column',
+          alignItems: 'stretch',
+          justifyContent: 'flex-start',
+          padding: 10,
+          paddingVertical: 12,
+          borderTopWidth: 1,
+          borderTopColor: '#eee',
+          borderRadius: 0,
+          elevation: 0,
+        }}>
           <Button 
-            mode="contained" 
-            onPress={() => navigateToCourseDetail(course.course_id)}
+            onPress={() => {
+              setSelectedCourseId(course.course_id);
+              setDetailModalVisible(true);
+            }}
+            style={{ width: '100%', marginBottom: 8 }}
+            contentStyle={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 12 }}
             icon="information-outline"
           >
-            Ver detalles
+            Más información
           </Button>
         </Card.Actions>
       </Card>
@@ -265,66 +282,74 @@ export default function MisCursosScreen() {
       </View>
     );
   }
-
   return (
-    <ScrollView 
-      style={styles.container} 
-      contentContainerStyle={styles.contentContainer}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
-      <Title style={styles.screenTitle}>Mis Cursos</Title>
-      <Text style={styles.screenDescription}>
-        Aquí puedes ver todos tus cursos activos y finalizados
-      </Text>
+    <Provider>
+      <ScrollView 
+        style={styles.container} 
+        contentContainerStyle={styles.contentContainer}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        <Title style={styles.screenTitle}>Mis Cursos</Title>
+        <Text style={styles.screenDescription}>
+          Aquí puedes ver todos tus cursos activos y finalizados
+        </Text>
 
-      {/* Active Courses Section */}
-      <View style={styles.sectionContainer}>
-        <View style={styles.sectionHeader}>
-          <MaterialCommunityIcons name="book-open-variant" size={24} color="#333" />
-          <Title style={styles.sectionTitle}>Cursos Activos</Title>
-        </View>
-        
-        {loading ? (
-          <ActivityIndicator style={styles.sectionLoading} />
-        ) : courseHistory && courseHistory.active_courses.length > 0 ? (
-          <>
-            {courseHistory.active_courses.map(renderCourseItem)}
-            {renderPagination(activePage, courseHistory.active_pages, setActivePage)}
-          </>
-        ) : (
-          <View style={styles.emptyContainer}>
-            <MaterialCommunityIcons name="book-open-page-variant" size={48} color="#ccc" />
-            <Text style={styles.emptyMessage}>No tienes cursos activos actualmente</Text>
+        {/* Active Courses Section */}
+        <View style={styles.sectionContainer}>
+          <View style={styles.sectionHeader}>
+            <MaterialCommunityIcons name="book-open-variant" size={24} color="#333" />
+            <Title style={styles.sectionTitle}>Cursos Activos</Title>
           </View>
-        )}
-      </View>
-
-      <Divider style={styles.divider} />
-
-      {/* Ended Courses Section */}
-      <View style={styles.sectionContainer}>
-        <View style={styles.sectionHeader}>
-          <MaterialCommunityIcons name="book-check" size={24} color="#333" />
-          <Title style={styles.sectionTitle}>Cursos Finalizados</Title>
+          
+          {loading ? (
+            <ActivityIndicator style={styles.sectionLoading} />
+          ) : courseHistory && courseHistory.active_courses.length > 0 ? (
+            <>
+              {courseHistory.active_courses.map(renderCourseItem)}
+              {renderPagination(activePage, courseHistory.active_pages, setActivePage)}
+            </>
+          ) : (
+            <View style={styles.emptyContainer}>
+              <MaterialCommunityIcons name="book-open-page-variant" size={48} color="#ccc" />
+              <Text style={styles.emptyMessage}>No tienes cursos activos actualmente</Text>
+            </View>
+          )}
         </View>
-        
-        {loading ? (
-          <ActivityIndicator style={styles.sectionLoading} />
-        ) : courseHistory && courseHistory.ended_courses.length > 0 ? (
-          <>
-            {courseHistory.ended_courses.map(renderCourseItem)}
-            {renderPagination(endedPage, courseHistory.ended_pages, setEndedPage)}
-          </>
-        ) : (
-          <View style={styles.emptyContainer}>
-            <MaterialCommunityIcons name="book-check-outline" size={48} color="#ccc" />
-            <Text style={styles.emptyMessage}>No tienes cursos finalizados</Text>
+
+        <Divider style={styles.divider} />
+
+        {/* Ended Courses Section */}
+        <View style={styles.sectionContainer}>
+          <View style={styles.sectionHeader}>
+            <MaterialCommunityIcons name="book-check" size={24} color="#333" />
+            <Title style={styles.sectionTitle}>Cursos Finalizados</Title>
           </View>
-        )}
-      </View>
-    </ScrollView>
+          
+          {loading ? (
+            <ActivityIndicator style={styles.sectionLoading} />
+          ) : courseHistory && courseHistory.ended_courses.length > 0 ? (
+            <>
+              {courseHistory.ended_courses.map(renderCourseItem)}
+              {renderPagination(endedPage, courseHistory.ended_pages, setEndedPage)}
+            </>
+          ) : (
+            <View style={styles.emptyContainer}>
+              <MaterialCommunityIcons name="book-check-outline" size={48} color="#ccc" />
+              <Text style={styles.emptyMessage}>No tienes cursos finalizados</Text>
+            </View>
+          )}
+        </View>
+      </ScrollView>
+      
+      {/* Modal de detalles del curso */}
+      <CourseDetailModal
+        visible={detailModalVisible}
+        onDismiss={() => setDetailModalVisible(false)}
+        courseId={selectedCourseId}
+      />
+    </Provider>
   );
 }
 
@@ -467,8 +492,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#666",
     textAlign: "center",
-  },
-  sectionLoading: {
+  },  sectionLoading: {
     padding: 20,
+  },
+  cardActions: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    justifyContent: 'flex-start',
+    padding: 10,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    borderRadius: 0,
+    elevation: 0,
+  },
+  buttonLabel: {
+    fontSize: 14,
+    marginHorizontal: 4,
+    paddingLeft: 8,
   },
 });
