@@ -98,7 +98,8 @@ export default function TabLayout() {
         options={{
           title: "Crear Tarea",
           tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="checklist.fill" color={color} />          ),
+            <IconSymbol size={28} name="checklist.fill" color={color} />
+          ),
           href: isTeacher ? "/create-task" : null,
         }}
       />
