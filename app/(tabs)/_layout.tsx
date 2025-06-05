@@ -62,13 +62,12 @@ export default function TabLayout() {
             <IconSymbol size={28} name="book.fill" color={color} />
           ),
         }}
-      />
-      <Tabs.Screen
+      />      <Tabs.Screen
         name="favorites"
         options={{
           title: "Favoritos",
           tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="heart.fill" color={color} />
+            <IconSymbol size={28} name="star.circle.fill" color={color} />
           ),
           href: !isTeacher ? "/favorites" : null, // Solo mostrar para estudiantes
         }}
@@ -102,13 +101,12 @@ export default function TabLayout() {
           ),
           href: isTeacher ? "/create-task" : null,
         }}
-      />
-      <Tabs.Screen
+      />      <Tabs.Screen
         name="mis-cursos"
         options={{
           title: "Mis Cursos",
           tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="graduationcap.fill" color={color} />
+            <IconSymbol size={28} name="backpack.circle.fill" color={color} />
           ),
           href: session?.userType === 'student' ? "/mis-cursos" : null, // Solo mostrar para estudiantes
         }}

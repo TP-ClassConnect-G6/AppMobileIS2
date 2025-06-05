@@ -8,7 +8,9 @@ import { OpaqueColorValue, StyleProp, TextStyle } from 'react-native';
 // Add your SFSymbol to MaterialIcons mappings here.
 const MAPPING = {
   // See MaterialIcons here: https://icons.expo.fyi
-  // See SF Symbols in the SF Symbols app on Mac.  'house.fill': 'home',
+  // See SF Symbols in the SF Symbols app on Mac.  
+  'house.fill': 'home',
+  'house.circle.fill': 'home',
   'paperplane.fill': 'send',
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.right': 'chevron-right',
@@ -21,6 +23,9 @@ const MAPPING = {
   'bell.fill': 'notifications',
   'bell.badge.fill': 'notifications-active',
   'gear.fill': 'settings',
+  'graduationcap.fill': 'school',
+  'backpack.circle.fill': 'backpack',
+  'star.circle.fill': 'star',
 } as const;
 
 // Tipo personalizado que incluye tanto los nombres de SF Symbols como nuestros nombres personalizados

@@ -4,6 +4,9 @@ import { StyleProp, ViewStyle } from 'react-native';
 // Mapeo de nombres personalizados a SF Symbols válidos
 const CUSTOM_MAPPING: Record<string, SymbolViewProps['name']> = {
   'book-plus.fill': 'doc.badge.plus', // Mapeamos nuestro nombre personalizado a un SF Symbol válido
+  'backpack.circle.fill': 'backpack.circle.fill',
+  'star.circle.fill': 'star.circle.fill',
+  'house.circle.fill': 'house.circle.fill',
 };
 
 // Extendemos el tipo de los nombres de símbolos para incluir nuestros personalizados
