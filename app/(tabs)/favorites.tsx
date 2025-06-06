@@ -9,7 +9,7 @@ import { es } from "date-fns/locale";
 import { useSession } from "@/contexts/session";
 import CourseDetailModal from "@/components/CourseDetailModal";
 import { Course } from "./course-list";
-import { useNavigation } from "expo-router";
+import { useNavigation, router } from "expo-router";
 import * as Haptics from 'expo-haptics';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -225,65 +225,8 @@ export default function FavoritesScreen() {
     }
   };
 
-  // Estado para tracking de operaciones de eliminar favoritos en curso
-  const [removingFavorites, setRemovingFavorites] = React.useState<Record<string, boolean>>({});
-
-  // Función para quitar un curso de favoritos
-  const handleRemoveFromFavorites = async (courseId: string) => {
-    if (!session?.userId) return;
-    
-    // Proporcionar feedback táctil al pulsar el botón de favorito
-    if (Platform.OS === 'ios' || Platform.OS === 'android') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
-    
-    Alert.alert(
-      "Quitar de favoritos",
-      "¿Estás seguro que deseas quitar este curso de tus favoritos?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Confirmar",
-          style: "destructive",
-          onPress: async () => {
-            // Proporcionar feedback táctil de confirmación
-            if (Platform.OS === 'ios' || Platform.OS === 'android') {
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            }
-            try {
-              // Marcar como en proceso de eliminación
-              setRemovingFavorites(prev => ({ ...prev, [courseId]: true }));
-              
-              const result = await removeCourseFromFavorites(courseId, session.userId);
-              
-              if (result.success) {
-                // Actualizar la lista de favoritos
-                queryClient.invalidateQueries({ queryKey: ['favorite-courses'] });
-                
-                // También invalidar la lista general de cursos para actualizar el estado de favoritos
-                queryClient.invalidateQueries({ queryKey: ['courses'] });
-                
-                // Mensaje de confirmación sutil
-                // En lugar de interrumpir con un Alert, podríamos usar un Toast o notificación menos intrusiva
-              } else {
-                Alert.alert("Error", result.message || "No se pudo quitar de favoritos");
-              }
-            } catch (error) {
-              console.error("Error al quitar de favoritos:", error);
-              Alert.alert("Error", "Ocurrió un problema al intentar quitar este curso de favoritos");
-            } finally {
-              // Quitar marca de eliminación en proceso
-              setRemovingFavorites(prev => {
-                const updated = { ...prev };
-                delete updated[courseId];
-                return updated;
-              });
-            }
-          }
-        }
-      ]
-    );
-  };
+  // En la vista de favoritos, el icono de corazón es solo decorativo
+  // Los favoritos solo pueden ser eliminados desde la vista de cursos
 
   // Renderizar cada curso como una Card
   const renderCourseCard = ({ item }: { item: Course }) => (
@@ -291,22 +234,14 @@ export default function FavoritesScreen() {
       <Card.Content>
         <View style={styles.titleContainer}>
           <Title style={{ flex: 1 }}>{item.course_name}</Title>
-          <TouchableOpacity
-            onPress={() => handleRemoveFromFavorites(item.course_id)}
-            style={styles.favoriteButton}
-            disabled={removingFavorites[item.course_id]}
-          >
-            {removingFavorites[item.course_id] ? (
-              <ActivityIndicator size="small" color="#e91e63" style={{ paddingHorizontal: 8 }} />
-            ) : (
-              <MaterialCommunityIcons
-                name="heart"
-                size={24}
-                color="#e91e63"
-                style={{ paddingHorizontal: 8 }}
-              />
-            )}
-          </TouchableOpacity>
+          <View style={styles.favoriteButton}>
+            <MaterialCommunityIcons
+              name="heart"
+              size={24}
+              color="#e91e63"
+              style={{ paddingHorizontal: 8 }}
+            />
+          </View>
         </View>
         <Paragraph>{item.description}</Paragraph>
 
@@ -410,6 +345,12 @@ export default function FavoritesScreen() {
         <View style={styles.headerContainer}>
           <Text style={styles.header}>Mis Cursos Favoritos</Text>
           <MaterialCommunityIcons name="heart" size={28} color="#e91e63" />
+        </View>
+        
+        <View style={styles.infoMessageContainer}>
+          <Text style={styles.infoMessageText}>
+            Para quitar un curso de favoritos, ve a la pestaña "Cursos" y desmarca el corazón.
+          </Text>
         </View>
         
         {/* Control para mostrar/ocultar filtros */}
@@ -548,7 +489,7 @@ export default function FavoritesScreen() {
               <Text style={styles.hintText}>Busca cursos en la pestaña "Cursos" y marca el corazón para agregarlos a favoritos</Text>
               <Button 
                 mode="outlined" 
-                onPress={() => navigation.navigate('course-list')}
+                onPress={() => router.push('/course-list')}
                 style={{ marginTop: 24 }}
                 icon="magnify"
               >
@@ -602,6 +543,19 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f5f5f5",
     padding: 10,
+  },
+  infoMessageContainer: {
+    backgroundColor: '#f8f4ff',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#e0d8ff',
+  },
+  infoMessageText: {
+    fontSize: 14,
+    color: '#333',
+    textAlign: 'center',
   },
   titleContainer: {
     flexDirection: 'row',
