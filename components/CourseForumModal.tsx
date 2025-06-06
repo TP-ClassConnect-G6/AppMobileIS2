@@ -8,6 +8,14 @@ import { es } from "date-fns/locale";
 import { forumClient } from "@/lib/http";
 import jwtDecode from "jwt-decode";
 
+// Tipo para el usuario
+type UserProfile = {
+  user_id: string;
+  user_type: string;
+  name: string;
+  bio: string;
+};
+
 // Tipo para el foro
 type Forum = {
   _id: string;
@@ -18,6 +26,7 @@ type Forum = {
   tags: string[];
   title: string;
   user_id: string;
+  userName?: string; // Campo opcional para almacenar el nombre del usuario
 };
 
 // Props para el componente modal
@@ -34,7 +43,10 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
   const [selectedForum, setSelectedForum] = useState<Forum | null>(null);
   const [forumDetailVisible, setForumDetailVisible] = useState(false);
   const [createForumVisible, setCreateForumVisible] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);  // Estado para los campos del formulario de creación
+  const [isCreating, setIsCreating] = useState(false);
+  const [userProfiles, setUserProfiles] = useState<Record<string, UserProfile>>({});
+  
+  // Estado para los campos del formulario de creación
   const [newForumTitle, setNewForumTitle] = useState("");
   const [newForumDescription, setNewForumDescription] = useState("");
   const [newForumTags, setNewForumTags] = useState("");
@@ -45,6 +57,72 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
       fetchForums();
     }
   }, [visible, courseId]);
+
+  // Función para obtener el perfil de un usuario
+  const fetchUserProfile = async (userId: string) => {
+    // Si ya tenemos el perfil del usuario en caché, no hacemos la petición
+    if (userProfiles[userId]) {
+      return userProfiles[userId];
+    }
+    
+    if (!session?.token) {
+      return null;
+    }
+    
+    try {
+      const response = await fetch(
+        `https://apigatewayis2-production.up.railway.app/users/profile/${userId}`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Error al obtener el perfil del usuario: ${response.status}`);
+      }
+      
+      const profileData: UserProfile = await response.json();
+      
+      // Guardar el perfil en la caché
+      setUserProfiles(prev => ({
+        ...prev,
+        [userId]: profileData
+      }));
+      
+      return profileData;
+    } catch (error) {
+      console.error(`Error al obtener el perfil del usuario ${userId}:`, error);
+      return null;
+    }
+  };
+
+  // Función para enriquecer los foros con información de usuario
+  const enrichForumsWithUserInfo = async (forumsData: Forum[]) => {
+    const enrichedForums = [...forumsData];
+    const userPromises = forumsData.map(forum => fetchUserProfile(forum.user_id));
+    
+    try {
+      const userResults = await Promise.allSettled(userPromises);
+      
+      userResults.forEach((result, index) => {
+        if (result.status === 'fulfilled' && result.value) {
+          enrichedForums[index] = {
+            ...enrichedForums[index],
+            userName: result.value.name
+          };
+        }
+      });
+      
+      return enrichedForums;
+    } catch (error) {
+      console.error("Error al enriquecer los foros con información de usuario:", error);
+      return forumsData;
+    }
+  };
 
   const fetchForums = async () => {
     if (!courseId || !session?.token) {
@@ -68,7 +146,9 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
       console.log("Forum response:", JSON.stringify(response.data, null, 2));
       
       if (response.data && response.data.forums) {
-        setForums(response.data.forums);
+        // Enriquecer los foros con información de usuario
+        const enrichedForums = await enrichForumsWithUserInfo(response.data.forums);
+        setForums(enrichedForums);
       } else {
         console.warn('Formato de respuesta inesperado en foros:', response.data);
         setForums([]);
@@ -92,9 +172,17 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
       return dateString;
     }
   };
-
-  const openForumDetail = (forum: Forum) => {
-    setSelectedForum(forum);
+  const openForumDetail = async (forum: Forum) => {
+    // Si el foro no tiene el nombre del usuario, intentamos obtenerlo
+    let forumWithUser = {...forum};
+    if (!forum.userName) {
+      const userProfile = await fetchUserProfile(forum.user_id);
+      if (userProfile) {
+        forumWithUser.userName = userProfile.name;
+      }
+    }
+    
+    setSelectedForum(forumWithUser);
     setForumDetailVisible(true);
   };
     // Función para crear un nuevo foro
@@ -220,11 +308,12 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
               <Paragraph numberOfLines={2} style={styles.forumDescription}>
                 {forum.description}
               </Paragraph>
-              
-              <View style={styles.metadataContainer}>
+                <View style={styles.metadataContainer}>
                 <View style={styles.metadata}>
                   <MaterialCommunityIcons name="account" size={16} color="#666" />
-                  <Text style={styles.metadataText}>{forum.user_id}</Text>
+                  <Text style={styles.metadataText}>
+                    {forum.userName || 'Cargando usuario...'}
+                  </Text>
                 </View>
                 
                 <View style={styles.metadata}>
@@ -282,11 +371,12 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
           </View>
           
           <Divider style={styles.divider} />
-          
-          <View style={styles.metadataContainer}>
+            <View style={styles.metadataContainer}>
             <View style={styles.metadata}>
               <MaterialCommunityIcons name="account" size={16} color="#666" />
-              <Text style={styles.metadataText}>{selectedForum.user_id}</Text>
+              <Text style={styles.metadataText}>
+                {selectedForum.userName || 'Cargando usuario...'}
+              </Text>
             </View>
             
             <View style={styles.metadata}>
