@@ -10,6 +10,7 @@ import CourseTasksModal from "./CourseTasksModal";
 import TeacherExamsModal from "./TeacherExamsModal";
 import TeacherTasksModal from "./TeacherTasksModal";
 import AuxiliarTeachersModal from "./AuxiliarTeachersModal";
+import CourseForumModal from "./CourseForumModal";
 import { useSession } from "@/contexts/session";
 import jwtDecode from "jwt-decode";
 
@@ -102,6 +103,7 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
   const [teacherExamModalVisible, setTeacherExamModalVisible] = useState(false);  
   const [teacherTaskModalVisible, setTeacherTaskModalVisible] = useState(false);
   const [auxiliarTeachersModalVisible, setAuxiliarTeachersModalVisible] = useState(false);
+  const [forumModalVisible, setForumModalVisible] = useState(false);
   const [isEnrolled, setIsEnrolled] = useState(false);
   const [isTeacherAssigned, setIsTeacherAssigned] = useState(false);
   const [isAuxiliar, setIsAuxiliar] = useState(false);
@@ -583,18 +585,13 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                   Debes estar inscrito en el curso para ver exámenes y tareas
                 </Text>
               )}
-              
-              {/* Botón para ir al foro del curso */}
+                {/* Botón para ir al foro del curso */}
               <Button 
                 mode="contained" 
                 style={[styles.examButton, {backgroundColor: '#1565C0'}]} 
                 onPress={() => {
                   fetchForums();
-                  // Aquí posteriormente se implementará la navegación al foro
-                  console.log("Ir a foro del curso:", courseId);
-                  if (forums.length > 0) {
-                    console.log("Foros disponibles:", forums);
-                  }
+                  setForumModalVisible(true);
                 }}
                 icon="forum"
                 loading={isLoadingForum}
@@ -643,6 +640,12 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
       <AuxiliarTeachersModal
         visible={auxiliarTeachersModalVisible}
         onDismiss={() => setAuxiliarTeachersModalVisible(false)}
+        courseId={courseId}
+        courseName={courseDetail?.course_name || null}
+      />
+      <CourseForumModal
+        visible={forumModalVisible}
+        onDismiss={() => setForumModalVisible(false)}
         courseId={courseId}
         courseName={courseDetail?.course_name || null}
       />
