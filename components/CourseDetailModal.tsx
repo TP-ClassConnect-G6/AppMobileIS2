@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { StyleSheet, View, ScrollView, ActivityIndicator } from "react-native";
+import { StyleSheet, View, ScrollView, ActivityIndicator, Alert } from "react-native";
 import { Modal, Portal, Text, Title, Button, Divider, Paragraph, Chip, List } from "react-native-paper";
 import { useQuery } from "@tanstack/react-query";
-import { courseClient } from "@/lib/http";
+import { courseClient, forumClient } from "@/lib/http";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import CourseExamsModal from "./CourseExamsModal";
@@ -46,6 +46,22 @@ type CourseDetailResponse = {
   response?: CourseDetail;
 };
 
+// Tipo para el foro
+type Forum = {
+  _id: string;
+  course_id: string;
+  created_at: string;
+  description: string;
+  is_active: boolean;
+  tags: string[];
+  title: string;
+  user_id: string;
+};
+
+type ForumResponse = {
+  forums: Forum[];
+};
+
 // Función para obtener los detalles de un curso específico
 const fetchCourseDetail = async (courseId: string): Promise<CourseDetail> => {
   try {
@@ -79,9 +95,11 @@ type CourseDetailModalProps = {
   courseId: string | null;
 };
 
-const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalProps) => {  // Estado para controlar la visibilidad del modal de exámenes
+const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalProps) => {  
+  // Estado para controlar la visibilidad del modal de exámenes
   const [examModalVisible, setExamModalVisible] = useState(false);
-  const [taskModalVisible, setTaskModalVisible] = useState(false);  const [teacherExamModalVisible, setTeacherExamModalVisible] = useState(false);  
+  const [taskModalVisible, setTaskModalVisible] = useState(false);  
+  const [teacherExamModalVisible, setTeacherExamModalVisible] = useState(false);  
   const [teacherTaskModalVisible, setTeacherTaskModalVisible] = useState(false);
   const [auxiliarTeachersModalVisible, setAuxiliarTeachersModalVisible] = useState(false);
   const [isEnrolled, setIsEnrolled] = useState(false);
@@ -89,6 +107,9 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
   const [isAuxiliar, setIsAuxiliar] = useState(false);
   const [canCreateExam, setCanCreateExam] = useState(false);
   const [canCreateTask, setCanCreateTask] = useState(false);
+  const [isLoadingForum, setIsLoadingForum] = useState(false);
+  const [forums, setForums] = useState<Forum[]>([]);
+  
   // Obtener la sesión del usuario para verificar su rol
   const { session } = useSession();
   const isTeacher = session?.userType === "teacher" || session?.userType === "admin" || session?.userType === "administrator";
@@ -104,6 +125,44 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
     retry: 1, // Intentar nuevamente 1 vez en caso de error
     retryDelay: 1000, // Esperar 1 segundo entre reintentos
   });
+  // Función para obtener los foros del curso
+  const fetchForums = async () => {
+    if (!courseId || !session?.token) {
+      return;
+    }
+    
+    setIsLoadingForum(true);
+    
+    try {
+      const response = await forumClient.get(
+        `/forums/?course_id=${courseId}&is_active=true`,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      console.log("Forum response:", JSON.stringify(response.data, null, 2));
+      
+      if (response.data && response.data.forums) {
+        setForums(response.data.forums);
+      } else {
+        console.warn('Formato de respuesta inesperado en foros:', response.data);
+        setForums([]);
+      }
+    } catch (error) {
+      console.error("Error al obtener foros:", error);
+      Alert.alert(
+        "Error",
+        "No se pudieron cargar los foros del curso. Por favor, intente nuevamente."
+      );
+      setForums([]);
+    } finally {
+      setIsLoadingForum(false);
+    }
+  };
 
   // Extraer el email del token JWT
   useEffect(() => {
@@ -524,6 +583,24 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                   Debes estar inscrito en el curso para ver exámenes y tareas
                 </Text>
               )}
+              
+              {/* Botón para ir al foro del curso */}
+              <Button 
+                mode="contained" 
+                style={[styles.examButton, {backgroundColor: '#1565C0'}]} 
+                onPress={() => {
+                  fetchForums();
+                  // Aquí posteriormente se implementará la navegación al foro
+                  console.log("Ir a foro del curso:", courseId);
+                  if (forums.length > 0) {
+                    console.log("Foros disponibles:", forums);
+                  }
+                }}
+                icon="forum"
+                loading={isLoadingForum}
+              >
+                Ir a Foro
+              </Button>
               
               <Button 
                 mode="outlined" 
