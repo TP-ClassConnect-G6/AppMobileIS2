@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { StyleSheet, View, ScrollView, ActivityIndicator, Alert, TouchableOpacity } from "react-native";
-import { Modal, Portal, Text, Title, Button, Divider, Paragraph, Chip, Card } from "react-native-paper";
+import { Modal, Portal, Text, Title, Button, Divider, Paragraph, Chip, Card, TextInput } from "react-native-paper";
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSession } from "@/contexts/session";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { forumClient } from "@/lib/http";
+import jwtDecode from "jwt-decode";
 
 // Tipo para el foro
 type Forum = {
@@ -32,6 +33,15 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
   const [forums, setForums] = useState<Forum[]>([]);
   const [selectedForum, setSelectedForum] = useState<Forum | null>(null);
   const [forumDetailVisible, setForumDetailVisible] = useState(false);
+  const [createForumVisible, setCreateForumVisible] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [userEmail, setUserEmail] = useState<string>("");
+  
+  // Estado para los campos del formulario de creación
+  const [newForumTitle, setNewForumTitle] = useState("");
+  const [newForumDescription, setNewForumDescription] = useState("");
+  const [newForumTags, setNewForumTags] = useState("");
+  
   const { session } = useSession();
 
   useEffect(() => {
@@ -39,6 +49,20 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
       fetchForums();
     }
   }, [visible, courseId]);
+  
+  // Extraer el email del usuario del token JWT
+  useEffect(() => {
+    if (session?.token) {
+      try {
+        const decodedToken: any = jwtDecode(session.token);
+        // Obtenemos el email del token
+        const email = decodedToken.email || decodedToken.sub || "";
+        setUserEmail(email);
+      } catch (error) {
+        console.error("Error al decodificar el token:", error);
+      }    
+    }
+  }, [session]);
 
   const fetchForums = async () => {
     if (!courseId || !session?.token) {
@@ -78,7 +102,6 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
       setLoading(false);
     }
   };
-
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
@@ -92,6 +115,80 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
     setSelectedForum(forum);
     setForumDetailVisible(true);
   };
+  
+  // Función para crear un nuevo foro
+  const createForum = async () => {
+    if (!courseId || !session?.token || !userEmail) {
+      Alert.alert("Error", "No se pudo crear el foro. Falta información requerida.");
+      return;
+    }
+    
+    if (!newForumTitle.trim()) {
+      Alert.alert("Error", "El título del foro es obligatorio.");
+      return;
+    }
+    
+    if (!newForumDescription.trim()) {
+      Alert.alert("Error", "La descripción del foro es obligatoria.");
+      return;
+    }
+    
+    setIsCreating(true);
+    
+    try {
+      // Preparar los tags (separados por comas)
+      const tags = newForumTags.trim() 
+        ? newForumTags.split(',').map(tag => tag.trim()) 
+        : [];
+      
+      const forumData = {
+        title: newForumTitle,
+        description: newForumDescription,
+        user_id: userEmail,
+        course_id: courseId,
+        tags: tags
+      };
+      
+      console.log("Creando foro con datos:", forumData);
+      
+      const response = await forumClient.post(
+        '/forums/',
+        forumData,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      console.log("Respuesta de creación de foro:", response.data);
+      
+      // Limpiar el formulario
+      setNewForumTitle("");
+      setNewForumDescription("");
+      setNewForumTags("");
+      
+      // Cerrar el modal de creación
+      setCreateForumVisible(false);
+      
+      // Refrescar la lista de foros
+      fetchForums();
+      
+      Alert.alert(
+        "Éxito",
+        "El foro se ha creado correctamente."
+      );
+    } catch (error) {
+      console.error("Error al crear el foro:", error);
+      Alert.alert(
+        "Error",
+        "No se pudo crear el foro. Por favor, intente nuevamente."
+      );
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   const renderForumList = () => {
     if (loading) {
@@ -103,18 +200,14 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
       );
     }
 
-    if (forums.length === 0) {
-      return (
+    if (forums.length === 0) {      return (
         <View style={styles.emptyContainer}>
           <MaterialCommunityIcons name="forum-outline" size={48} color="#ccc" />
           <Text style={styles.emptyText}>No hay foros disponibles para este curso.</Text>
           <Button 
             mode="contained" 
             style={styles.createButton}
-            onPress={() => {
-              // Aquí iría la lógica para crear un nuevo foro
-              Alert.alert("Crear foro", "Funcionalidad de crear foro por implementar");
-            }}
+            onPress={() => setCreateForumVisible(true)}
             icon="plus"
           >
             Crear nuevo foro
@@ -128,10 +221,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
         <Button 
           mode="contained" 
           style={styles.createButton}
-          onPress={() => {
-            // Aquí iría la lógica para crear un nuevo foro
-            Alert.alert("Crear foro", "Funcionalidad de crear foro por implementar");
-          }}
+          onPress={() => setCreateForumVisible(true)}
           icon="plus"
         >
           Crear nuevo foro
@@ -258,7 +348,6 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
       </Modal>
     );
   };
-
   return (
     <Portal>
       <Modal
@@ -286,6 +375,85 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
         </ScrollView>
         
         {renderForumDetail()}
+        
+        {/* Modal para crear un nuevo foro */}
+        <Modal
+          visible={createForumVisible}
+          onDismiss={() => !isCreating && setCreateForumVisible(false)}
+          contentContainerStyle={styles.modalContainer}
+        >
+          <View style={styles.headerContainer}>
+            <Title style={styles.headerTitle}>
+              Crear Nuevo Foro
+            </Title>
+            
+            {!isCreating && (
+              <TouchableOpacity 
+                style={styles.closeButton}
+                onPress={() => setCreateForumVisible(false)}
+              >
+                <MaterialCommunityIcons name="close" size={24} color="#000" />
+              </TouchableOpacity>
+            )}
+          </View>
+          
+          <Divider style={styles.divider} />
+          
+          <ScrollView style={styles.contentContainer}>
+            <TextInput
+              label="Título"
+              value={newForumTitle}
+              onChangeText={setNewForumTitle}
+              mode="outlined"
+              style={styles.formInput}
+              placeholder="Ingrese el título del foro"
+              disabled={isCreating}
+            />
+            
+            <TextInput
+              label="Descripción"
+              value={newForumDescription}
+              onChangeText={setNewForumDescription}
+              mode="outlined"
+              style={styles.formInput}
+              placeholder="Ingrese una descripción para el foro"
+              multiline
+              numberOfLines={4}
+              disabled={isCreating}
+            />
+            
+            <TextInput
+              label="Etiquetas (separadas por comas)"
+              value={newForumTags}
+              onChangeText={setNewForumTags}
+              mode="outlined"
+              style={styles.formInput}
+              placeholder="Ej: duda, parcial, proyecto"
+              disabled={isCreating}
+            />
+            
+            <View style={styles.formButtonContainer}>
+              <Button 
+                mode="outlined" 
+                onPress={() => setCreateForumVisible(false)}
+                style={styles.formButton}
+                disabled={isCreating}
+              >
+                Cancelar
+              </Button>
+              
+              <Button 
+                mode="contained" 
+                onPress={createForum}
+                style={[styles.formButton, { backgroundColor: '#1976D2' }]}
+                loading={isCreating}
+                disabled={isCreating}
+              >
+                {isCreating ? 'Creando...' : 'Crear Foro'}
+              </Button>
+            </View>
+          </ScrollView>
+        </Modal>
       </Modal>
     </Portal>
   );
@@ -420,10 +588,21 @@ const styles = StyleSheet.create({
   description: {
     fontSize: 16,
     lineHeight: 24,
-  },
-  backButton: {
+  },  backButton: {
     margin: 16,
   },
+  formInput: {
+    marginBottom: 16,
+  },
+  formButtonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 16,
+    marginBottom: 24,
+  },
+  formButton: {
+    width: '48%',
+  }
 });
 
 export default CourseForumModal;
