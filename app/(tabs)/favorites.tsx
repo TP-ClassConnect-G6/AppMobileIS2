@@ -225,6 +225,16 @@ export default function FavoritesScreen() {
     }
   };
 
+  // Función para formatear fechas en formato ISO para la API
+  const formatISODate = (date: Date, formatStr: string) => {
+    try {
+      return format(date, formatStr);
+    } catch (e) {
+      console.error("Error formateando fecha:", e);
+      return "";
+    }
+  };
+
   // En la vista de favoritos, el icono de corazón es solo decorativo
   // Los favoritos solo pueden ser eliminados desde la vista de cursos
 
