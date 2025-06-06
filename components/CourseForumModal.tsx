@@ -46,7 +46,12 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
   const [isCreating, setIsCreating] = useState(false);
   const [userProfiles, setUserProfiles] = useState<Record<string, UserProfile>>({});
   
-  // Estado para los campos del formulario de creación
+  // Estado para edición de foro
+  const [editForumVisible, setEditForumVisible] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [forumToEdit, setForumToEdit] = useState<Forum | null>(null);
+  
+  // Estado para los campos del formulario de creación/edición
   const [newForumTitle, setNewForumTitle] = useState("");
   const [newForumDescription, setNewForumDescription] = useState("");
   const [newForumTags, setNewForumTags] = useState("");
@@ -259,6 +264,106 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
     }
   };
 
+  const openEditForum = (forum: Forum) => {
+    setForumToEdit(forum);
+    setNewForumTitle(forum.title);
+    setNewForumDescription(forum.description);
+    setNewForumTags(forum.tags.join(", "));
+    setEditForumVisible(true);
+  };
+
+  // Función para modificar un foro existente
+  const updateForum = async () => {
+    if (!forumToEdit || !session?.token) {
+      Alert.alert("Error", "No se pudo modificar el foro. Falta información requerida.");
+      return;
+    }
+    
+    if (!newForumTitle.trim()) {
+      Alert.alert("Error", "El título del foro es obligatorio.");
+      return;
+    }
+    
+    if (!newForumDescription.trim()) {
+      Alert.alert("Error", "La descripción del foro es obligatoria.");
+      return;
+    }
+    
+    setIsEditing(true);
+    
+    try {
+      // Preparar los tags (separados por comas)
+      const tags = newForumTags.trim() 
+        ? newForumTags.split(',').map(tag => tag.trim()) 
+        : [];
+      
+      const forumData = {
+        title: newForumTitle,
+        description: newForumDescription,
+        user_id: forumToEdit.user_id,
+        course_id: forumToEdit.course_id,
+        tags: tags
+      };
+      
+      console.log("Modificando foro con datos:", forumData);
+      
+      const response = await fetch(
+        `https://apigatewayis2-production.up.railway.app/forum/forums/${forumToEdit._id}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(forumData)
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Error al modificar el foro: ${response.status}`);
+      }
+      
+      const responseData = await response.json();
+      console.log("Respuesta de modificación de foro:", responseData);
+      
+      // Limpiar el formulario
+      setNewForumTitle("");
+      setNewForumDescription("");
+      setNewForumTags("");
+      setForumToEdit(null);
+      
+      // Cerrar el modal de edición
+      setEditForumVisible(false);
+      
+      // Refrescar la lista de foros
+      fetchForums();
+      
+      // Si estamos en el detalle de este foro, actualizamos también el foro seleccionado
+      if (selectedForum && selectedForum._id === forumToEdit._id) {
+        const updatedForum = {
+          ...forumToEdit,
+          title: newForumTitle,
+          description: newForumDescription,
+          tags: tags
+        };
+        setSelectedForum(updatedForum);
+      }
+      
+      Alert.alert(
+        "Éxito",
+        "El foro se ha modificado correctamente."
+      );
+    } catch (error) {
+      console.error("Error al modificar el foro:", error);
+      Alert.alert(
+        "Error",
+        "No se pudo modificar el foro. Por favor, intente nuevamente."
+      );
+    } finally {
+      setIsEditing(false);
+    }
+  };
+
   const renderForumList = () => {
     if (loading) {
       return (
@@ -269,7 +374,8 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
       );
     }
 
-    if (forums.length === 0) {      return (
+    if (forums.length === 0) {
+        return (
         <View style={styles.emptyContainer}>
           <MaterialCommunityIcons name="forum-outline" size={48} color="#ccc" />
           <Text style={styles.emptyText}>No hay foros disponibles para este curso.</Text>
@@ -340,7 +446,17 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                 icon="forum"
                 labelStyle={styles.buttonLabel}
               >
-                Ver discusiones
+                Ver
+              </Button>
+              
+              <Button 
+                mode="text" 
+                onPress={() => openEditForum(forum)}
+                style={styles.editButton}
+                icon="pencil"
+                labelStyle={styles.buttonLabel}
+              >
+                Editar
               </Button>
             </Card.Actions>
           </Card>
@@ -402,19 +518,33 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
               </View>
             </View>
           )}
-          
-          <View style={styles.sectionContainer}>
+            <View style={styles.sectionContainer}>
             <Text style={styles.sectionTitle}>Discusiones</Text>
             <Text style={styles.emptyText}>Esta funcionalidad será implementada próximamente.</Text>
           </View>
           
-          <Button 
-            mode="outlined" 
-            style={styles.backButton}
-            onPress={() => setForumDetailVisible(false)}
-          >
-            Volver a la lista de foros
-          </Button>
+          <View style={styles.buttonContainer}>
+            <Button 
+              mode="outlined" 
+              style={styles.actionButton}
+              onPress={() => setForumDetailVisible(false)}
+              icon="arrow-left"
+            >
+              Volver
+            </Button>
+            
+            <Button 
+              mode="contained" 
+              style={[styles.actionButton, { backgroundColor: '#1976D2' }]}
+              onPress={() => {
+                setForumDetailVisible(false);
+                openEditForum(selectedForum);
+              }}
+              icon="pencil"
+            >
+              Editar
+            </Button>
+          </View>
         </ScrollView>
       </Modal>
     );
@@ -525,6 +655,85 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
             </View>
           </ScrollView>
         </Modal>
+        
+        {/* Modal para editar un foro existente */}
+        <Modal
+          visible={editForumVisible}
+          onDismiss={() => !isEditing && setEditForumVisible(false)}
+          contentContainerStyle={styles.modalContainer}
+        >
+          <View style={styles.headerContainer}>
+            <Title style={styles.headerTitle}>
+              Editar Foro
+            </Title>
+            
+            {!isEditing && (
+              <TouchableOpacity 
+                style={styles.closeButton}
+                onPress={() => setEditForumVisible(false)}
+              >
+                <MaterialCommunityIcons name="close" size={24} color="#000" />
+              </TouchableOpacity>
+            )}
+          </View>
+          
+          <Divider style={styles.divider} />
+          
+          <ScrollView style={styles.contentContainer}>
+            <TextInput
+              label="Título"
+              value={newForumTitle}
+              onChangeText={setNewForumTitle}
+              mode="outlined"
+              style={styles.formInput}
+              placeholder="Ingrese el título del foro"
+              disabled={isEditing}
+            />
+            
+            <TextInput
+              label="Descripción"
+              value={newForumDescription}
+              onChangeText={setNewForumDescription}
+              mode="outlined"
+              style={styles.formInput}
+              placeholder="Ingrese una descripción para el foro"
+              multiline
+              numberOfLines={4}
+              disabled={isEditing}
+            />
+            
+            <TextInput
+              label="Etiquetas (separadas por comas)"
+              value={newForumTags}
+              onChangeText={setNewForumTags}
+              mode="outlined"
+              style={styles.formInput}
+              placeholder="Ej: duda, parcial, proyecto"
+              disabled={isEditing}
+            />
+            
+            <View style={styles.formButtonContainer}>
+              <Button 
+                mode="outlined" 
+                onPress={() => setEditForumVisible(false)}
+                style={styles.formButton}
+                disabled={isEditing}
+              >
+                Cancelar
+              </Button>
+              
+              <Button 
+                mode="contained" 
+                onPress={updateForum}
+                style={[styles.formButton, { backgroundColor: '#1976D2' }]}
+                loading={isEditing}
+                disabled={isEditing}
+              >
+                {isEditing ? 'Guardando...' : 'Guardar Cambios'}
+              </Button>
+            </View>
+          </ScrollView>
+        </Modal>
       </Modal>
     </Portal>
   );
@@ -623,14 +832,16 @@ const styles = StyleSheet.create({
     marginRight: 8,
     marginBottom: 8,
     backgroundColor: '#E3F2FD',
-  },
-  cardActions: {
+  },  cardActions: {
     justifyContent: 'flex-end',
     borderTopWidth: 1,
     borderTopColor: '#eee',
   },
   detailButton: {
     marginLeft: 'auto',
+  },
+  editButton: {
+    marginLeft: 8,
   },
   buttonLabel: {
     fontSize: 14,
@@ -664,8 +875,7 @@ const styles = StyleSheet.create({
   },
   formInput: {
     marginBottom: 16,
-  },
-  formButtonContainer: {
+  },  formButtonContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 16,
@@ -673,6 +883,16 @@ const styles = StyleSheet.create({
   },
   formButton: {
     width: '48%',
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginHorizontal: 16,
+    marginVertical: 16,
+  },
+  actionButton: {
+    flex: 1,
+    marginHorizontal: 5,
   }
 });
 
