@@ -34,35 +34,17 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
   const [selectedForum, setSelectedForum] = useState<Forum | null>(null);
   const [forumDetailVisible, setForumDetailVisible] = useState(false);
   const [createForumVisible, setCreateForumVisible] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
-  const [userEmail, setUserEmail] = useState<string>("");
-  
-  // Estado para los campos del formulario de creación
+  const [isCreating, setIsCreating] = useState(false);  // Estado para los campos del formulario de creación
   const [newForumTitle, setNewForumTitle] = useState("");
   const [newForumDescription, setNewForumDescription] = useState("");
   const [newForumTags, setNewForumTags] = useState("");
   
   const { session } = useSession();
-
   useEffect(() => {
     if (visible && courseId) {
       fetchForums();
     }
   }, [visible, courseId]);
-  
-  // Extraer el email del usuario del token JWT
-  useEffect(() => {
-    if (session?.token) {
-      try {
-        const decodedToken: any = jwtDecode(session.token);
-        // Obtenemos el email del token
-        const email = decodedToken.email || decodedToken.sub || "";
-        setUserEmail(email);
-      } catch (error) {
-        console.error("Error al decodificar el token:", error);
-      }    
-    }
-  }, [session]);
 
   const fetchForums = async () => {
     if (!courseId || !session?.token) {
@@ -115,10 +97,9 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
     setSelectedForum(forum);
     setForumDetailVisible(true);
   };
-  
-  // Función para crear un nuevo foro
+    // Función para crear un nuevo foro
   const createForum = async () => {
-    if (!courseId || !session?.token || !userEmail) {
+    if (!courseId || !session?.token || !session.userId) {
       Alert.alert("Error", "No se pudo crear el foro. Falta información requerida.");
       return;
     }
@@ -144,7 +125,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
       const forumData = {
         title: newForumTitle,
         description: newForumDescription,
-        user_id: userEmail,
+        user_id: session.userId,
         course_id: courseId,
         tags: tags
       };
