@@ -304,26 +304,20 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
         course_id: forumToEdit.course_id,
         tags: tags
       };
+        console.log("Modificando foro con datos:", forumData);
       
-      console.log("Modificando foro con datos:", forumData);
-      
-      const response = await fetch(
-        `https://apigatewayis2-production.up.railway.app/forum/forums/${forumToEdit._id}`,
+      const response = await forumClient.put(
+        `/forums/${forumToEdit._id}`,
+        forumData,
         {
-          method: 'PUT',
           headers: {
             'Authorization': `Bearer ${session.token}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(forumData)
         }
       );
       
-      if (!response.ok) {
-        throw new Error(`Error al modificar el foro: ${response.status}`);
-      }
-      
-      const responseData = await response.json();
+      const responseData = response.data;
       console.log("Respuesta de modificación de foro:", responseData);
       
       // Limpiar el formulario
