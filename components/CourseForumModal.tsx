@@ -16,6 +16,25 @@ type UserProfile = {
   bio: string;
 };
 
+// Tipo para las preguntas
+type Question = {
+  _id: string;
+  forum_id: string;
+  user_id: string | null;
+  title: string;
+  description: string;
+  tags: string[];
+  created_at: string;
+  is_active: boolean;
+  answers: string[];
+  accepted_answer: string | null;
+  votes: {
+    up: string[];
+    down: string[];
+  };
+  userName?: string; // Campo opcional para almacenar el nombre del usuario
+};
+
 // Tipo para el foro
 type Forum = {
   _id: string;
@@ -45,13 +64,17 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
   const [createForumVisible, setCreateForumVisible] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [userProfiles, setUserProfiles] = useState<Record<string, UserProfile>>({});
-    // Estado para edición de foro
+  // Estado para edición de foro
   const [editForumVisible, setEditForumVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [forumToEdit, setForumToEdit] = useState<Forum | null>(null);
   
   // Estado para eliminación de foro
   const [isDeleting, setIsDeleting] = useState(false);
+  
+  // Estado para las preguntas
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [loadingQuestions, setLoadingQuestions] = useState(false);
   
   // Estado para los campos del formulario de creación/edición
   const [newForumTitle, setNewForumTitle] = useState("");
@@ -125,6 +148,73 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
     }
   };
 
+  // Función para cargar las preguntas de un foro
+  const fetchQuestions = async (forumId: string) => {
+    if (!session?.token) {
+      return;
+    }
+    
+    setLoadingQuestions(true);
+    
+    try {
+      const response = await forumClient.get(
+        `/questions/?forum_id=${forumId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      console.log("Questions response:", JSON.stringify(response.data, null, 2));
+      
+      if (response.data && response.data.questions) {
+        // Enriquecer las preguntas con información de usuario
+        const enrichedQuestions = await enrichQuestionsWithUserInfo(response.data.questions);
+        setQuestions(enrichedQuestions);
+      } else {
+        console.warn('Formato de respuesta inesperado en preguntas:', response.data);
+        setQuestions([]);
+      }
+    } catch (error) {
+      console.error("Error al obtener preguntas:", error);
+      setQuestions([]);
+    } finally {
+      setLoadingQuestions(false);
+    }
+  };
+    // Función para enriquecer las preguntas con información de usuario
+  const enrichQuestionsWithUserInfo = async (questionsData: Question[]) => {
+    const enrichedQuestions = [...questionsData];
+    const userPromises = questionsData
+      .filter(question => question.user_id) // Filtrar null user_id
+      .map(question => fetchUserProfile(question.user_id as string));
+    
+    try {
+      const userResults = await Promise.allSettled(userPromises);
+      
+      let userIndex = 0;
+      for (let i = 0; i < enrichedQuestions.length; i++) {
+        if (enrichedQuestions[i].user_id) {
+          const result = userResults[userIndex];
+          if (result.status === 'fulfilled' && result.value) {
+            enrichedQuestions[i] = {
+              ...enrichedQuestions[i],
+              userName: result.value.name
+            };
+          }
+          userIndex++;
+        }
+      }
+      
+      return enrichedQuestions;
+    } catch (error) {
+      console.error("Error al enriquecer las preguntas con información de usuario:", error);
+      return questionsData;
+    }
+  };
+
   const fetchForums = async () => {
     if (!courseId || !session?.token) {
       setLoading(false);
@@ -172,8 +262,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
     } catch (e) {
       return dateString;
     }
-  };
-  const openForumDetail = async (forum: Forum) => {
+  };  const openForumDetail = async (forum: Forum) => {
     // Si el foro no tiene el nombre del usuario, intentamos obtenerlo
     let forumWithUser = {...forum};
     if (!forum.userName) {
@@ -185,6 +274,9 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
     
     setSelectedForum(forumWithUser);
     setForumDetailVisible(true);
+    
+    // Cargar las preguntas del foro
+    fetchQuestions(forum._id);
   };
     // Función para crear un nuevo foro
   const createForum = async () => {
@@ -581,9 +673,60 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
               </View>
             </View>
           )}
-            <View style={styles.sectionContainer}>
+          <View style={styles.sectionContainer}>
             <Text style={styles.sectionTitle}>Discusiones</Text>
-            <Text style={styles.emptyText}>Esta funcionalidad será implementada próximamente.</Text>
+            
+            {loadingQuestions ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color="#0000ff" />
+                <Text style={styles.loadingText}>Cargando preguntas...</Text>
+              </View>
+            ) : questions.length === 0 ? (
+              <Text style={styles.emptyText}>No hay preguntas en este foro. ¡Sé el primero en preguntar!</Text>
+            ) : (
+              <View>
+                {questions.map((question) => (
+                  <Card key={question._id} style={styles.questionCard}>
+                    <Card.Content>
+                      <Title style={styles.questionTitle}>{question.title}</Title>
+                      
+                      <Paragraph numberOfLines={2} style={styles.questionDescription}>
+                        {question.description}
+                      </Paragraph>
+                      
+                      <View style={styles.metadataContainer}>
+                        <View style={styles.metadata}>
+                          <MaterialCommunityIcons name="account" size={16} color="#666" />
+                          <Text style={styles.metadataText}>
+                            {question.userName || question.user_id || 'Usuario anónimo'}
+                          </Text>
+                        </View>
+                        
+                        <View style={styles.metadata}>
+                          <MaterialCommunityIcons name="calendar" size={16} color="#666" />
+                          <Text style={styles.metadataText}>{formatDate(question.created_at)}</Text>
+                        </View>
+                        
+                        <View style={styles.metadata}>
+                          <MaterialCommunityIcons name="comment-multiple-outline" size={16} color="#666" />
+                          <Text style={styles.metadataText}>{question.answers.length} respuestas</Text>
+                        </View>
+                      </View>
+                      
+                      {question.tags && question.tags.length > 0 && (
+                        <View style={styles.tagsContainer}>
+                          {question.tags.map((tag, index) => (
+                            <Chip key={index} style={styles.tag} mode="outlined" textStyle={{ fontSize: 12 }}>
+                              {tag}
+                            </Chip>
+                          ))}
+                        </View>
+                      )}
+                    </Card.Content>
+                  </Card>
+                ))}
+              </View>
+            )}
           </View>
             <View style={styles.buttonContainer}>
             <Button 
@@ -906,7 +1049,21 @@ const styles = StyleSheet.create({
     marginRight: 8,
     marginBottom: 8,
     backgroundColor: '#E3F2FD',
-  },  cardActions: {
+  },
+  questionCard: {
+    marginBottom: 12,
+    elevation: 1,
+  },
+  questionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 6,
+  },
+  questionDescription: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 8,
+  },cardActions: {
     justifyContent: 'flex-end',
     borderTopWidth: 1,
     borderTopColor: '#eee',
