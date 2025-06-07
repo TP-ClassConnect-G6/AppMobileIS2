@@ -76,6 +76,11 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loadingQuestions, setLoadingQuestions] = useState(false);
   
+  // Estado para paginación de preguntas
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [questionsPerPage] = useState(3); // Número fijo de preguntas por página
+  
   // Estado para los campos del formulario de creación/edición
   const [newForumTitle, setNewForumTitle] = useState("");
   const [newForumDescription, setNewForumDescription] = useState("");
@@ -147,9 +152,8 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
       return forumsData;
     }
   };
-
-  // Función para cargar las preguntas de un foro
-  const fetchQuestions = async (forumId: string) => {
+  // Función para cargar las preguntas de un foro con paginación
+  const fetchQuestions = async (forumId: string, page: number = 1) => {
     if (!session?.token) {
       return;
     }
@@ -158,7 +162,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
     
     try {
       const response = await forumClient.get(
-        `/questions/?forum_id=${forumId}`,
+        `/questions/?forum_id=${forumId}&limit=${questionsPerPage}&page=${page}`,
         {
           headers: {
             'Authorization': `Bearer ${session.token}`,
@@ -173,13 +177,28 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
         // Enriquecer las preguntas con información de usuario
         const enrichedQuestions = await enrichQuestionsWithUserInfo(response.data.questions);
         setQuestions(enrichedQuestions);
+        
+        // Actualizar información de paginación
+        if (response.data.total_pages !== undefined) {
+          setTotalPages(response.data.total_pages);
+        } else {
+          // Si el backend no proporciona el total de páginas, hacemos una estimación
+          const totalItems = response.data.total_questions || enrichedQuestions.length;
+          const calculatedTotalPages = Math.ceil(totalItems / questionsPerPage);
+          setTotalPages(calculatedTotalPages > 0 ? calculatedTotalPages : 1);
+        }
+        setCurrentPage(page);
       } else {
         console.warn('Formato de respuesta inesperado en preguntas:', response.data);
         setQuestions([]);
+        setTotalPages(1);
+        setCurrentPage(1);
       }
     } catch (error) {
       console.error("Error al obtener preguntas:", error);
       setQuestions([]);
+      setTotalPages(1);
+      setCurrentPage(1);
     } finally {
       setLoadingQuestions(false);
     }
@@ -275,8 +294,9 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
     setSelectedForum(forumWithUser);
     setForumDetailVisible(true);
     
-    // Cargar las preguntas del foro
-    fetchQuestions(forum._id);
+    // Reiniciar estado de paginación y cargar primera página de preguntas
+    setCurrentPage(1);
+    fetchQuestions(forum._id, 1);
   };
     // Función para crear un nuevo foro
   const createForum = async () => {
@@ -509,6 +529,21 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
     );
   };
 
+  // Funciones para la navegación de paginación
+  const goToPreviousPage = () => {
+    if (currentPage > 1 && selectedForum) {
+      const newPage = currentPage - 1;
+      fetchQuestions(selectedForum._id, newPage);
+    }
+  };
+
+  const goToNextPage = () => {
+    if (currentPage < totalPages && selectedForum) {
+      const newPage = currentPage + 1;
+      fetchQuestions(selectedForum._id, newPage);
+    }
+  };
+
   const renderForumList = () => {
     if (loading) {
       return (
@@ -725,6 +760,32 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                     </Card.Content>
                   </Card>
                 ))}
+                
+                {/* Controles de paginación */}
+                <View style={styles.paginationContainer}>
+                  <Button 
+                    mode="text" 
+                    onPress={goToPreviousPage}
+                    disabled={currentPage <= 1 || loadingQuestions}
+                    icon="chevron-left"
+                  >
+                    Anterior
+                  </Button>
+                  
+                  <Text style={styles.paginationText}>
+                    Página {currentPage} de {totalPages}
+                  </Text>
+                  
+                  <Button 
+                    mode="text" 
+                    onPress={goToNextPage}
+                    disabled={currentPage >= totalPages || loadingQuestions}
+                    icon="chevron-right"
+                    contentStyle={{ flexDirection: 'row-reverse' }}
+                  >
+                    Siguiente
+                  </Button>
+                </View>
               </View>
             )}
           </View>
@@ -1128,7 +1189,19 @@ const styles = StyleSheet.create({
     flex: 1,
     marginHorizontal: 4,
     marginBottom: 8,
-  }
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 16,
+    marginBottom: 8,
+    paddingHorizontal: 8,
+  },
+  paginationText: {
+    fontSize: 14,
+    color: '#666',
+  },
 });
 
 export default CourseForumModal;
