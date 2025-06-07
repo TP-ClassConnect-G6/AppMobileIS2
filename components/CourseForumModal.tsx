@@ -5,7 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSession } from "@/contexts/session";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { forumClient } from "@/lib/http";
+import { forumClient, client } from "@/lib/http";
 import jwtDecode from "jwt-decode";
 
 // Tipo para el usuario
@@ -62,7 +62,6 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
       fetchForums();
     }
   }, [visible, courseId]);
-
   // Función para obtener el perfil de un usuario
   const fetchUserProfile = async (userId: string) => {
     // Si ya tenemos el perfil del usuario en caché, no hacemos la petición
@@ -75,10 +74,9 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
     }
     
     try {
-      const response = await fetch(
-        `https://apigatewayis2-production.up.railway.app/users/profile/${userId}`,
+      const response = await client.get(
+        `/profile/${userId}`,
         {
-          method: 'GET',
           headers: {
             'Authorization': `Bearer ${session.token}`,
             'Content-Type': 'application/json',
@@ -86,11 +84,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
         }
       );
       
-      if (!response.ok) {
-        throw new Error(`Error al obtener el perfil del usuario: ${response.status}`);
-      }
-      
-      const profileData: UserProfile = await response.json();
+      const profileData: UserProfile = response.data;
       
       // Guardar el perfil en la caché
       setUserProfiles(prev => ({
