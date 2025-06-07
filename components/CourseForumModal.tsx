@@ -711,6 +711,61 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
     }
   };
 
+  // Función para eliminar una pregunta
+  const deleteQuestion = async (questionId: string) => {
+    if (!session?.token) {
+      Alert.alert("Error", "No se pudo eliminar la pregunta. Falta información requerida.");
+      return;
+    }
+    
+    // Mostrar confirmación antes de eliminar
+    Alert.alert(
+      "Confirmar eliminación",
+      "¿Estás seguro de que deseas eliminar esta pregunta? Esta acción no se puede deshacer.",
+      [
+        {
+          text: "Cancelar",
+          style: "cancel"
+        },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await forumClient.delete(
+                `/questions/${questionId}`,
+                {
+                  headers: {
+                    'Authorization': `Bearer ${session.token}`,
+                    'Content-Type': 'application/json',
+                  },
+                }
+              );
+              
+              console.log("Pregunta eliminada correctamente:", questionId);
+              
+              // Refrescar la lista de preguntas
+              if (selectedForum) {
+                fetchQuestions(selectedForum._id, currentPage);
+              }
+              
+              Alert.alert(
+                "Éxito",
+                "La pregunta se ha eliminado correctamente."
+              );
+            } catch (error) {
+              console.error("Error al eliminar la pregunta:", error);
+              Alert.alert(
+                "Error",
+                "No se pudo eliminar la pregunta. Por favor, intente nuevamente."
+              );
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const renderForumList = () => {
     if (loading) {
       return (
@@ -943,6 +998,16 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                         labelStyle={styles.buttonLabel}
                       >
                         Editar
+                      </Button>
+                      
+                      <Button 
+                        mode="text" 
+                        onPress={() => deleteQuestion(question._id)}
+                        style={styles.deleteButton}
+                        icon="delete"
+                        labelStyle={[styles.buttonLabel, { color: '#D32F2F' }]}
+                      >
+                        Eliminar
                       </Button>
                     </Card.Actions>
                   </Card>
