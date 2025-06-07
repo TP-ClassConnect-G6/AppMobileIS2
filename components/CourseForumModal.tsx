@@ -88,6 +88,11 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
   const [newQuestionDescription, setNewQuestionDescription] = useState("");
   const [newQuestionTags, setNewQuestionTags] = useState("");
   
+  // Estado para edición de preguntas
+  const [editQuestionVisible, setEditQuestionVisible] = useState(false);
+  const [isEditingQuestion, setIsEditingQuestion] = useState(false);
+  const [questionToEdit, setQuestionToEdit] = useState<Question | null>(null);
+  
   // Estado para los campos del formulario de creación/edición
   const [newForumTitle, setNewForumTitle] = useState("");
   const [newForumDescription, setNewForumDescription] = useState("");
@@ -623,6 +628,89 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
       setIsCreatingQuestion(false);
     }
   };
+  // Función para abrir el modal de edición de pregunta
+  const openEditQuestion = (question: Question) => {
+    setQuestionToEdit(question);
+    setNewQuestionTitle(question.title);
+    setNewQuestionDescription(question.description);
+    setNewQuestionTags(question.tags.join(", "));
+    setEditQuestionVisible(true);
+  };
+
+  // Función para modificar una pregunta existente
+  const updateQuestion = async () => {
+    if (!questionToEdit || !selectedForum || !session?.token) {
+      Alert.alert("Error", "No se pudo modificar la pregunta. Falta información requerida.");
+      return;
+    }
+    
+    if (!newQuestionTitle.trim()) {
+      Alert.alert("Error", "El título de la pregunta es obligatorio.");
+      return;
+    }
+    
+    if (!newQuestionDescription.trim()) {
+      Alert.alert("Error", "La descripción de la pregunta es obligatoria.");
+      return;
+    }
+    
+    setIsEditingQuestion(true);
+    
+    try {
+      // Preparar los tags (separados por comas)
+      const tags = newQuestionTags.trim() 
+        ? newQuestionTags.split(',').map(tag => tag.trim()) 
+        : [];
+      
+      const questionData = {
+        forum_id: selectedForum._id,
+        title: newQuestionTitle,
+        description: newQuestionDescription,
+        tags: tags
+      };
+      
+      console.log("Modificando pregunta con datos:", questionData);
+      
+      const response = await forumClient.put(
+        `/questions/${questionToEdit._id}`,
+        questionData,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      console.log("Respuesta de modificación de pregunta:", response.data);
+      
+      // Limpiar el formulario
+      setNewQuestionTitle("");
+      setNewQuestionDescription("");
+      setNewQuestionTags("");
+      setQuestionToEdit(null);
+      
+      // Cerrar el modal de edición
+      setEditQuestionVisible(false);
+      
+      // Refrescar la lista de preguntas
+      fetchQuestions(selectedForum._id, currentPage);
+      
+      Alert.alert(
+        "Éxito",
+        "La pregunta se ha modificado correctamente."
+      );
+    } catch (error) {
+      console.error("Error al modificar la pregunta:", error);
+      Alert.alert(
+        "Error",
+        "No se pudo modificar la pregunta. Por favor, intente nuevamente."
+      );
+    } finally {
+      setIsEditingQuestion(false);
+    }
+  };
+
   const renderForumList = () => {
     if (loading) {
       return (
@@ -836,8 +924,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                           <Text style={styles.metadataText}>{question.answers.length} respuestas</Text>
                         </View>
                       </View>
-                      
-                      {question.tags && question.tags.length > 0 && (
+                        {question.tags && question.tags.length > 0 && (
                         <View style={styles.tagsContainer}>
                           {question.tags.map((tag, index) => (
                             <Chip key={index} style={styles.tag} mode="outlined" textStyle={{ fontSize: 12 }}>
@@ -847,6 +934,17 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                         </View>
                       )}
                     </Card.Content>
+                    <Card.Actions style={styles.cardActions}>
+                      <Button 
+                        mode="text" 
+                        onPress={() => openEditQuestion(question)}
+                        style={styles.editButton}
+                        icon="pencil"
+                        labelStyle={styles.buttonLabel}
+                      >
+                        Editar
+                      </Button>
+                    </Card.Actions>
                   </Card>
                 ))}
                 
@@ -987,6 +1085,85 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                 disabled={isCreatingQuestion}
               >
                 {isCreatingQuestion ? 'Creando...' : 'Crear Pregunta'}
+              </Button>
+            </View>
+          </ScrollView>
+        </Modal>
+        
+        {/* Modal para editar una pregunta existente */}
+        <Modal
+          visible={editQuestionVisible}
+          onDismiss={() => !isEditingQuestion && setEditQuestionVisible(false)}
+          contentContainerStyle={styles.modalContainer}
+        >
+          <View style={styles.headerContainer}>
+            <Title style={styles.headerTitle}>
+              Editar Pregunta
+            </Title>
+            
+            {!isEditingQuestion && (
+              <TouchableOpacity 
+                style={styles.closeButton}
+                onPress={() => setEditQuestionVisible(false)}
+              >
+                <MaterialCommunityIcons name="close" size={24} color="#000" />
+              </TouchableOpacity>
+            )}
+          </View>
+          
+          <Divider style={styles.divider} />
+          
+          <ScrollView style={styles.contentContainer}>
+            <TextInput
+              label="Título"
+              value={newQuestionTitle}
+              onChangeText={setNewQuestionTitle}
+              mode="outlined"
+              style={styles.formInput}
+              placeholder="Ingrese el título de la pregunta"
+              disabled={isEditingQuestion}
+            />
+            
+            <TextInput
+              label="Descripción"
+              value={newQuestionDescription}
+              onChangeText={setNewQuestionDescription}
+              mode="outlined"
+              style={styles.formInput}
+              placeholder="Ingrese una descripción detallada de su pregunta"
+              multiline
+              numberOfLines={4}
+              disabled={isEditingQuestion}
+            />
+            
+            <TextInput
+              label="Etiquetas (separadas por comas)"
+              value={newQuestionTags}
+              onChangeText={setNewQuestionTags}
+              mode="outlined"
+              style={styles.formInput}
+              placeholder="Ej: tarea, duda, consulta"
+              disabled={isEditingQuestion}
+            />
+            
+            <View style={styles.formButtonContainer}>
+              <Button 
+                mode="outlined" 
+                onPress={() => setEditQuestionVisible(false)}
+                style={styles.formButton}
+                disabled={isEditingQuestion}
+              >
+                Cancelar
+              </Button>
+              
+              <Button 
+                mode="contained" 
+                onPress={updateQuestion}
+                style={[styles.formButton, { backgroundColor: '#1976D2' }]}
+                loading={isEditingQuestion}
+                disabled={isEditingQuestion}
+              >
+                {isEditingQuestion ? 'Guardando...' : 'Guardar Cambios'}
               </Button>
             </View>
           </ScrollView>
