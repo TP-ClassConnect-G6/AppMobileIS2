@@ -45,11 +45,13 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
   const [createForumVisible, setCreateForumVisible] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [userProfiles, setUserProfiles] = useState<Record<string, UserProfile>>({});
-  
-  // Estado para edición de foro
+    // Estado para edición de foro
   const [editForumVisible, setEditForumVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [forumToEdit, setForumToEdit] = useState<Forum | null>(null);
+  
+  // Estado para eliminación de foro
+  const [isDeleting, setIsDeleting] = useState(false);
   
   // Estado para los campos del formulario de creación/edición
   const [newForumTitle, setNewForumTitle] = useState("");
@@ -352,6 +354,69 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
     }
   };
 
+  // Función para eliminar un foro
+  const deleteForum = async (forumId: string) => {
+    if (!session?.token) {
+      Alert.alert("Error", "No se pudo eliminar el foro. Falta información requerida.");
+      return;
+    }
+    
+    // Mostrar confirmación antes de eliminar
+    Alert.alert(
+      "Confirmar eliminación",
+      "¿Estás seguro de que deseas eliminar este foro? Esta acción no se puede deshacer.",
+      [
+        {
+          text: "Cancelar",
+          style: "cancel"
+        },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            setIsDeleting(true);
+            
+            try {
+              await forumClient.delete(
+                `/forums/${forumId}`,
+                {
+                  headers: {
+                    'Authorization': `Bearer ${session.token}`,
+                    'Content-Type': 'application/json',
+                  },
+                }
+              );
+              
+              console.log("Foro eliminado correctamente:", forumId);
+              
+              // Si estamos en el detalle del foro eliminado, cerramos el modal
+              if (selectedForum && selectedForum._id === forumId) {
+                setForumDetailVisible(false);
+                setSelectedForum(null);
+              }
+              
+              // Refrescar la lista de foros
+              fetchForums();
+              
+              Alert.alert(
+                "Éxito",
+                "El foro se ha eliminado correctamente."
+              );
+            } catch (error) {
+              console.error("Error al eliminar el foro:", error);
+              Alert.alert(
+                "Error",
+                "No se pudo eliminar el foro. Por favor, intente nuevamente."
+              );
+            } finally {
+              setIsDeleting(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const renderForumList = () => {
     if (loading) {
       return (
@@ -446,6 +511,16 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
               >
                 Editar
               </Button>
+              
+              <Button 
+                mode="text" 
+                onPress={() => deleteForum(forum._id)}
+                style={styles.deleteButton}
+                icon="delete"
+                labelStyle={[styles.buttonLabel, { color: '#D32F2F' }]}
+              >
+                Eliminar
+              </Button>
             </Card.Actions>
           </Card>
         ))}
@@ -510,8 +585,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
             <Text style={styles.sectionTitle}>Discusiones</Text>
             <Text style={styles.emptyText}>Esta funcionalidad será implementada próximamente.</Text>
           </View>
-          
-          <View style={styles.buttonContainer}>
+            <View style={styles.buttonContainer}>
             <Button 
               mode="outlined" 
               style={styles.actionButton}
@@ -529,8 +603,20 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                 openEditForum(selectedForum);
               }}
               icon="pencil"
+              disabled={isDeleting}
             >
               Editar
+            </Button>
+            
+            <Button 
+              mode="contained" 
+              style={[styles.actionButton, { backgroundColor: '#D32F2F' }]}
+              onPress={() => deleteForum(selectedForum._id)}
+              icon="delete"
+              disabled={isDeleting}
+              loading={isDeleting}
+            >
+              Eliminar
             </Button>
           </View>
         </ScrollView>
@@ -829,7 +915,10 @@ const styles = StyleSheet.create({
     marginLeft: 'auto',
   },
   editButton: {
-    marginLeft: 8,
+    marginLeft: 4,
+  },
+  deleteButton: {
+    marginLeft: 4,
   },
   buttonLabel: {
     fontSize: 14,
@@ -871,16 +960,17 @@ const styles = StyleSheet.create({
   },
   formButton: {
     width: '48%',
-  },
-  buttonContainer: {
+  },  buttonContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginHorizontal: 16,
     marginVertical: 16,
+    flexWrap: 'wrap',
   },
   actionButton: {
     flex: 1,
-    marginHorizontal: 5,
+    marginHorizontal: 4,
+    marginBottom: 8,
   }
 });
 
