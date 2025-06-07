@@ -81,6 +81,13 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
   const [totalPages, setTotalPages] = useState(1);
   const [questionsPerPage] = useState(3); // Número fijo de preguntas por página
   
+  // Estado para creación de preguntas
+  const [createQuestionVisible, setCreateQuestionVisible] = useState(false);
+  const [isCreatingQuestion, setIsCreatingQuestion] = useState(false);
+  const [newQuestionTitle, setNewQuestionTitle] = useState("");
+  const [newQuestionDescription, setNewQuestionDescription] = useState("");
+  const [newQuestionTags, setNewQuestionTags] = useState("");
+  
   // Estado para los campos del formulario de creación/edición
   const [newForumTitle, setNewForumTitle] = useState("");
   const [newForumDescription, setNewForumDescription] = useState("");
@@ -544,6 +551,78 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
     }
   };
 
+  // Función para crear una nueva pregunta
+  const createQuestion = async () => {
+    if (!selectedForum || !session?.token) {
+      Alert.alert("Error", "No se pudo crear la pregunta. Falta información requerida.");
+      return;
+    }
+    
+    if (!newQuestionTitle.trim()) {
+      Alert.alert("Error", "El título de la pregunta es obligatorio.");
+      return;
+    }
+    
+    if (!newQuestionDescription.trim()) {
+      Alert.alert("Error", "La descripción de la pregunta es obligatoria.");
+      return;
+    }
+    
+    setIsCreatingQuestion(true);
+    
+    try {
+      // Preparar los tags (separados por comas)
+      const tags = newQuestionTags.trim() 
+        ? newQuestionTags.split(',').map(tag => tag.trim()) 
+        : [];
+      
+      const questionData = {
+        forum_id: selectedForum._id,
+        title: newQuestionTitle,
+        description: newQuestionDescription,
+        tags: tags
+      };
+      
+      console.log("Creando pregunta con datos:", questionData);
+      
+      const response = await forumClient.post(
+        '/questions/',
+        questionData,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      console.log("Respuesta de creación de pregunta:", response.data);
+      
+      // Limpiar el formulario
+      setNewQuestionTitle("");
+      setNewQuestionDescription("");
+      setNewQuestionTags("");
+      
+      // Cerrar el modal de creación
+      setCreateQuestionVisible(false);
+      
+      // Refrescar la lista de preguntas
+      fetchQuestions(selectedForum._id, currentPage);
+      
+      Alert.alert(
+        "Éxito",
+        "La pregunta se ha creado correctamente."
+      );
+    } catch (error) {
+      console.error("Error al crear la pregunta:", error);
+      Alert.alert(
+        "Error",
+        "No se pudo crear la pregunta. Por favor, intente nuevamente."
+      );
+    } finally {
+      setIsCreatingQuestion(false);
+    }
+  };
   const renderForumList = () => {
     if (loading) {
       return (
@@ -709,7 +788,17 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
             </View>
           )}
           <View style={styles.sectionContainer}>
-            <Text style={styles.sectionTitle}>Discusiones</Text>
+            <View style={styles.sectionHeaderContainer}>
+              <Text style={styles.sectionTitle}>Discusiones</Text>
+              <Button 
+                mode="contained" 
+                style={styles.createQuestionButton}
+                onPress={() => setCreateQuestionVisible(true)}
+                icon="plus"
+              >
+                Nueva Pregunta
+              </Button>
+            </View>
             
             {loadingQuestions ? (
               <View style={styles.loadingContainer}>
@@ -811,8 +900,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
             >
               Editar
             </Button>
-            
-            <Button 
+              <Button 
               mode="contained" 
               style={[styles.actionButton, { backgroundColor: '#D32F2F' }]}
               onPress={() => deleteForum(selectedForum._id)}
@@ -824,6 +912,85 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
             </Button>
           </View>
         </ScrollView>
+        
+        {/* Modal para crear una nueva pregunta */}
+        <Modal
+          visible={createQuestionVisible}
+          onDismiss={() => !isCreatingQuestion && setCreateQuestionVisible(false)}
+          contentContainerStyle={styles.modalContainer}
+        >
+          <View style={styles.headerContainer}>
+            <Title style={styles.headerTitle}>
+              Crear Nueva Pregunta
+            </Title>
+            
+            {!isCreatingQuestion && (
+              <TouchableOpacity 
+                style={styles.closeButton}
+                onPress={() => setCreateQuestionVisible(false)}
+              >
+                <MaterialCommunityIcons name="close" size={24} color="#000" />
+              </TouchableOpacity>
+            )}
+          </View>
+          
+          <Divider style={styles.divider} />
+          
+          <ScrollView style={styles.contentContainer}>
+            <TextInput
+              label="Título"
+              value={newQuestionTitle}
+              onChangeText={setNewQuestionTitle}
+              mode="outlined"
+              style={styles.formInput}
+              placeholder="Ingrese el título de la pregunta"
+              disabled={isCreatingQuestion}
+            />
+            
+            <TextInput
+              label="Descripción"
+              value={newQuestionDescription}
+              onChangeText={setNewQuestionDescription}
+              mode="outlined"
+              style={styles.formInput}
+              placeholder="Ingrese una descripción detallada de su pregunta"
+              multiline
+              numberOfLines={4}
+              disabled={isCreatingQuestion}
+            />
+            
+            <TextInput
+              label="Etiquetas (separadas por comas)"
+              value={newQuestionTags}
+              onChangeText={setNewQuestionTags}
+              mode="outlined"
+              style={styles.formInput}
+              placeholder="Ej: tarea, duda, consulta"
+              disabled={isCreatingQuestion}
+            />
+            
+            <View style={styles.formButtonContainer}>
+              <Button 
+                mode="outlined" 
+                onPress={() => setCreateQuestionVisible(false)}
+                style={styles.formButton}
+                disabled={isCreatingQuestion}
+              >
+                Cancelar
+              </Button>
+              
+              <Button 
+                mode="contained" 
+                onPress={createQuestion}
+                style={[styles.formButton, { backgroundColor: '#1976D2' }]}
+                loading={isCreatingQuestion}
+                disabled={isCreatingQuestion}
+              >
+                {isCreatingQuestion ? 'Creando...' : 'Crear Pregunta'}
+              </Button>
+            </View>
+          </ScrollView>
+        </Modal>
       </Modal>
     );
   };
@@ -1151,16 +1318,26 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     flex: 1,
-  },
-  sectionContainer: {
+  },  sectionContainer: {
     marginTop: 16,
     marginHorizontal: 16,
+  },
+  sectionHeaderContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 8,
     color: '#333',
+  },
+  createQuestionButton: {
+    backgroundColor: '#1976D2',
+    marginBottom: 8,
+    height: 36,
   },
   description: {
     fontSize: 16,
@@ -1195,13 +1372,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: 16,
-    marginBottom: 8,
     paddingHorizontal: 8,
   },
   paginationText: {
     fontSize: 14,
     color: '#666',
-  },
+  }
 });
 
 export default CourseForumModal;
