@@ -115,12 +115,14 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
     // Estado para creación de respuestas
   const [newAnswerContent, setNewAnswerContent] = useState("");
   const [isCreatingAnswer, setIsCreatingAnswer] = useState(false);
-  
-  // Estado para edición de respuestas
+    // Estado para edición de respuestas
   const [editAnswerVisible, setEditAnswerVisible] = useState(false);
   const [isEditingAnswer, setIsEditingAnswer] = useState(false);
   const [answerToEdit, setAnswerToEdit] = useState<Answer | null>(null);
   const [editAnswerContent, setEditAnswerContent] = useState("");
+  
+  // Estado para eliminación de respuestas
+  const [isDeletingAnswer, setIsDeletingAnswer] = useState(false);
   
   // Estado para los campos del formulario de creación/edición
   const [newForumTitle, setNewForumTitle] = useState("");
@@ -1739,8 +1741,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                         </View>
                       </View>
                     </Card.Content>
-                    
-                    {/* Botones de acción para respuestas */}
+                      {/* Botones de acción para respuestas */}
                     {session?.userId === answer.user_id && (
                       <Card.Actions style={styles.answerActions}>
                         <Button 
@@ -1749,8 +1750,20 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                           icon="pencil"
                           labelStyle={styles.buttonLabel}
                           compact
+                          disabled={isDeletingAnswer}
                         >
                           Editar
+                        </Button>
+                        
+                        <Button 
+                          mode="text" 
+                          onPress={() => deleteAnswer(answer._id)}
+                          icon="delete"
+                          labelStyle={[styles.buttonLabel, { color: '#D32F2F' }]}
+                          compact
+                          disabled={isDeletingAnswer}
+                        >
+                          Eliminar
                         </Button>
                       </Card.Actions>
                     )}
@@ -1944,10 +1957,92 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
       Alert.alert(
         "Error",
         "No se pudo modificar la respuesta. Por favor, intente nuevamente."
-      );
-    } finally {
+      );    } finally {
       setIsEditingAnswer(false);
     }
+  };
+
+  // Función para eliminar una respuesta
+  const deleteAnswer = async (answerId: string) => {
+    if (!session?.token) {
+      Alert.alert("Error", "No se pudo eliminar la respuesta. Falta información requerida.");
+      return;
+    }
+    
+    // Mostrar confirmación antes de eliminar
+    Alert.alert(
+      "Confirmar eliminación",
+      "¿Estás seguro de que deseas eliminar esta respuesta? Esta acción no se puede deshacer.",
+      [
+        {
+          text: "Cancelar",
+          style: "cancel"
+        },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            setIsDeletingAnswer(true);
+            
+            try {
+              await forumClient.delete(
+                `/answers/${answerId}`,
+                {
+                  headers: {
+                    'Authorization': `Bearer ${session.token}`,
+                    'Content-Type': 'application/json',
+                  },
+                }
+              );
+              
+              console.log("Respuesta eliminada correctamente:", answerId);
+              
+              // Actualizar el contador de respuestas en la pregunta seleccionada
+              if (selectedQuestion) {
+                const updatedAnswersArray = selectedQuestion.answers.filter(id => id !== answerId);
+                const updatedSelectedQuestion = {
+                  ...selectedQuestion,
+                  answers: updatedAnswersArray,
+                  answerCount: Math.max(0, (selectedQuestion.answerCount || selectedQuestion.answers.length) - 1)
+                };
+                setSelectedQuestion(updatedSelectedQuestion);
+                
+                // Actualizar también en la lista de preguntas
+                const updatedQuestions = questions.map(q => {
+                  if (q._id === selectedQuestion._id) {
+                    return {
+                      ...q,
+                      answers: updatedAnswersArray,
+                      answerCount: Math.max(0, (q.answerCount || q.answers.length) - 1)
+                    };
+                  }
+                  return q;
+                });
+                setQuestions(updatedQuestions);
+              }
+              
+              // Refrescar la lista de respuestas
+              if (selectedQuestion) {
+                fetchAnswers(selectedQuestion._id);
+              }
+              
+              Alert.alert(
+                "Éxito",
+                "La respuesta se ha eliminado correctamente."
+              );
+            } catch (error) {
+              console.error("Error al eliminar la respuesta:", error);
+              Alert.alert(
+                "Error",
+                "No se pudo eliminar la respuesta. Por favor, intente nuevamente."
+              );
+            } finally {
+              setIsDeletingAnswer(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   return (
