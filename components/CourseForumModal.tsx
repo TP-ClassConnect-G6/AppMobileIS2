@@ -764,8 +764,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
         }
       ]
     );
-  };
-  // Función para manejar los votos (upvote/downvote)
+  };  // Función para manejar los votos (upvote/downvote)
   const handleVote = async (questionId: string, voteType: 'up' | 'down') => {
     if (!session?.token || !session.userId) {
       Alert.alert("Error", "Debe iniciar sesión para votar.");
@@ -776,18 +775,16 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
       // Encontrar la pregunta actual para verificar si el usuario ya votó
       const currentQuestion = questions.find(q => q._id === questionId);
       if (!currentQuestion) return;
-        // Verificar si el usuario ya votó en esta categoría
+      
+      // Verificar si el usuario ya votó en esta categoría
       const hasUpvoted = currentQuestion.votes.up.includes(session.userId);
       const hasDownvoted = currentQuestion.votes.down.includes(session.userId);
       
-      // Preparar el objeto de voto según el caso
-      let voteData: { user_id: string; type: 'up' | 'down' } = {
+      // Preparar el objeto de voto
+      const voteData = {
         user_id: session.userId,
         type: voteType
       };
-      
-      // Si el usuario ya votó en la misma categoría, podríamos manejar la lógica de remover aquí
-      // Pero según la API proporcionada, solo enviamos el tipo de voto
       
       console.log(`Enviando voto para pregunta ${questionId}:`, voteData);
       
@@ -803,7 +800,8 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
       );
       
       console.log("Respuesta de voto:", response.data);
-        // Actualizar localmente la pregunta con los nuevos votos
+      
+      // Actualizar localmente la pregunta con los nuevos votos
       const updatedQuestions = questions.map(q => {
         if (q._id === questionId) {
           // Crear una copia de los votos actuales
@@ -811,30 +809,18 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
           
           // Lógica para manejar la actualización local de votos
           if (voteType === 'up') {
-            // Si ya había dado upvote, lo quitamos
-            if (hasUpvoted) {
-              updatedVotes.up = updatedVotes.up.filter(id => id !== session.userId);
-            } 
-            // Si no había dado upvote, lo añadimos
-            else {
-              updatedVotes.up = [...updatedVotes.up, session.userId];
-              // Y si había dado downvote, lo quitamos
-              if (hasDownvoted) {
-                updatedVotes.down = updatedVotes.down.filter(id => id !== session.userId);
-              }
-            }
-          } else if (voteType === 'down') {
-            // Si ya había dado downvote, lo quitamos
+            // Añadimos el voto positivo
+            updatedVotes.up = [...updatedVotes.up, session.userId];
+            // Y si había dado downvote, lo quitamos
             if (hasDownvoted) {
               updatedVotes.down = updatedVotes.down.filter(id => id !== session.userId);
-            } 
-            // Si no había dado downvote, lo añadimos
-            else {
-              updatedVotes.down = [...updatedVotes.down, session.userId];
-              // Y si había dado upvote, lo quitamos
-              if (hasUpvoted) {
-                updatedVotes.up = updatedVotes.up.filter(id => id !== session.userId);
-              }
+            }
+          } else if (voteType === 'down') {
+            // Añadimos el voto negativo
+            updatedVotes.down = [...updatedVotes.down, session.userId];
+            // Y si había dado upvote, lo quitamos
+            if (hasUpvoted) {
+              updatedVotes.up = updatedVotes.up.filter(id => id !== session.userId);
             }
           }
           
@@ -853,22 +839,82 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
     }
   };
 
-  // Función para calcular el puntaje total de votos
-  const calculateVoteScore = (votes: { up: string[], down: string[] }) => {
-    return votes.up.length - votes.down.length;
+  // Función para eliminar un voto existente
+  const handleDeleteVote = async (questionId: string, voteType: 'up' | 'down') => {
+    if (!session?.token || !session.userId) {
+      Alert.alert("Error", "Debe iniciar sesión para eliminar su voto.");
+      return;
+    }
+    
+    try {
+      // Encontrar la pregunta actual
+      const currentQuestion = questions.find(q => q._id === questionId);
+      if (!currentQuestion) return;
+      
+      // Verificar si el usuario tiene un voto del tipo especificado
+      const hasUpvoted = voteType === 'up' && currentQuestion.votes.up.includes(session.userId);
+      const hasDownvoted = voteType === 'down' && currentQuestion.votes.down.includes(session.userId);
+      
+      // Solo proceder si el usuario tiene un voto del tipo que quiere eliminar
+      if (!hasUpvoted && !hasDownvoted) {
+        console.log(`No hay voto de tipo ${voteType} para eliminar`);
+        return;
+      }
+      
+      console.log(`Eliminando voto ${voteType} para pregunta ${questionId}`);
+      
+      const response = await forumClient.delete(
+        `/questions/${questionId}/votes?user_id=${session.userId}&type=${voteType}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      console.log("Respuesta de eliminar voto:", response.data);
+      
+      // Actualizar localmente la pregunta with los nuevos votos
+      const updatedQuestions = questions.map(q => {
+        if (q._id === questionId) {
+          // Crear una copia de los votos actuales
+          const updatedVotes = { ...q.votes };
+          
+          // Eliminar el voto según el tipo
+          if (voteType === 'up') {
+            updatedVotes.up = updatedVotes.up.filter(id => id !== session.userId);
+          } else if (voteType === 'down') {
+            updatedVotes.down = updatedVotes.down.filter(id => id !== session.userId);
+          }
+          
+          return { ...q, votes: updatedVotes };
+        }
+        return q;
+      });
+      
+      setQuestions(updatedQuestions);
+    } catch (error) {
+      console.error("Error al eliminar el voto:", error);
+      Alert.alert(
+        "Error",
+        "No se pudo eliminar su voto. Por favor, intente nuevamente."
+      );
+    }
   };
   
-  // Función para determinar si el usuario ha votado en una pregunta
-  const getUserVoteStatus = (question: Question): { upvoted: boolean, downvoted: boolean } => {
-    if (!session?.userId) {
+  // Función para verificar el estado de voto del usuario actual en una pregunta
+  const getUserVoteStatus = (question: Question) => {
+    if (!session || !session.userId) {
       return { upvoted: false, downvoted: false };
     }
     
-    return {
-      upvoted: question.votes.up.includes(session.userId),
-      downvoted: question.votes.down.includes(session.userId)
-    };
+    const upvoted = question.votes.up.includes(session.userId);
+    const downvoted = question.votes.down.includes(session.userId);
+    
+    return { upvoted, downvoted };
   };
+
   const renderForumList = () => {
     if (loading) {
       return (
@@ -1100,9 +1146,20 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                       <View style={styles.votingActionsContainer}>
                         <TouchableOpacity 
                           style={styles.voteButton}
-                          onPress={() => handleVote(question._id, 'up')}
+                          onPress={() => {
+                            const isUpvoted = getUserVoteStatus(question).upvoted;
+                            if (isUpvoted) {
+                              // Si ya votó positivamente, elimina el voto
+                              handleDeleteVote(question._id, 'up');
+                            } else {
+                              // Si no ha votado o votó negativamente, añade voto positivo
+                              handleVote(question._id, 'up');
+                            }
+                          }}
                           accessibilityLabel="Voto positivo"
-                          accessibilityHint="Dar voto positivo a esta pregunta"
+                          accessibilityHint={getUserVoteStatus(question).upvoted 
+                            ? "Eliminar voto positivo de esta pregunta" 
+                            : "Dar voto positivo a esta pregunta"}
                         >
                           <MaterialCommunityIcons 
                             name={getUserVoteStatus(question).upvoted ? "thumb-up" : "thumb-up-outline"} 
@@ -1113,12 +1170,22 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                             {question.votes.up.length}
                           </Text>
                         </TouchableOpacity>
-
                         <TouchableOpacity 
                           style={styles.voteButton}
-                          onPress={() => handleVote(question._id, 'down')}
+                          onPress={() => {
+                            const isDownvoted = getUserVoteStatus(question).downvoted;
+                            if (isDownvoted) {
+                              // Si ya votó negativamente, elimina el voto
+                              handleDeleteVote(question._id, 'down');
+                            } else {
+                              // Si no ha votado o votó positivamente, añade voto negativo
+                              handleVote(question._id, 'down');
+                            }
+                          }}
                           accessibilityLabel="Voto negativo"
-                          accessibilityHint="Dar voto negativo a esta pregunta"
+                          accessibilityHint={getUserVoteStatus(question).downvoted 
+                            ? "Eliminar voto negativo de esta pregunta" 
+                            : "Dar voto negativo a esta pregunta"}
                         >
                           <MaterialCommunityIcons 
                             name={getUserVoteStatus(question).downvoted ? "thumb-down" : "thumb-down-outline"} 
