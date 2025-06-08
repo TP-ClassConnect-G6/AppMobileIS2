@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { StyleSheet, View, Text, FlatList, ActivityIndicator, RefreshControl, TouchableOpacity, Alert } from "react-native";
 import { Card, Title, Paragraph, Chip, Divider, Button, Provider } from "react-native-paper";
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -10,7 +10,7 @@ import { TextInput } from "react-native-paper";
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSession } from "@/contexts/session";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import EditCourseModal from "@/components/EditCourseModal";
 import CourseDetailModal from "@/components/CourseDetailModal";
 
