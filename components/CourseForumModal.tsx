@@ -35,6 +35,21 @@ type Question = {
   userName?: string; // Campo opcional para almacenar el nombre del usuario
 };
 
+// Tipo para las respuestas
+type Answer = {
+  _id: string;
+  content: string;
+  created_at: string;
+  is_active: boolean;
+  question_id: string;
+  user_id: string;
+  votes: {
+    up: string[];
+    down: string[];
+  };
+  userName?: string; // Campo opcional para almacenar el nombre del usuario
+};
+
 // Tipo para el foro
 type Forum = {
   _id: string;
@@ -87,11 +102,16 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
   const [newQuestionTitle, setNewQuestionTitle] = useState("");
   const [newQuestionDescription, setNewQuestionDescription] = useState("");
   const [newQuestionTags, setNewQuestionTags] = useState("");
-  
-  // Estado para edición de preguntas
+    // Estado para edición de preguntas
   const [editQuestionVisible, setEditQuestionVisible] = useState(false);
   const [isEditingQuestion, setIsEditingQuestion] = useState(false);
   const [questionToEdit, setQuestionToEdit] = useState<Question | null>(null);
+  
+  // Estado para las respuestas
+  const [answers, setAnswers] = useState<Answer[]>([]);
+  const [loadingAnswers, setLoadingAnswers] = useState(false);
+  const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
+  const [questionDetailVisible, setQuestionDetailVisible] = useState(false);
   
   // Estado para los campos del formulario de creación/edición
   const [newForumTitle, setNewForumTitle] = useState("");
@@ -243,6 +263,73 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
     } catch (error) {
       console.error("Error al enriquecer las preguntas con información de usuario:", error);
       return questionsData;
+    }  };
+
+  // Función para cargar las respuestas de una pregunta
+  const fetchAnswers = async (questionId: string) => {
+    if (!session?.token) {
+      return;
+    }
+    
+    setLoadingAnswers(true);
+    
+    try {
+      const response = await forumClient.get(
+        `/answers/?is_active=true&question_id=${questionId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      console.log("Answers response:", JSON.stringify(response.data, null, 2));
+      
+      if (response.data && response.data.answers) {
+        // Enriquecer las respuestas con información de usuario
+        const enrichedAnswers = await enrichAnswersWithUserInfo(response.data.answers);
+        setAnswers(enrichedAnswers);
+      } else {
+        console.warn('Formato de respuesta inesperado en respuestas:', response.data);
+        setAnswers([]);
+      }
+    } catch (error) {
+      console.error("Error al obtener respuestas:", error);
+      setAnswers([]);
+    } finally {
+      setLoadingAnswers(false);
+    }
+  };
+
+  // Función para enriquecer las respuestas con información de usuario
+  const enrichAnswersWithUserInfo = async (answersData: Answer[]) => {
+    const enrichedAnswers = [...answersData];
+    const userPromises = answersData
+      .filter(answer => answer.user_id) // Filtrar null user_id
+      .map(answer => fetchUserProfile(answer.user_id));
+    
+    try {
+      const userResults = await Promise.allSettled(userPromises);
+      
+      let userIndex = 0;
+      for (let i = 0; i < enrichedAnswers.length; i++) {
+        if (enrichedAnswers[i].user_id) {
+          const result = userResults[userIndex];
+          if (result.status === 'fulfilled' && result.value) {
+            enrichedAnswers[i] = {
+              ...enrichedAnswers[i],
+              userName: result.value.name
+            };
+          }
+          userIndex++;
+        }
+      }
+      
+      return enrichedAnswers;
+    } catch (error) {
+      console.error("Error al enriquecer las respuestas con información de usuario:", error);
+      return answersData;
     }
   };
 
@@ -308,9 +395,27 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
     
     // Reiniciar estado de paginación y cargar primera página de preguntas
     setCurrentPage(1);
-    fetchQuestions(forum._id, 1);
+    fetchQuestions(forum._id, 1);  };
+
+  // Función para abrir el detalle de una pregunta y cargar sus respuestas
+  const openQuestionDetail = async (question: Question) => {
+    // Si la pregunta no tiene el nombre del usuario, intentamos obtenerlo
+    let questionWithUser = {...question};
+    if (!question.userName && question.user_id) {
+      const userProfile = await fetchUserProfile(question.user_id);
+      if (userProfile) {
+        questionWithUser.userName = userProfile.name;
+      }
+    }
+    
+    setSelectedQuestion(questionWithUser);
+    setQuestionDetailVisible(true);
+    
+    // Cargar las respuestas de la pregunta
+    fetchAnswers(question._id);
   };
-    // Función para crear un nuevo foro
+
+  // Función para crear un nuevo foro
   const createForum = async () => {
     if (!courseId || !session?.token || !session.userId) {
       Alert.alert("Error", "No se pudo crear el foro. Falta información requerida.");
@@ -1197,8 +1302,17 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                           </Text>
                         </TouchableOpacity>
                       </View>
-                      
-                      <View style={styles.questionActionButtons}>
+                        <View style={styles.questionActionButtons}>
+                        <Button 
+                          mode="text" 
+                          onPress={() => openQuestionDetail(question)}
+                          style={styles.detailButton}
+                          icon="comment-multiple-outline"
+                          labelStyle={styles.buttonLabel}
+                        >
+                          Ver Respuestas
+                        </Button>
+                        
                         <Button 
                           mode="text" 
                           onPress={() => openEditQuestion(question)}
@@ -1442,7 +1556,138 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
               </Button>
             </View>
           </ScrollView>
-        </Modal>
+          </Modal>
+      </Modal>
+    );
+  };
+
+  // Función para renderizar el modal de detalle de pregunta con respuestas
+  const renderQuestionDetailModal = () => {
+    if (!selectedQuestion) return null;
+
+    return (
+      <Modal
+        visible={questionDetailVisible}
+        onDismiss={() => setQuestionDetailVisible(false)}
+        contentContainerStyle={styles.modalContainer}
+      >
+        <ScrollView>
+          <View style={styles.questionDetailHeader}>
+            <Title style={styles.questionDetailTitle}>{selectedQuestion.title}</Title>
+            
+            <TouchableOpacity 
+              style={styles.closeButton}
+              onPress={() => setQuestionDetailVisible(false)}
+            >
+              <MaterialCommunityIcons name="close" size={24} color="#000" />
+            </TouchableOpacity>
+          </View>
+          
+          <Divider style={styles.divider} />
+          
+          {/* Contenido de la pregunta */}
+          <View style={styles.questionDetailContainer}>
+            <Text style={styles.sectionTitle}>Descripción</Text>
+            <Paragraph style={styles.questionDetailDescription}>
+              {selectedQuestion.description}
+            </Paragraph>
+            
+            {/* Metadatos de la pregunta */}
+            <View style={styles.metadataContainer}>
+              <View style={styles.metadata}>
+                <MaterialCommunityIcons name="account" size={16} color="#666" />
+                <Text style={styles.metadataText}>
+                  Por: {selectedQuestion.userName || selectedQuestion.user_id || 'Usuario anónimo'}
+                </Text>
+              </View>
+              
+              <View style={styles.metadata}>
+                <MaterialCommunityIcons name="calendar" size={16} color="#666" />
+                <Text style={styles.metadataText}>{formatDate(selectedQuestion.created_at)}</Text>
+              </View>
+              
+              <View style={styles.metadata}>
+                <MaterialCommunityIcons name="comment-multiple-outline" size={16} color="#666" />
+                <Text style={styles.metadataText}>{selectedQuestion.answers.length} respuestas</Text>
+              </View>
+            </View>
+            
+            {/* Tags de la pregunta */}
+            {selectedQuestion.tags && selectedQuestion.tags.length > 0 && (
+              <View style={styles.tagsContainer}>
+                {selectedQuestion.tags.map((tag, index) => (
+                  <Chip key={index} style={styles.tag} mode="outlined" textStyle={{ fontSize: 12 }}>
+                    {tag}
+                  </Chip>
+                ))}
+              </View>
+            )}
+          </View>
+          
+          <Divider style={styles.divider} />
+          
+          {/* Sección de respuestas */}
+          <View style={styles.answersSection}>
+            <View style={styles.answersSectionHeader}>
+              <Text style={styles.sectionTitle}>
+                Respuestas ({answers.length})
+              </Text>
+            </View>
+            
+            {loadingAnswers ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color="#0000ff" />
+                <Text style={styles.loadingText}>Cargando respuestas...</Text>
+              </View>
+            ) : answers.length === 0 ? (
+              <Text style={styles.emptyText}>
+                No hay respuestas para esta pregunta. ¡Sé el primero en responder!
+              </Text>
+            ) : (
+              <View>
+                {answers.map((answer) => (
+                  <Card key={answer._id} style={styles.answerCard}>
+                    <Card.Content>
+                      <Paragraph style={styles.answerContent}>
+                        {answer.content}
+                      </Paragraph>
+                      
+                      <View style={styles.answerMetadata}>
+                        <View style={styles.metadata}>
+                          <MaterialCommunityIcons name="account" size={14} color="#666" />
+                          <Text style={styles.answerMetadataText}>
+                            {answer.userName || answer.user_id || 'Usuario anónimo'}
+                          </Text>
+                        </View>
+                        
+                        <View style={styles.metadata}>
+                          <MaterialCommunityIcons name="calendar" size={14} color="#666" />
+                          <Text style={styles.answerMetadataText}>
+                            {formatDate(answer.created_at)}
+                          </Text>
+                        </View>
+                        
+                        <View style={styles.metadata}>
+                          <MaterialCommunityIcons name="thumb-up-outline" size={14} color="#666" />
+                          <Text style={styles.answerMetadataText}>
+                            {answer.votes.up.length}
+                          </Text>
+                        </View>
+                        
+                        <View style={styles.metadata}>
+                          <MaterialCommunityIcons name="thumb-down-outline" size={14} color="#666" />
+                          <Text style={styles.answerMetadataText}>
+                            {answer.votes.down.length}
+                          </Text>
+                        </View>
+                      </View>
+                    </Card.Content>
+                  </Card>
+                ))}
+              </View>
+            )}
+          </View>
+        </ScrollView>
       </Modal>
     );
   };
@@ -1628,9 +1873,12 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
               >
                 {isEditing ? 'Guardando...' : 'Guardar Cambios'}
               </Button>
-            </View>
+              </View>
           </ScrollView>
         </Modal>
+        
+        {/* Modal para detalle de pregunta con respuestas */}
+        {renderQuestionDetailModal()}
       </Modal>
     </Portal>
   );
@@ -1877,13 +2125,65 @@ const styles = StyleSheet.create({
   },
   questionContent: {
     flex: 1,
-  },
-  voteInfo: {
+  },  voteInfo: {
     fontSize: 12,
     color: '#666',
     marginRight: 'auto',
     alignItems: 'center',
     flexDirection: 'row',
+  },
+  // Estilos para el modal de detalle de pregunta
+  questionDetailHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  questionDetailTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    flex: 1,
+    marginRight: 16,
+  },
+  questionDetailContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  questionDetailDescription: {
+    fontSize: 16,
+    lineHeight: 24,
+    marginBottom: 16,
+    color: '#333',
+  },
+  answersSection: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  answersSectionHeader: {
+    marginBottom: 12,
+  },
+  answerCard: {
+    marginBottom: 12,
+    elevation: 1,
+    backgroundColor: '#f8f9fa',
+  },
+  answerContent: {
+    fontSize: 15,
+    lineHeight: 22,
+    marginBottom: 12,
+    color: '#333',
+  },
+  answerMetadata: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+  },
+  answerMetadataText: {
+    fontSize: 13,
+    color: '#666',
+    marginLeft: 4,
+    marginRight: 12,
   }
 });
 
