@@ -1936,6 +1936,33 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                         </TouchableOpacity>
                       </View>
                     </Card.Actions>
+
+                    {/* Botón para marcar como respuesta aceptada - Solo visible para el autor de la pregunta */}
+                    {selectedQuestion?.user_id === session?.userId && selectedQuestion?.accepted_answer !== answer._id && (
+                      <Card.Actions style={styles.acceptAnswerActions}>
+                        <Button 
+                          mode="outlined" 
+                          onPress={() => acceptAnswer(answer._id)}
+                          icon="check-circle"
+                          labelStyle={[styles.buttonLabel, { color: '#4CAF50' }]}
+                          style={[styles.acceptAnswerButton]}
+                          compact
+                        >
+                          Marcar como Aceptada
+                        </Button>
+                      </Card.Actions>
+                    )}
+
+                    {/* Indicador de respuesta aceptada */}
+                    {selectedQuestion?.accepted_answer === answer._id && (
+                      <Card.Actions style={styles.acceptedAnswerActions}>
+                        <View style={styles.acceptedAnswerBadge}>
+                          <MaterialCommunityIcons name="check-circle" size={20} color="#4CAF50" />
+                          <Text style={styles.acceptedAnswerText}>Respuesta Aceptada</Text>
+                        </View>
+                      </Card.Actions>
+                    )}
+
                       {/* Botones de acción para respuestas */}
                     {session?.userId === answer.user_id && (
                       <Card.Actions style={styles.answerActions}>
@@ -2237,6 +2264,71 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
           }
         }
       ]    );
+  };
+  
+  // Función para marcar una respuesta como aceptada
+  const acceptAnswer = async (answerId: string) => {
+    if (!selectedQuestion || !session?.token || !session.userId) {
+      Alert.alert("Error", "No se pudo marcar la respuesta como aceptada. Falta información requerida.");
+      return;
+    }
+    
+    // Verificar que el usuario sea el autor de la pregunta
+    if (selectedQuestion.user_id !== session.userId) {
+      Alert.alert("Error", "Solo el autor de la pregunta puede marcar respuestas como aceptadas.");
+      return;
+    }
+    
+    try {
+      const acceptData = {
+        answer_id: answerId
+      };
+      
+      console.log("Marcando respuesta como aceptada:", acceptData);
+      
+      const response = await forumClient.put(
+        `/questions/${selectedQuestion._id}/accept-answer`,
+        acceptData,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      console.log("Respuesta de aceptar respuesta:", response.data);
+      
+      // Actualizar la pregunta seleccionada localmente
+      const updatedSelectedQuestion = {
+        ...selectedQuestion,
+        accepted_answer: answerId
+      };
+      setSelectedQuestion(updatedSelectedQuestion);
+      
+      // Actualizar también en la lista de preguntas
+      const updatedQuestions = questions.map(q => {
+        if (q._id === selectedQuestion._id) {
+          return {
+            ...q,
+            accepted_answer: answerId
+          };
+        }
+        return q;
+      });
+      setQuestions(updatedQuestions);
+      
+      Alert.alert(
+        "Éxito",
+        "La respuesta se ha marcado como aceptada correctamente."
+      );
+    } catch (error) {
+      console.error("Error al marcar la respuesta como aceptada:", error);
+      Alert.alert(
+        "Error",
+        "No se pudo marcar la respuesta como aceptada. Por favor, intente nuevamente."
+      );
+    }
   };
 
   return (
@@ -2797,6 +2889,33 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 4,
     paddingHorizontal: 8,
+  },
+  acceptAnswerActions: {
+    paddingTop: 4,
+    paddingBottom: 4,
+    paddingHorizontal: 8,
+  },
+  acceptAnswerButton: {
+    borderColor: '#4CAF50',
+  },
+  acceptedAnswerActions: {
+    paddingTop: 4,
+    paddingBottom: 8,
+    paddingHorizontal: 8,
+  },
+  acceptedAnswerBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8F5E8',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  acceptedAnswerText: {
+    fontSize: 14,
+    color: '#4CAF50',
+    fontWeight: 'bold',
+    marginLeft: 6,
   }
 });
 
