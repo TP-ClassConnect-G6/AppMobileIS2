@@ -112,10 +112,15 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
   const [loadingAnswers, setLoadingAnswers] = useState(false);
   const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
   const [questionDetailVisible, setQuestionDetailVisible] = useState(false);
-  
-  // Estado para creación de respuestas
+    // Estado para creación de respuestas
   const [newAnswerContent, setNewAnswerContent] = useState("");
   const [isCreatingAnswer, setIsCreatingAnswer] = useState(false);
+  
+  // Estado para edición de respuestas
+  const [editAnswerVisible, setEditAnswerVisible] = useState(false);
+  const [isEditingAnswer, setIsEditingAnswer] = useState(false);
+  const [answerToEdit, setAnswerToEdit] = useState<Answer | null>(null);
+  const [editAnswerContent, setEditAnswerContent] = useState("");
   
   // Estado para los campos del formulario de creación/edición
   const [newForumTitle, setNewForumTitle] = useState("");
@@ -1734,6 +1739,21 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                         </View>
                       </View>
                     </Card.Content>
+                    
+                    {/* Botones de acción para respuestas */}
+                    {session?.userId === answer.user_id && (
+                      <Card.Actions style={styles.answerActions}>
+                        <Button 
+                          mode="text" 
+                          onPress={() => openEditAnswer(answer)}
+                          icon="pencil"
+                          labelStyle={styles.buttonLabel}
+                          compact
+                        >
+                          Editar
+                        </Button>
+                      </Card.Actions>
+                    )}
                   </Card>
                 ))}
               </View>
@@ -1857,9 +1877,76 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
       Alert.alert(
         "Error",
         "No se pudo crear la respuesta. Por favor, intente nuevamente."
+      );    } finally {
+      setIsCreatingAnswer(false);
+    }
+  };
+
+  // Función para abrir el modal de edición de respuesta
+  const openEditAnswer = (answer: Answer) => {
+    setAnswerToEdit(answer);
+    setEditAnswerContent(answer.content);
+    setEditAnswerVisible(true);
+  };
+
+  // Función para actualizar una respuesta existente
+  const updateAnswer = async () => {
+    if (!answerToEdit || !session?.token) {
+      Alert.alert("Error", "No se pudo modificar la respuesta. Falta información requerida.");
+      return;
+    }
+    
+    if (!editAnswerContent.trim()) {
+      Alert.alert("Error", "El contenido de la respuesta es obligatorio.");
+      return;
+    }
+    
+    setIsEditingAnswer(true);
+    
+    try {
+      const answerData = {
+        content: editAnswerContent.trim()
+      };
+      
+      console.log("Modificando respuesta con datos:", answerData);
+      
+      const response = await forumClient.put(
+        `/answers/${answerToEdit._id}`,
+        answerData,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      console.log("Respuesta de modificación de respuesta:", response.data);
+      
+      // Limpiar el formulario
+      setEditAnswerContent("");
+      setAnswerToEdit(null);
+      
+      // Cerrar el modal de edición
+      setEditAnswerVisible(false);
+      
+      // Refrescar la lista de respuestas
+      if (selectedQuestion) {
+        fetchAnswers(selectedQuestion._id);
+      }
+      
+      Alert.alert(
+        "Éxito",
+        "La respuesta se ha modificado correctamente."
+      );
+    } catch (error) {
+      console.error("Error al modificar la respuesta:", error);
+      Alert.alert(
+        "Error",
+        "No se pudo modificar la respuesta. Por favor, intente nuevamente."
       );
     } finally {
-      setIsCreatingAnswer(false);
+      setIsEditingAnswer(false);
     }
   };
 
@@ -2048,9 +2135,67 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
               </View>
           </ScrollView>
         </Modal>
-        
-        {/* Modal para detalle de pregunta con respuestas */}
+          {/* Modal para detalle de pregunta con respuestas */}
         {renderQuestionDetailModal()}
+        
+        {/* Modal para editar respuesta */}
+        <Modal
+          visible={editAnswerVisible}
+          onDismiss={() => !isEditingAnswer && setEditAnswerVisible(false)}
+          contentContainerStyle={styles.modalContainer}
+        >
+          <View style={styles.headerContainer}>
+            <Title style={styles.headerTitle}>
+              Editar Respuesta
+            </Title>
+            
+            {!isEditingAnswer && (
+              <TouchableOpacity 
+                style={styles.closeButton}
+                onPress={() => setEditAnswerVisible(false)}
+              >
+                <MaterialCommunityIcons name="close" size={24} color="#000" />
+              </TouchableOpacity>
+            )}
+          </View>
+          
+          <Divider style={styles.divider} />
+          
+          <ScrollView style={styles.contentContainer}>
+            <TextInput
+              label="Contenido de la respuesta"
+              value={editAnswerContent}
+              onChangeText={setEditAnswerContent}
+              mode="outlined"
+              style={styles.formInput}
+              placeholder="Escribe tu respuesta aquí..."
+              multiline
+              numberOfLines={4}
+              disabled={isEditingAnswer}
+            />
+            
+            <View style={styles.formButtonContainer}>
+              <Button 
+                mode="outlined" 
+                onPress={() => setEditAnswerVisible(false)}
+                style={styles.formButton}
+                disabled={isEditingAnswer}
+              >
+                Cancelar
+              </Button>
+              
+              <Button 
+                mode="contained" 
+                onPress={updateAnswer}
+                style={[styles.formButton, { backgroundColor: '#1976D2' }]}
+                loading={isEditingAnswer}
+                disabled={isEditingAnswer || !editAnswerContent.trim()}
+              >
+                {isEditingAnswer ? 'Guardando...' : 'Guardar Cambios'}
+              </Button>
+            </View>
+          </ScrollView>
+        </Modal>
       </Modal>
     </Portal>
   );
@@ -2358,6 +2503,11 @@ const styles = StyleSheet.create({
     color: '#666',
     marginLeft: 4,
     marginRight: 12,
+  },
+  answerActions: {
+    paddingTop: 8,
+    paddingBottom: 4,
+    paddingHorizontal: 8,
   }
 });
 
