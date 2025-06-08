@@ -1502,8 +1502,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                           </Text>
                         </TouchableOpacity>
                       </View>
-                      
-                      {/* Botones de acción */}
+                        {/* Botones de acción */}
                       <View style={styles.questionActionButtons}>
                         <Button 
                           mode="text" 
@@ -1516,27 +1515,31 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                           Ver Respuestas
                         </Button>
                         
-                        <Button 
-                          mode="text" 
-                          onPress={() => openEditQuestion(question)}
-                          style={styles.editButton}
-                          icon="pencil"
-                          labelStyle={styles.buttonLabel}
-                          compact
-                        >
-                          Editar
-                        </Button>
-                        
-                        <Button 
-                          mode="text" 
-                          onPress={() => deleteQuestion(question._id)}
-                          style={styles.deleteButton}
-                          icon="delete"
-                          labelStyle={[styles.buttonLabel, { color: '#D32F2F' }]}
-                          compact
-                        >
-                          Eliminar
-                        </Button>
+                        {session?.userId === question.user_id && (
+                          <>
+                            <Button 
+                              mode="text" 
+                              onPress={() => openEditQuestion(question)}
+                              style={styles.editButton}
+                              icon="pencil"
+                              labelStyle={styles.buttonLabel}
+                              compact
+                            >
+                              Editar
+                            </Button>
+                            
+                            <Button 
+                              mode="text" 
+                              onPress={() => deleteQuestion(question._id)}
+                              style={styles.deleteButton}
+                              icon="delete"
+                              labelStyle={[styles.buttonLabel, { color: '#D32F2F' }]}
+                              compact
+                            >
+                              Eliminar
+                            </Button>
+                          </>
+                        )}
                       </View>
                     </Card.Actions>
                   </Card>
