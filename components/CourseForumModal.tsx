@@ -711,7 +711,6 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
       setIsEditingQuestion(false);
     }
   };
-
   // Función para eliminar una pregunta
   const deleteQuestion = async (questionId: string) => {
     if (!session?.token) {
@@ -766,7 +765,110 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
       ]
     );
   };
+  // Función para manejar los votos (upvote/downvote)
+  const handleVote = async (questionId: string, voteType: 'up' | 'down') => {
+    if (!session?.token || !session.userId) {
+      Alert.alert("Error", "Debe iniciar sesión para votar.");
+      return;
+    }
+    
+    try {
+      // Encontrar la pregunta actual para verificar si el usuario ya votó
+      const currentQuestion = questions.find(q => q._id === questionId);
+      if (!currentQuestion) return;
+        // Verificar si el usuario ya votó en esta categoría
+      const hasUpvoted = currentQuestion.votes.up.includes(session.userId);
+      const hasDownvoted = currentQuestion.votes.down.includes(session.userId);
+      
+      // Preparar el objeto de voto según el caso
+      let voteData: { user_id: string; type: 'up' | 'down' } = {
+        user_id: session.userId,
+        type: voteType
+      };
+      
+      // Si el usuario ya votó en la misma categoría, podríamos manejar la lógica de remover aquí
+      // Pero según la API proporcionada, solo enviamos el tipo de voto
+      
+      console.log(`Enviando voto para pregunta ${questionId}:`, voteData);
+      
+      const response = await forumClient.post(
+        `/questions/${questionId}/votes`,
+        voteData,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      console.log("Respuesta de voto:", response.data);
+        // Actualizar localmente la pregunta con los nuevos votos
+      const updatedQuestions = questions.map(q => {
+        if (q._id === questionId) {
+          // Crear una copia de los votos actuales
+          const updatedVotes = { ...q.votes };
+          
+          // Lógica para manejar la actualización local de votos
+          if (voteType === 'up') {
+            // Si ya había dado upvote, lo quitamos
+            if (hasUpvoted) {
+              updatedVotes.up = updatedVotes.up.filter(id => id !== session.userId);
+            } 
+            // Si no había dado upvote, lo añadimos
+            else {
+              updatedVotes.up = [...updatedVotes.up, session.userId];
+              // Y si había dado downvote, lo quitamos
+              if (hasDownvoted) {
+                updatedVotes.down = updatedVotes.down.filter(id => id !== session.userId);
+              }
+            }
+          } else if (voteType === 'down') {
+            // Si ya había dado downvote, lo quitamos
+            if (hasDownvoted) {
+              updatedVotes.down = updatedVotes.down.filter(id => id !== session.userId);
+            } 
+            // Si no había dado downvote, lo añadimos
+            else {
+              updatedVotes.down = [...updatedVotes.down, session.userId];
+              // Y si había dado upvote, lo quitamos
+              if (hasUpvoted) {
+                updatedVotes.up = updatedVotes.up.filter(id => id !== session.userId);
+              }
+            }
+          }
+          
+          return { ...q, votes: updatedVotes };
+        }
+        return q;
+      });
+      
+      setQuestions(updatedQuestions);
+    } catch (error) {
+      console.error("Error al votar:", error);
+      Alert.alert(
+        "Error",
+        "No se pudo registrar su voto. Por favor, intente nuevamente."
+      );
+    }
+  };
 
+  // Función para calcular el puntaje total de votos
+  const calculateVoteScore = (votes: { up: string[], down: string[] }) => {
+    return votes.up.length - votes.down.length;
+  };
+  
+  // Función para determinar si el usuario ha votado en una pregunta
+  const getUserVoteStatus = (question: Question): { upvoted: boolean, downvoted: boolean } => {
+    if (!session?.userId) {
+      return { upvoted: false, downvoted: false };
+    }
+    
+    return {
+      upvoted: question.votes.up.includes(session.userId),
+      downvoted: question.votes.down.includes(session.userId)
+    };
+  };
   const renderForumList = () => {
     if (loading) {
       return (
@@ -956,11 +1058,52 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                 {questions.map((question) => (
                   <Card key={question._id} style={styles.questionCard}>
                     <Card.Content>
-                      <Title style={styles.questionTitle}>{question.title}</Title>
-                      
-                      <Paragraph numberOfLines={2} style={styles.questionDescription}>
-                        {question.description}
-                      </Paragraph>
+                      <View style={styles.questionHeader}>
+                        {/* Voting controls */}
+                        <View style={styles.votingContainer}>
+                          <TouchableOpacity 
+                            style={styles.voteButton}
+                            onPress={() => handleVote(question._id, 'up')}
+                            accessibilityLabel="Voto positivo"
+                            accessibilityHint="Dar voto positivo a esta pregunta"
+                          >
+                            <MaterialCommunityIcons 
+                              name={getUserVoteStatus(question).upvoted ? "arrow-up-bold-circle" : "arrow-up-bold"} 
+                              size={24} 
+                              color={getUserVoteStatus(question).upvoted ? '#4CAF50' : '#757575'} 
+                            />
+                          </TouchableOpacity>
+
+                          <Text style={[
+                            styles.voteCount, 
+                            calculateVoteScore(question.votes) > 0 ? styles.positiveVotes : 
+                            calculateVoteScore(question.votes) < 0 ? styles.negativeVotes : null
+                          ]}>
+                            {calculateVoteScore(question.votes)}
+                          </Text>
+
+                          <TouchableOpacity 
+                            style={styles.voteButton}
+                            onPress={() => handleVote(question._id, 'down')}
+                            accessibilityLabel="Voto negativo"
+                            accessibilityHint="Dar voto negativo a esta pregunta"
+                          >
+                            <MaterialCommunityIcons 
+                              name={getUserVoteStatus(question).downvoted ? "arrow-down-bold-circle" : "arrow-down-bold"} 
+                              size={24} 
+                              color={getUserVoteStatus(question).downvoted ? '#F44336' : '#757575'} 
+                            />
+                          </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.questionContent}>
+                          <Title style={styles.questionTitle}>{question.title}</Title>
+                          
+                          <Paragraph numberOfLines={2} style={styles.questionDescription}>
+                            {question.description}
+                          </Paragraph>
+                        </View>
+                      </View>
                       
                       <View style={styles.metadataContainer}>
                         <View style={styles.metadata}>
@@ -991,6 +1134,11 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                       )}
                     </Card.Content>
                     <Card.Actions style={styles.cardActions}>
+                      <Text style={styles.voteInfo}>
+                        <MaterialCommunityIcons name="thumb-up-outline" size={14} color="#666" /> {question.votes.up.length} ·{" "}
+                        <MaterialCommunityIcons name="thumb-down-outline" size={14} color="#666" /> {question.votes.down.length}
+                      </Text>
+                      
                       <Button 
                         mode="text" 
                         onPress={() => openEditQuestion(question)}
@@ -1534,10 +1682,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginBottom: 8,
-  },cardActions: {
+  },
+  cardActions: {
     justifyContent: 'flex-end',
     borderTopWidth: 1,
     borderTopColor: '#eee',
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   detailButton: {
     marginLeft: 'auto',
@@ -1616,10 +1767,46 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 16,
     paddingHorizontal: 8,
-  },
-  paginationText: {
+  },  paginationText: {
     fontSize: 14,
     color: '#666',
+  },
+  // Estilos para la votación
+  questionHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },  votingContainer: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    marginRight: 12,
+    paddingTop: 4,
+  },
+  voteButton: {
+    padding: 4,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.03)',
+    marginVertical: 2,
+  },
+  voteCount: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginVertical: 4,
+  },
+  positiveVotes: {
+    color: '#4CAF50',
+  },
+  negativeVotes: {
+    color: '#F44336',
+  },
+  questionContent: {
+    flex: 1,
+  },
+  voteInfo: {
+    fontSize: 12,
+    color: '#666',
+    marginRight: 'auto',
+    alignItems: 'center',
+    flexDirection: 'row',
   }
 });
 
