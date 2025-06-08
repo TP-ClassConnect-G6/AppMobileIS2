@@ -12,6 +12,10 @@ export const notificationClient = axios.create({
   baseURL: "https://apigatewayis2-production.up.railway.app/notifications",
 });
 
+export const forumClient = axios.create({
+  baseURL: "https://apigatewayis2-production.up.railway.app/forum",
+});
+
 // https://axios-http.com/docs/interceptors
 //
 // client.interceptors.request.use(
