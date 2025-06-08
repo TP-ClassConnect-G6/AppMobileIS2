@@ -1314,25 +1314,29 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                 Ver
               </Button>
               
-              <Button 
-                mode="text" 
-                onPress={() => openEditForum(forum)}
-                style={styles.editButton}
-                icon="pencil"
-                labelStyle={styles.buttonLabel}
-              >
-                Editar
-              </Button>
-              
-              <Button 
-                mode="text" 
-                onPress={() => deleteForum(forum._id)}
-                style={styles.deleteButton}
-                icon="delete"
-                labelStyle={[styles.buttonLabel, { color: '#D32F2F' }]}
-              >
-                Eliminar
-              </Button>
+              {session?.userId === forum.user_id && (
+                <>
+                  <Button 
+                    mode="text" 
+                    onPress={() => openEditForum(forum)}
+                    style={styles.editButton}
+                    icon="pencil"
+                    labelStyle={styles.buttonLabel}
+                  >
+                    Editar
+                  </Button>
+                  
+                  <Button 
+                    mode="text" 
+                    onPress={() => deleteForum(forum._id)}
+                    style={styles.deleteButton}
+                    icon="delete"
+                    labelStyle={[styles.buttonLabel, { color: '#D32F2F' }]}
+                  >
+                    Eliminar
+                  </Button>
+                </>
+              )}
             </Card.Actions>
           </Card>
         ))}
@@ -1573,7 +1577,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
               </View>
             )}
           </View>
-            <View style={styles.buttonContainer}>
+          <View style={styles.buttonContainer}>
             <Button 
               mode="outlined" 
               style={styles.actionButton}
@@ -1583,28 +1587,32 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
               Volver
             </Button>
             
-            <Button 
-              mode="contained" 
-              style={[styles.actionButton, { backgroundColor: '#1976D2' }]}
-              onPress={() => {
-                setForumDetailVisible(false);
-                openEditForum(selectedForum);
-              }}
-              icon="pencil"
-              disabled={isDeleting}
-            >
-              Editar
-            </Button>
-              <Button 
-              mode="contained" 
-              style={[styles.actionButton, { backgroundColor: '#D32F2F' }]}
-              onPress={() => deleteForum(selectedForum._id)}
-              icon="delete"
-              disabled={isDeleting}
-              loading={isDeleting}
-            >
-              Eliminar
-            </Button>
+            {session?.userId === selectedForum.user_id && (
+              <>
+                <Button 
+                  mode="contained" 
+                  style={[styles.actionButton, { backgroundColor: '#1976D2' }]}
+                  onPress={() => {
+                    setForumDetailVisible(false);
+                    openEditForum(selectedForum);
+                  }}
+                  icon="pencil"
+                  disabled={isDeleting}
+                >
+                  Editar
+                </Button>
+                  <Button 
+                  mode="contained" 
+                  style={[styles.actionButton, { backgroundColor: '#D32F2F' }]}
+                  onPress={() => deleteForum(selectedForum._id)}
+                  icon="delete"
+                  disabled={isDeleting}
+                  loading={isDeleting}
+                >
+                  Eliminar
+                </Button>
+              </>
+            )}
           </View>
         </ScrollView>
         
