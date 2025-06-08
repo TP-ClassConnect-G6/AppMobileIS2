@@ -1246,29 +1246,25 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                           ))}
                         </View>
                       )}
-                    </Card.Content>
+                      </Card.Content>
                     <Card.Actions style={styles.cardActions}>
+                      {/* Botones de votación */}
                       <View style={styles.votingActionsContainer}>
                         <TouchableOpacity 
                           style={styles.voteButton}
                           onPress={() => {
                             const isUpvoted = getUserVoteStatus(question).upvoted;
                             if (isUpvoted) {
-                              // Si ya votó positivamente, elimina el voto
                               handleDeleteVote(question._id, 'up');
                             } else {
-                              // Si no ha votado o votó negativamente, añade voto positivo
                               handleVote(question._id, 'up');
                             }
                           }}
                           accessibilityLabel="Voto positivo"
-                          accessibilityHint={getUserVoteStatus(question).upvoted 
-                            ? "Eliminar voto positivo de esta pregunta" 
-                            : "Dar voto positivo a esta pregunta"}
                         >
                           <MaterialCommunityIcons 
                             name={getUserVoteStatus(question).upvoted ? "thumb-up" : "thumb-up-outline"} 
-                            size={20} 
+                            size={18} 
                             color={getUserVoteStatus(question).upvoted ? '#4CAF50' : '#757575'} 
                           />
                           <Text style={[styles.voteCountInline, getUserVoteStatus(question).upvoted ? styles.positiveVotes : null]}>
@@ -1280,21 +1276,16 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                           onPress={() => {
                             const isDownvoted = getUserVoteStatus(question).downvoted;
                             if (isDownvoted) {
-                              // Si ya votó negativamente, elimina el voto
                               handleDeleteVote(question._id, 'down');
                             } else {
-                              // Si no ha votado o votó positivamente, añade voto negativo
                               handleVote(question._id, 'down');
                             }
                           }}
                           accessibilityLabel="Voto negativo"
-                          accessibilityHint={getUserVoteStatus(question).downvoted 
-                            ? "Eliminar voto negativo de esta pregunta" 
-                            : "Dar voto negativo a esta pregunta"}
                         >
                           <MaterialCommunityIcons 
                             name={getUserVoteStatus(question).downvoted ? "thumb-down" : "thumb-down-outline"} 
-                            size={20} 
+                            size={18} 
                             color={getUserVoteStatus(question).downvoted ? '#F44336' : '#757575'} 
                           />
                           <Text style={[styles.voteCountInline, getUserVoteStatus(question).downvoted ? styles.negativeVotes : null]}>
@@ -1302,13 +1293,16 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                           </Text>
                         </TouchableOpacity>
                       </View>
-                        <View style={styles.questionActionButtons}>
+                      
+                      {/* Botones de acción */}
+                      <View style={styles.questionActionButtons}>
                         <Button 
                           mode="text" 
                           onPress={() => openQuestionDetail(question)}
                           style={styles.detailButton}
                           icon="comment-multiple-outline"
                           labelStyle={styles.buttonLabel}
+                          compact
                         >
                           Ver Respuestas
                         </Button>
@@ -1319,6 +1313,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                           style={styles.editButton}
                           icon="pencil"
                           labelStyle={styles.buttonLabel}
+                          compact
                         >
                           Editar
                         </Button>
@@ -1329,6 +1324,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                           style={styles.deleteButton}
                           icon="delete"
                           labelStyle={[styles.buttonLabel, { color: '#D32F2F' }]}
+                          compact
                         >
                           Eliminar
                         </Button>
@@ -1995,21 +1991,21 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     borderTopWidth: 1,
     borderTopColor: '#eee',
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'column',
     paddingHorizontal: 8,
+    paddingVertical: 8,
   },
   detailButton: {
-    marginLeft: 'auto',
+    marginBottom: 4,
   },
   editButton: {
-    marginLeft: 4,
+    marginBottom: 4,
   },
   deleteButton: {
-    marginLeft: 4,
+    marginBottom: 0,
   },
   buttonLabel: {
-    fontSize: 14,
+    fontSize: 12,
   },
   detailHeader: {
     flexDirection: 'row',
@@ -2090,14 +2086,16 @@ const styles = StyleSheet.create({
     marginRight: 12,
     paddingTop: 4,
     minWidth: 40,
-  },
-  votingActionsContainer: {
+  },  votingActionsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-start',
   },
   questionActionButtons: {
-    flexDirection: 'row',
-    marginLeft: 'auto',
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    width: '100%',
+    marginTop: 8,
   },
   voteButton: {
     flexDirection: 'row',
