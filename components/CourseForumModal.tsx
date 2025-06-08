@@ -174,7 +174,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
     
     try {
       const response = await forumClient.get(
-        `/questions/?forum_id=${forumId}&limit=${questionsPerPage}&page=${page}`,
+        `/questions/?forum_id=${forumId}&limit=${questionsPerPage}&page=${page}&is_active=true`,
         {
           headers: {
             'Authorization': `Bearer ${session.token}`,
@@ -585,6 +585,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
         forum_id: selectedForum._id,
         title: newQuestionTitle,
         description: newQuestionDescription,
+        user_id: session.userId,
         tags: tags
       };
       
