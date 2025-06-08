@@ -1019,8 +1019,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
       );
     }
   };
-  
-  // Función para verificar el estado de voto del usuario actual en una pregunta
+    // Función para verificar el estado de voto del usuario actual en una pregunta
   const getUserVoteStatus = (question: Question) => {
     if (!session || !session.userId) {
       return { upvoted: false, downvoted: false };
@@ -1028,6 +1027,157 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
     
     const upvoted = question.votes.up.includes(session.userId);
     const downvoted = question.votes.down.includes(session.userId);
+    
+    return { upvoted, downvoted };
+  };
+
+  // Función para manejar los votos de respuestas (upvote/downvote)
+  const handleAnswerVote = async (answerId: string, voteType: 'up' | 'down') => {
+    if (!session?.token || !session.userId) {
+      Alert.alert("Error", "Debe iniciar sesión para votar.");
+      return;
+    }
+    
+    try {
+      // Encontrar la respuesta actual para verificar si el usuario ya votó
+      const currentAnswer = answers.find(a => a._id === answerId);
+      if (!currentAnswer) return;
+      
+      // Verificar si el usuario ya votó en esta categoría
+      const hasUpvoted = currentAnswer.votes.up.includes(session.userId);
+      const hasDownvoted = currentAnswer.votes.down.includes(session.userId);
+      
+      // Preparar el objeto de voto
+      const voteData = {
+        user_id: session.userId,
+        type: voteType
+      };
+      
+      console.log(`Enviando voto para respuesta ${answerId}:`, voteData);
+      
+      const response = await forumClient.post(
+        `/answers/${answerId}/votes`,
+        voteData,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      console.log("Respuesta de voto:", response.data);
+      
+      // Actualizar localmente la respuesta con los nuevos votos
+      const updatedAnswers = answers.map(a => {
+        if (a._id === answerId) {
+          // Crear una copia de los votos actuales
+          const updatedVotes = { ...a.votes };
+          
+          // Lógica para manejar la actualización local de votos
+          if (voteType === 'up') {
+            // Añadimos el voto positivo
+            updatedVotes.up = [...updatedVotes.up, session.userId];
+            // Y si había dado downvote, lo quitamos
+            if (hasDownvoted) {
+              updatedVotes.down = updatedVotes.down.filter(id => id !== session.userId);
+            }
+          } else if (voteType === 'down') {
+            // Añadimos el voto negativo
+            updatedVotes.down = [...updatedVotes.down, session.userId];
+            // Y si había dado upvote, lo quitamos
+            if (hasUpvoted) {
+              updatedVotes.up = updatedVotes.up.filter(id => id !== session.userId);
+            }
+          }
+          
+          return { ...a, votes: updatedVotes };
+        }
+        return a;
+      });
+      
+      setAnswers(updatedAnswers);
+    } catch (error) {
+      console.error("Error al votar respuesta:", error);
+      Alert.alert(
+        "Error",
+        "No se pudo registrar su voto. Por favor, intente nuevamente."
+      );
+    }
+  };
+
+  // Función para eliminar un voto existente de una respuesta
+  const handleDeleteAnswerVote = async (answerId: string, voteType: 'up' | 'down') => {
+    if (!session?.token || !session.userId) {
+      Alert.alert("Error", "Debe iniciar sesión para eliminar su voto.");
+      return;
+    }
+    
+    try {
+      // Encontrar la respuesta actual
+      const currentAnswer = answers.find(a => a._id === answerId);
+      if (!currentAnswer) return;
+      
+      // Verificar si el usuario tiene un voto del tipo especificado
+      const hasUpvoted = voteType === 'up' && currentAnswer.votes.up.includes(session.userId);
+      const hasDownvoted = voteType === 'down' && currentAnswer.votes.down.includes(session.userId);
+      
+      // Solo proceder si el usuario tiene un voto del tipo que quiere eliminar
+      if (!hasUpvoted && !hasDownvoted) {
+        console.log(`No hay voto de tipo ${voteType} para eliminar en la respuesta`);
+        return;
+      }
+      
+      console.log(`Eliminando voto ${voteType} para respuesta ${answerId}`);
+      
+      const response = await forumClient.delete(
+        `/answers/${answerId}/votes?user_id=${session.userId}&type=${voteType}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      console.log("Respuesta de eliminar voto:", response.data);
+      
+      // Actualizar localmente la respuesta con los nuevos votos
+      const updatedAnswers = answers.map(a => {
+        if (a._id === answerId) {
+          // Crear una copia de los votos actuales
+          const updatedVotes = { ...a.votes };
+          
+          // Eliminar el voto según el tipo
+          if (voteType === 'up') {
+            updatedVotes.up = updatedVotes.up.filter(id => id !== session.userId);
+          } else if (voteType === 'down') {
+            updatedVotes.down = updatedVotes.down.filter(id => id !== session.userId);
+          }
+          
+          return { ...a, votes: updatedVotes };
+        }
+        return a;
+      });
+      
+      setAnswers(updatedAnswers);
+    } catch (error) {
+      console.error("Error al eliminar el voto de respuesta:", error);
+      Alert.alert(
+        "Error",
+        "No se pudo eliminar su voto. Por favor, intente nuevamente."
+      );
+    }
+  };
+  
+  // Función para verificar el estado de voto del usuario actual en una respuesta
+  const getAnswerVoteStatus = (answer: Answer) => {
+    if (!session || !session.userId) {
+      return { upvoted: false, downvoted: false };
+    }
+    
+    const upvoted = answer.votes.up.includes(session.userId);
+    const downvoted = answer.votes.down.includes(session.userId);
     
     return { upvoted, downvoted };
   };
@@ -1710,8 +1860,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                       <Paragraph style={styles.answerContent}>
                         {answer.content}
                       </Paragraph>
-                      
-                      <View style={styles.answerMetadata}>
+                        <View style={styles.answerMetadata}>
                         <View style={styles.metadata}>
                           <MaterialCommunityIcons name="account" size={14} color="#666" />
                           <Text style={styles.answerMetadataText}>
@@ -1725,22 +1874,57 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                             {formatDate(answer.created_at)}
                           </Text>
                         </View>
-                        
-                        <View style={styles.metadata}>
-                          <MaterialCommunityIcons name="thumb-up-outline" size={14} color="#666" />
-                          <Text style={styles.answerMetadataText}>
-                            {answer.votes.up.length}
-                          </Text>
-                        </View>
-                        
-                        <View style={styles.metadata}>
-                          <MaterialCommunityIcons name="thumb-down-outline" size={14} color="#666" />
-                          <Text style={styles.answerMetadataText}>
-                            {answer.votes.down.length}
-                          </Text>
-                        </View>
                       </View>
                     </Card.Content>
+                    
+                    {/* Botones de votación para respuestas */}
+                    <Card.Actions style={styles.cardActions}>
+                      <View style={styles.votingActionsContainer}>
+                        <TouchableOpacity 
+                          style={styles.voteButton}
+                          onPress={() => {
+                            const isUpvoted = getAnswerVoteStatus(answer).upvoted;
+                            if (isUpvoted) {
+                              handleDeleteAnswerVote(answer._id, 'up');
+                            } else {
+                              handleAnswerVote(answer._id, 'up');
+                            }
+                          }}
+                          accessibilityLabel="Voto positivo"
+                        >
+                          <MaterialCommunityIcons 
+                            name={getAnswerVoteStatus(answer).upvoted ? "thumb-up" : "thumb-up-outline"} 
+                            size={18} 
+                            color={getAnswerVoteStatus(answer).upvoted ? '#4CAF50' : '#757575'} 
+                          />
+                          <Text style={[styles.voteCountInline, getAnswerVoteStatus(answer).upvoted ? styles.positiveVotes : null]}>
+                            {answer.votes.up.length}
+                          </Text>
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity 
+                          style={styles.voteButton}
+                          onPress={() => {
+                            const isDownvoted = getAnswerVoteStatus(answer).downvoted;
+                            if (isDownvoted) {
+                              handleDeleteAnswerVote(answer._id, 'down');
+                            } else {
+                              handleAnswerVote(answer._id, 'down');
+                            }
+                          }}
+                          accessibilityLabel="Voto negativo"
+                        >
+                          <MaterialCommunityIcons 
+                            name={getAnswerVoteStatus(answer).downvoted ? "thumb-down" : "thumb-down-outline"} 
+                            size={18} 
+                            color={getAnswerVoteStatus(answer).downvoted ? '#F44336' : '#757575'} 
+                          />
+                          <Text style={[styles.voteCountInline, getAnswerVoteStatus(answer).downvoted ? styles.negativeVotes : null]}>
+                            {answer.votes.down.length}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </Card.Actions>
                       {/* Botones de acción para respuestas */}
                     {session?.userId === answer.user_id && (
                       <Card.Actions style={styles.answerActions}>
@@ -2041,8 +2225,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
             }
           }
         }
-      ]
-    );
+      ]    );
   };
 
   return (
