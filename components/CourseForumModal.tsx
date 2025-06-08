@@ -1573,10 +1573,15 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
         <ScrollView>
           <View style={styles.questionDetailHeader}>
             <Title style={styles.questionDetailTitle}>{selectedQuestion.title}</Title>
-            
-            <TouchableOpacity 
+              <TouchableOpacity 
               style={styles.closeButton}
-              onPress={() => setQuestionDetailVisible(false)}
+              onPress={() => {
+                setQuestionDetailVisible(false);
+                // Refrescar la lista de preguntas para mantener los contadores actualizados
+                if (selectedForum) {
+                  fetchQuestions(selectedForum._id, currentPage);
+                }
+              }}
             >
               <MaterialCommunityIcons name="close" size={24} color="#000" />
             </TouchableOpacity>
@@ -1604,10 +1609,9 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                 <MaterialCommunityIcons name="calendar" size={16} color="#666" />
                 <Text style={styles.metadataText}>{formatDate(selectedQuestion.created_at)}</Text>
               </View>
-              
-              <View style={styles.metadata}>
+                <View style={styles.metadata}>
                 <MaterialCommunityIcons name="comment-multiple-outline" size={16} color="#666" />
-                <Text style={styles.metadataText}>{selectedQuestion.answers.length} respuestas</Text>
+                <Text style={styles.metadataText}>{answers.length} respuestas</Text>
               </View>
             </View>
             
@@ -1763,12 +1767,28 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
             'Content-Type': 'application/json',
           },
         }
-      );
+      );      console.log("Respuesta de creación de respuesta:", response.data);
       
-      console.log("Respuesta de creación de respuesta:", response.data);
+      // Obtener el ID de la nueva respuesta de la respuesta del servidor
+      const newAnswerId = response.data.answer?._id || response.data._id || Date.now().toString();
       
       // Limpiar el formulario
       setNewAnswerContent("");
+      
+      // Actualizar el contador de respuestas en la pregunta seleccionada
+      const updatedSelectedQuestion = {
+        ...selectedQuestion,
+        answers: [...selectedQuestion.answers, newAnswerId]
+      };
+      setSelectedQuestion(updatedSelectedQuestion);
+      
+      // Actualizar el contador de respuestas en la lista de preguntas
+      const updatedQuestions = questions.map(q => 
+        q._id === selectedQuestion._id 
+          ? { ...q, answers: [...q.answers, newAnswerId] }
+          : q
+      );
+      setQuestions(updatedQuestions);
       
       // Refrescar la lista de respuestas
       fetchAnswers(selectedQuestion._id);
