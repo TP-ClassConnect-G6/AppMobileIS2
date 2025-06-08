@@ -33,6 +33,7 @@ type Question = {
     down: string[];
   };
   userName?: string; // Campo opcional para almacenar el nombre del usuario
+  answerCount?: number; // Campo opcional para el conteo de respuestas desde el backend
 };
 
 // Tipo para las respuestas
@@ -207,10 +208,11 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
       );
       
       console.log("Questions response:", JSON.stringify(response.data, null, 2));
-      
-      if (response.data && response.data.questions) {
+        if (response.data && response.data.questions) {
         // Enriquecer las preguntas con información de usuario
-        const enrichedQuestions = await enrichQuestionsWithUserInfo(response.data.questions);
+        let enrichedQuestions = await enrichQuestionsWithUserInfo(response.data.questions);
+        // Enriquecer las preguntas con el conteo real de respuestas
+        enrichedQuestions = await enrichQuestionsWithAnswerCount(enrichedQuestions);
         setQuestions(enrichedQuestions);
         
         // Actualizar información de paginación
@@ -1023,6 +1025,53 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
     return { upvoted, downvoted };
   };
 
+  // Función para enriquecer las preguntas con el conteo real de respuestas
+  const enrichQuestionsWithAnswerCount = async (questionsData: Question[]) => {
+    const enrichedQuestions = [...questionsData];
+    
+    try {
+      // Crear promesas para obtener el conteo de respuestas de cada pregunta
+      const answerCountPromises = questionsData.map(async (question) => {
+        try {
+          const response = await forumClient.get(
+            `/answers/?is_active=true&question_id=${question._id}`,
+            {
+              headers: {
+                'Authorization': `Bearer ${session?.token}`,
+                'Content-Type': 'application/json',
+              },
+            }
+          );
+          
+          // Retornar el conteo real de respuestas
+          return response.data?.answers?.length || 0;
+        } catch (error) {
+          console.error(`Error al obtener respuestas para pregunta ${question._id}:`, error);
+          return question.answers?.length || 0; // Fallback al array local
+        }
+      });
+      
+      // Esperar a que todas las promesas se resuelvan
+      const answerCounts = await Promise.allSettled(answerCountPromises);
+      
+      // Actualizar cada pregunta con su conteo real de respuestas
+      for (let i = 0; i < enrichedQuestions.length; i++) {
+        const result = answerCounts[i];
+        if (result.status === 'fulfilled') {
+          enrichedQuestions[i] = {
+            ...enrichedQuestions[i],
+            answerCount: result.value
+          };
+        }
+      }
+      
+      return enrichedQuestions;
+    } catch (error) {
+      console.error("Error al enriquecer las preguntas con conteo de respuestas:", error);
+      return questionsData;
+    }
+  };
+
   const renderForumList = () => {
     if (loading) {
       return (
@@ -1229,15 +1278,15 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                             {question.userName || question.user_id || 'Usuario anónimo'}
                           </Text>
                         </View>
-                        
-                        <View style={styles.metadata}>
+                          <View style={styles.metadata}>
                           <MaterialCommunityIcons name="calendar" size={16} color="#666" />
                           <Text style={styles.metadataText}>{formatDate(question.created_at)}</Text>
                         </View>
-                        
-                        <View style={styles.metadata}>
+                          <View style={styles.metadata}>
                           <MaterialCommunityIcons name="comment-multiple-outline" size={16} color="#666" />
-                          <Text style={styles.metadataText}>{question.answers.length} respuestas</Text>
+                          <Text style={styles.metadataText}>
+                            {question.answerCount !== undefined ? question.answerCount : question.answers.length} respuestas
+                          </Text>
                         </View>
                       </View>
                         {question.tags && question.tags.length > 0 && (
@@ -1773,21 +1822,27 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
       const newAnswerId = response.data.answer?._id || response.data._id || Date.now().toString();
       
       // Limpiar el formulario
-      setNewAnswerContent("");
-      
-      // Actualizar el contador de respuestas en la pregunta seleccionada
+      setNewAnswerContent("");      // Actualizar el contador de respuestas en la pregunta seleccionada
+      const newAnswersArray = [...selectedQuestion.answers, newAnswerId];
       const updatedSelectedQuestion = {
         ...selectedQuestion,
-        answers: [...selectedQuestion.answers, newAnswerId]
+        answers: newAnswersArray,
+        answerCount: (selectedQuestion.answerCount || selectedQuestion.answers.length) + 1 // Incrementar el conteo actual
       };
       setSelectedQuestion(updatedSelectedQuestion);
       
       // Actualizar el contador de respuestas en la lista de preguntas
-      const updatedQuestions = questions.map(q => 
-        q._id === selectedQuestion._id 
-          ? { ...q, answers: [...q.answers, newAnswerId] }
-          : q
-      );
+      const updatedQuestions = questions.map(q => {
+        if (q._id === selectedQuestion._id) {
+          const updatedAnswersArray = [...q.answers, newAnswerId];
+          return { 
+            ...q, 
+            answers: updatedAnswersArray, 
+            answerCount: (q.answerCount || q.answers.length) + 1 // Incrementar el conteo actual
+          };
+        }
+        return q;
+      });
       setQuestions(updatedQuestions);
       
       // Refrescar la lista de respuestas
