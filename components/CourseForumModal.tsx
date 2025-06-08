@@ -1059,43 +1059,6 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                   <Card key={question._id} style={styles.questionCard}>
                     <Card.Content>
                       <View style={styles.questionHeader}>
-                        {/* Voting controls */}
-                        <View style={styles.votingContainer}>
-                          <TouchableOpacity 
-                            style={styles.voteButton}
-                            onPress={() => handleVote(question._id, 'up')}
-                            accessibilityLabel="Voto positivo"
-                            accessibilityHint="Dar voto positivo a esta pregunta"
-                          >
-                            <MaterialCommunityIcons 
-                              name={getUserVoteStatus(question).upvoted ? "thumb-up" : "thumb-up-outline"} 
-                              size={24} 
-                              color={getUserVoteStatus(question).upvoted ? '#4CAF50' : '#757575'} 
-                            />
-                          </TouchableOpacity>
-                          
-                          <Text style={[styles.voteCount, styles.positiveVotes]}>
-                            {question.votes.up.length}
-                          </Text>
-
-                          <TouchableOpacity 
-                            style={styles.voteButton}
-                            onPress={() => handleVote(question._id, 'down')}
-                            accessibilityLabel="Voto negativo"
-                            accessibilityHint="Dar voto negativo a esta pregunta"
-                          >
-                            <MaterialCommunityIcons 
-                              name={getUserVoteStatus(question).downvoted ? "thumb-down" : "thumb-down-outline"} 
-                              size={24} 
-                              color={getUserVoteStatus(question).downvoted ? '#F44336' : '#757575'} 
-                            />
-                          </TouchableOpacity>
-                          
-                          <Text style={[styles.voteCount, styles.negativeVotes]}>
-                            {question.votes.down.length}
-                          </Text>
-                        </View>
-
                         <View style={styles.questionContent}>
                           <Title style={styles.questionTitle}>{question.title}</Title>
                           
@@ -1134,30 +1097,61 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                       )}
                     </Card.Content>
                     <Card.Actions style={styles.cardActions}>
-                      <Text style={styles.voteInfo}>
-                        <MaterialCommunityIcons name="thumb-up-outline" size={14} color="#666" /> {question.votes.up.length} ·{" "}
-                        <MaterialCommunityIcons name="thumb-down-outline" size={14} color="#666" /> {question.votes.down.length}
-                      </Text>
+                      <View style={styles.votingActionsContainer}>
+                        <TouchableOpacity 
+                          style={styles.voteButton}
+                          onPress={() => handleVote(question._id, 'up')}
+                          accessibilityLabel="Voto positivo"
+                          accessibilityHint="Dar voto positivo a esta pregunta"
+                        >
+                          <MaterialCommunityIcons 
+                            name={getUserVoteStatus(question).upvoted ? "thumb-up" : "thumb-up-outline"} 
+                            size={20} 
+                            color={getUserVoteStatus(question).upvoted ? '#4CAF50' : '#757575'} 
+                          />
+                          <Text style={[styles.voteCountInline, getUserVoteStatus(question).upvoted ? styles.positiveVotes : null]}>
+                            {question.votes.up.length}
+                          </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity 
+                          style={styles.voteButton}
+                          onPress={() => handleVote(question._id, 'down')}
+                          accessibilityLabel="Voto negativo"
+                          accessibilityHint="Dar voto negativo a esta pregunta"
+                        >
+                          <MaterialCommunityIcons 
+                            name={getUserVoteStatus(question).downvoted ? "thumb-down" : "thumb-down-outline"} 
+                            size={20} 
+                            color={getUserVoteStatus(question).downvoted ? '#F44336' : '#757575'} 
+                          />
+                          <Text style={[styles.voteCountInline, getUserVoteStatus(question).downvoted ? styles.negativeVotes : null]}>
+                            {question.votes.down.length}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
                       
-                      <Button 
-                        mode="text" 
-                        onPress={() => openEditQuestion(question)}
-                        style={styles.editButton}
-                        icon="pencil"
-                        labelStyle={styles.buttonLabel}
-                      >
-                        Editar
-                      </Button>
-                      
-                      <Button 
-                        mode="text" 
-                        onPress={() => deleteQuestion(question._id)}
-                        style={styles.deleteButton}
-                        icon="delete"
-                        labelStyle={[styles.buttonLabel, { color: '#D32F2F' }]}
-                      >
-                        Eliminar
-                      </Button>
+                      <View style={styles.questionActionButtons}>
+                        <Button 
+                          mode="text" 
+                          onPress={() => openEditQuestion(question)}
+                          style={styles.editButton}
+                          icon="pencil"
+                          labelStyle={styles.buttonLabel}
+                        >
+                          Editar
+                        </Button>
+                        
+                        <Button 
+                          mode="text" 
+                          onPress={() => deleteQuestion(question._id)}
+                          style={styles.deleteButton}
+                          icon="delete"
+                          labelStyle={[styles.buttonLabel, { color: '#D32F2F' }]}
+                        >
+                          Eliminar
+                        </Button>
+                      </View>
                     </Card.Actions>
                   </Card>
                 ))}
@@ -1682,13 +1676,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginBottom: 8,
-  },
-  cardActions: {
-    justifyContent: 'flex-end',
+  },  cardActions: {
+    justifyContent: 'space-between',
     borderTopWidth: 1,
     borderTopColor: '#eee',
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 8,
   },
   detailButton: {
     marginLeft: 'auto',
@@ -1782,16 +1776,31 @@ const styles = StyleSheet.create({
     paddingTop: 4,
     minWidth: 40,
   },
+  votingActionsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  questionActionButtons: {
+    flexDirection: 'row',
+    marginLeft: 'auto',
+  },
   voteButton: {
-    padding: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 6,
     borderRadius: 20,
     backgroundColor: 'rgba(0,0,0,0.03)',
-    marginVertical: 2,
+    marginHorizontal: 4,
   },
   voteCount: {
     fontSize: 14,
     fontWeight: 'bold',
     marginBottom: 8,
+  },
+  voteCountInline: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginLeft: 4,
   },
   positiveVotes: {
     color: '#4CAF50',
