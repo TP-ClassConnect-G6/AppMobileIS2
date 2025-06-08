@@ -1068,18 +1068,14 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                             accessibilityHint="Dar voto positivo a esta pregunta"
                           >
                             <MaterialCommunityIcons 
-                              name={getUserVoteStatus(question).upvoted ? "arrow-up-bold-circle" : "arrow-up-bold"} 
+                              name={getUserVoteStatus(question).upvoted ? "thumb-up" : "thumb-up-outline"} 
                               size={24} 
                               color={getUserVoteStatus(question).upvoted ? '#4CAF50' : '#757575'} 
                             />
                           </TouchableOpacity>
-
-                          <Text style={[
-                            styles.voteCount, 
-                            calculateVoteScore(question.votes) > 0 ? styles.positiveVotes : 
-                            calculateVoteScore(question.votes) < 0 ? styles.negativeVotes : null
-                          ]}>
-                            {calculateVoteScore(question.votes)}
+                          
+                          <Text style={[styles.voteCount, styles.positiveVotes]}>
+                            {question.votes.up.length}
                           </Text>
 
                           <TouchableOpacity 
@@ -1089,11 +1085,15 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                             accessibilityHint="Dar voto negativo a esta pregunta"
                           >
                             <MaterialCommunityIcons 
-                              name={getUserVoteStatus(question).downvoted ? "arrow-down-bold-circle" : "arrow-down-bold"} 
+                              name={getUserVoteStatus(question).downvoted ? "thumb-down" : "thumb-down-outline"} 
                               size={24} 
                               color={getUserVoteStatus(question).downvoted ? '#F44336' : '#757575'} 
                             />
                           </TouchableOpacity>
+                          
+                          <Text style={[styles.voteCount, styles.negativeVotes]}>
+                            {question.votes.down.length}
+                          </Text>
                         </View>
 
                         <View style={styles.questionContent}>
@@ -1780,6 +1780,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 12,
     paddingTop: 4,
+    minWidth: 40,
   },
   voteButton: {
     padding: 4,
@@ -1788,9 +1789,9 @@ const styles = StyleSheet.create({
     marginVertical: 2,
   },
   voteCount: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
-    marginVertical: 4,
+    marginBottom: 8,
   },
   positiveVotes: {
     color: '#4CAF50',
