@@ -106,12 +106,15 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
   const [editQuestionVisible, setEditQuestionVisible] = useState(false);
   const [isEditingQuestion, setIsEditingQuestion] = useState(false);
   const [questionToEdit, setQuestionToEdit] = useState<Question | null>(null);
-  
-  // Estado para las respuestas
+    // Estado para las respuestas
   const [answers, setAnswers] = useState<Answer[]>([]);
   const [loadingAnswers, setLoadingAnswers] = useState(false);
   const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
   const [questionDetailVisible, setQuestionDetailVisible] = useState(false);
+  
+  // Estado para creación de respuestas
+  const [newAnswerContent, setNewAnswerContent] = useState("");
+  const [isCreatingAnswer, setIsCreatingAnswer] = useState(false);
   
   // Estado para los campos del formulario de creación/edición
   const [newForumTitle, setNewForumTitle] = useState("");
@@ -1683,10 +1686,108 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
               </View>
             )}
           </View>
+          
+          {/* Sección para crear nueva respuesta */}
+          <Divider style={styles.divider} />
+          
+          <View style={styles.answersSection}>
+            <Text style={styles.sectionTitle}>Agregar Respuesta</Text>
+            
+            <TextInput
+              label="Tu respuesta"
+              value={newAnswerContent}
+              onChangeText={setNewAnswerContent}
+              mode="outlined"
+              style={styles.formInput}
+              placeholder="Escribe tu respuesta aquí..."
+              multiline
+              numberOfLines={4}
+              disabled={isCreatingAnswer}
+            />
+            
+            <View style={styles.formButtonContainer}>
+              <Button 
+                mode="outlined" 
+                onPress={() => setNewAnswerContent("")}
+                style={styles.formButton}
+                disabled={isCreatingAnswer || !newAnswerContent.trim()}
+              >
+                Limpiar
+              </Button>
+              
+              <Button 
+                mode="contained" 
+                onPress={createAnswer}
+                style={[styles.formButton, { backgroundColor: '#1976D2' }]}
+                loading={isCreatingAnswer}
+                disabled={isCreatingAnswer || !newAnswerContent.trim()}
+              >
+                {isCreatingAnswer ? 'Enviando...' : 'Enviar Respuesta'}
+              </Button>
+            </View>
+          </View>
         </ScrollView>
       </Modal>
     );
   };
+  
+  // Función para crear una nueva respuesta
+  const createAnswer = async () => {
+    if (!selectedQuestion || !session?.token || !session.userId) {
+      Alert.alert("Error", "No se pudo crear la respuesta. Falta información requerida.");
+      return;
+    }
+    
+    if (!newAnswerContent.trim()) {
+      Alert.alert("Error", "El contenido de la respuesta es obligatorio.");
+      return;
+    }
+    
+    setIsCreatingAnswer(true);
+    
+    try {
+      const answerData = {
+        question_id: selectedQuestion._id,
+        user_id: session.userId,
+        content: newAnswerContent.trim()
+      };
+      
+      console.log("Creando respuesta con datos:", answerData);
+      
+      const response = await forumClient.post(
+        '/answers/',
+        answerData,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      console.log("Respuesta de creación de respuesta:", response.data);
+      
+      // Limpiar el formulario
+      setNewAnswerContent("");
+      
+      // Refrescar la lista de respuestas
+      fetchAnswers(selectedQuestion._id);
+      
+      Alert.alert(
+        "Éxito",
+        "La respuesta se ha creado correctamente."
+      );
+    } catch (error) {
+      console.error("Error al crear la respuesta:", error);
+      Alert.alert(
+        "Error",
+        "No se pudo crear la respuesta. Por favor, intente nuevamente."
+      );
+    } finally {
+      setIsCreatingAnswer(false);
+    }
+  };
+
   return (
     <Portal>
       <Modal
