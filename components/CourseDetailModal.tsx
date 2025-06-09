@@ -105,10 +105,10 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
   const [auxiliarTeachersModalVisible, setAuxiliarTeachersModalVisible] = useState(false);
   const [forumModalVisible, setForumModalVisible] = useState(false);
   const [isEnrolled, setIsEnrolled] = useState(false);
-  const [isTeacherAssigned, setIsTeacherAssigned] = useState(false);
-  const [isAuxiliar, setIsAuxiliar] = useState(false);
+  const [isTeacherAssigned, setIsTeacherAssigned] = useState(false);  const [isAuxiliar, setIsAuxiliar] = useState(false);
   const [canCreateExam, setCanCreateExam] = useState(false);
   const [canCreateTask, setCanCreateTask] = useState(false);
+  const [canCommunicate, setCanCommunicate] = useState(false);
   const [isLoadingForum, setIsLoadingForum] = useState(false);
   const [forums, setForums] = useState<Forum[]>([]);
   
@@ -212,8 +212,7 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
         const currentUserAsAuxiliar = auxiliars.find((aux: { auxiliar: string; permissions: { permission: string }[] }) => aux.auxiliar === userEmail);
           if (currentUserAsAuxiliar) {
           setIsAuxiliar(true);
-          
-          // Check permissions
+            // Check permissions
           const hasCreateExamPermission = currentUserAsAuxiliar.permissions.some(
             (perm: { permission: string }) => perm.permission === "create exam"
           );
@@ -222,14 +221,19 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
             (perm: { permission: string }) => perm.permission === "create task"
           );
           
+          const hasCommunicatePermission = currentUserAsAuxiliar.permissions.some(
+            (perm: { permission: string }) => perm.permission === "comunicate"
+          );
+          
           setCanCreateExam(hasCreateExamPermission);
           setCanCreateTask(hasCreateTaskPermission);
+          setCanCommunicate(hasCommunicatePermission);
           
-          console.log(`User is auxiliar with permissions: createExam=${hasCreateExamPermission}, createTask=${hasCreateTaskPermission}`);
-        } else {
+          console.log(`User is auxiliar with permissions: createExam=${hasCreateExamPermission}, createTask=${hasCreateTaskPermission}, communicate=${hasCommunicatePermission}`);        } else {
           setIsAuxiliar(false);
           setCanCreateExam(false);
           setCanCreateTask(false);
+          setCanCommunicate(false);
         }
       }
     } catch (error: any) {
@@ -244,11 +248,11 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
       
       console.log("Error formatted:", JSON.stringify(formattedError, null, 2));
       console.error("Error fetching auxiliar teachers:", error);
-      
-      // Reset permissions if there's an error
+        // Reset permissions if there's an error
       setIsAuxiliar(false);
       setCanCreateExam(false);
       setCanCreateTask(false);
+      setCanCommunicate(false);
     }
   };
 
@@ -502,10 +506,9 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                     </Text>
                   ))}
                 </View>
-              )}
-              {isTeacher ? (
+              )}              {isTeacher ? (
                 <>
-                  {isTeacherAssigned || (isAuxiliar && (canCreateExam || canCreateTask)) ? (
+                  {isTeacherAssigned || (isAuxiliar && (canCreateExam || canCreateTask || canCommunicate)) ? (
                     <>
                       {/* Mostrar botones de gestión de exámenes si es profesor asignado o auxiliar con permiso */}
                       {(isTeacherAssigned || (isAuxiliar && canCreateExam)) && (
@@ -528,6 +531,22 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                           icon="clipboard-text"
                         >
                           Gestionar tareas
+                        </Button>
+                      )}
+
+                      {/* Mostrar botón del foro si es profesor asignado o auxiliar con permiso de comunicar */}
+                      {(isTeacherAssigned || (isAuxiliar && canCommunicate)) && (
+                        <Button 
+                          mode="contained" 
+                          style={[styles.examButton, {backgroundColor: '#1565C0'}]} 
+                          onPress={() => {
+                            fetchForums();
+                            setForumModalVisible(true);
+                          }}
+                          icon="forum"
+                          loading={isLoadingForum}
+                        >
+                          Ir a Foro
                         </Button>
                       )}
                       
@@ -579,26 +598,25 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                   >
                     Ver tareas
                   </Button>
+                  {/* Botón para ir al foro del curso vista estudiante*/}
+                  <Button 
+                    mode="contained" 
+                    style={[styles.examButton, {backgroundColor: '#1565C0'}]} 
+                    onPress={() => {
+                      fetchForums();
+                      setForumModalVisible(true);
+                    }}
+                    icon="forum"
+                    loading={isLoadingForum}
+                  >
+                    Ir a Foro
+                  </Button>
                 </>
               ) : (
                 <Text style={styles.notEnrolledText}>
                   Debes estar inscrito en el curso para ver exámenes y tareas
                 </Text>
-              )}
-                {/* Botón para ir al foro del curso */}
-              <Button 
-                mode="contained" 
-                style={[styles.examButton, {backgroundColor: '#1565C0'}]} 
-                onPress={() => {
-                  fetchForums();
-                  setForumModalVisible(true);
-                }}
-                icon="forum"
-                loading={isLoadingForum}
-              >
-                Ir a Foro
-              </Button>
-              
+              )}              
               <Button 
                 mode="outlined" 
                 style={styles.closeButton} 
