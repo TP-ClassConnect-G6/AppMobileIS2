@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { StyleSheet, View, ScrollView, ActivityIndicator, Alert, TouchableOpacity } from "react-native";
-import { Modal, Portal, Text, Title, Button, Divider, Paragraph, Chip, Card, TextInput } from "react-native-paper";
+import { Modal, Portal, Text, Title, Button, Divider, Paragraph, Chip, Card, TextInput, HelperText } from "react-native-paper";
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSession } from "@/contexts/session";
 import { format } from "date-fns";
@@ -8,6 +8,7 @@ import { es } from "date-fns/locale";
 import { forumClient, client } from "@/lib/http";
 import jwtDecode from "jwt-decode";
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useForm, Controller, FieldError } from 'react-hook-form';
 
 // Tipo para el usuario
 type UserProfile = {
@@ -135,10 +136,39 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
   const [createdAfter, setCreatedAfter] = useState<Date | null>(null);
   const [createdBefore, setCreatedBefore] = useState<Date | null>(null);
   const [showFilters, setShowFilters] = useState(false);
-  
-  // Estados para controlar los DateTimePickers
+    // Estados para controlar los DateTimePickers
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
-  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);  // React Hook Form para validación de respuestas
+  const { control: answerControl, handleSubmit: handleAnswerSubmit, formState: { errors: answerErrors }, setError: setAnswerError, clearErrors: clearAnswerErrors, reset: resetAnswerForm } = useForm({
+    defaultValues: {
+      content: ""
+    }
+  });
+
+  // React Hook Form para validación de edición de respuestas
+  const { control: editAnswerControl, handleSubmit: handleEditAnswerSubmit, formState: { errors: editAnswerErrors }, setError: setEditAnswerError, clearErrors: clearEditAnswerErrors, reset: resetEditAnswerForm, setValue: setEditAnswerValue } = useForm({
+    defaultValues: {
+      content: ""
+    }
+  });
+
+  // React Hook Form para validación de creación de preguntas
+  const { control: questionControl, handleSubmit: handleQuestionSubmit, formState: { errors: questionErrors }, setError: setQuestionError, clearErrors: clearQuestionErrors, reset: resetQuestionForm } = useForm({
+    defaultValues: {
+      title: "",
+      description: "",
+      tags: ""
+    }
+  });
+
+  // React Hook Form para validación de edición de preguntas
+  const { control: editQuestionControl, handleSubmit: handleEditQuestionSubmit, formState: { errors: editQuestionErrors }, setError: setEditQuestionError, clearErrors: clearEditQuestionErrors, reset: resetEditQuestionForm, setValue: setEditQuestionValue } = useForm({
+    defaultValues: {
+      title: "",
+      description: "",
+      tags: ""
+    }
+  });
 
   const { session } = useSession();
   useEffect(() => {
@@ -721,10 +751,140 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
     if (currentPage < totalPages && selectedForum) {
       const newPage = currentPage + 1;
       fetchQuestions(selectedForum._id, newPage);
+    }  };
+
+  // Función para crear una nueva pregunta con React Hook Form
+  const onSubmitCreateQuestion = async (data: { title: string; description: string; tags: string }) => {
+    if (!selectedForum || !session?.token) {
+      Alert.alert("Error", "No se pudo crear la pregunta. Falta información requerida.");
+      return;
+    }
+    
+    setIsCreatingQuestion(true);
+    
+    try {
+      // Preparar los tags (separados por comas)
+      const tags = data.tags.trim() 
+        ? data.tags.split(',').map(tag => tag.trim()) 
+        : [];
+      
+      const questionData = {
+        forum_id: selectedForum._id,
+        title: data.title.trim(),
+        description: data.description.trim(),
+        user_id: session.userId,
+        tags: tags
+      };
+      
+      console.log("Creando pregunta con datos:", questionData);
+      
+      const response = await forumClient.post(
+        '/questions/',
+        questionData,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      console.log("Respuesta de creación de pregunta:", response.data);
+      
+      // Limpiar el formulario
+      resetQuestionForm();
+      setNewQuestionTitle("");
+      setNewQuestionDescription("");
+      setNewQuestionTags("");
+      
+      // Cerrar el modal de creación
+      setCreateQuestionVisible(false);
+      
+      // Refrescar la lista de preguntas
+      fetchQuestions(selectedForum._id, currentPage);
+      
+      Alert.alert(
+        "Éxito",
+        "La pregunta se ha creado correctamente."
+      );
+    } catch (error) {
+      console.error("Error al crear la pregunta:", error);
+      Alert.alert(
+        "Error",
+        "No se pudo crear la pregunta. Por favor, intenta de nuevo."
+      );
+    } finally {
+      setIsCreatingQuestion(false);
     }
   };
 
-  // Función para crear una nueva pregunta
+  // Función para editar una pregunta con React Hook Form
+  const onSubmitEditQuestion = async (data: { title: string; description: string; tags: string }) => {
+    if (!questionToEdit || !selectedForum || !session?.token) {
+      Alert.alert("Error", "No se pudo modificar la pregunta. Falta información requerida.");
+      return;
+    }
+    
+    setIsEditingQuestion(true);
+    
+    try {
+      // Preparar los tags (separados por comas)
+      const tags = data.tags.trim() 
+        ? data.tags.split(',').map(tag => tag.trim()) 
+        : [];
+      
+      const questionData = {
+        forum_id: selectedForum._id,
+        title: data.title.trim(),
+        description: data.description.trim(),
+        user_id: questionToEdit.user_id,
+        tags: tags
+      };
+      
+      console.log("Modificando pregunta con datos:", questionData);
+      
+      const response = await forumClient.put(
+        `/questions/${questionToEdit._id}`,
+        questionData,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      console.log("Respuesta de modificación de pregunta:", response.data);
+      
+      // Limpiar el formulario
+      resetEditQuestionForm();
+      setNewQuestionTitle("");
+      setNewQuestionDescription("");
+      setNewQuestionTags("");
+      setQuestionToEdit(null);
+      
+      // Cerrar el modal de edición
+      setEditQuestionVisible(false);
+      
+      // Refrescar la lista de preguntas
+      fetchQuestions(selectedForum._id, currentPage);
+      
+      Alert.alert(
+        "Éxito",
+        "La pregunta se ha modificado correctamente."
+      );
+    } catch (error) {
+      console.error("Error al modificar la pregunta:", error);
+      Alert.alert(
+        "Error",
+        "No se pudo modificar la pregunta. Por favor, intenta de nuevo."
+      );
+    } finally {
+      setIsEditingQuestion(false);
+    }
+  };
+
+  // Función para crear una nueva pregunta (mantener compatibilidad)
   const createQuestion = async () => {
     if (!selectedForum || !session?.token) {
       Alert.alert("Error", "No se pudo crear la pregunta. Falta información requerida.");
@@ -796,13 +956,17 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
     } finally {
       setIsCreatingQuestion(false);
     }
-  };
-  // Función para abrir el modal de edición de pregunta
+  };  // Función para abrir el modal de edición de pregunta
   const openEditQuestion = (question: Question) => {
     setQuestionToEdit(question);
     setNewQuestionTitle(question.title);
     setNewQuestionDescription(question.description);
     setNewQuestionTags(question.tags.join(", "));
+    // Inicializar el formulario con los datos de la pregunta
+    setEditQuestionValue("title", question.title);
+    setEditQuestionValue("description", question.description);
+    setEditQuestionValue("tags", question.tags.join(", "));
+    clearEditQuestionErrors(); // Limpiar errores previos
     setEditQuestionVisible(true);
   };
 
@@ -1847,44 +2011,122 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
           </View>
           
           <Divider style={styles.divider} />
-          
-          <ScrollView style={styles.contentContainer}>
-            <TextInput
-              label="Título"
-              value={newQuestionTitle}
-              onChangeText={setNewQuestionTitle}
-              mode="outlined"
-              style={styles.formInput}
-              placeholder="Ingrese el título de la pregunta"
-              disabled={isCreatingQuestion}
+            <ScrollView style={styles.contentContainer}>
+            <Controller
+              control={questionControl}
+              name="title"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Título *"
+                  value={value}
+                  onChangeText={(text) => {
+                    onChange(text);
+                    setNewQuestionTitle(text); // Mantener compatibilidad
+                    if (text.trim().length >= 3) {
+                      clearQuestionErrors("title");
+                    }
+                  }}
+                  onBlur={() => {
+                    onBlur();
+                    if (!value || value.trim().length < 3) {
+                      setQuestionError("title", {
+                        type: "manual",
+                        message: !value ? "El título es requerido" : "El título debe tener al menos 3 caracteres"
+                      });
+                    }
+                  }}
+                  mode="outlined"
+                  style={[styles.formInput, !!questionErrors.title && { borderColor: '#B00020' }]}
+                  placeholder="Ingrese el título de la pregunta"
+                  disabled={isCreatingQuestion}
+                  error={!!questionErrors.title}
+                  right={
+                    value && value.trim().length >= 3 ? 
+                    <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                  }
+                />
+              )}
             />
+            {questionErrors.title && (
+              <HelperText type="error">{questionErrors.title.message}</HelperText>
+            )}
             
-            <TextInput
-              label="Descripción"
-              value={newQuestionDescription}
-              onChangeText={setNewQuestionDescription}
-              mode="outlined"
-              style={styles.formInput}
-              placeholder="Ingrese una descripción detallada de su pregunta"
-              multiline
-              numberOfLines={4}
-              disabled={isCreatingQuestion}
+            <Controller
+              control={questionControl}
+              name="description"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Descripción *"
+                  value={value}
+                  onChangeText={(text) => {
+                    onChange(text);
+                    setNewQuestionDescription(text); // Mantener compatibilidad
+                    if (text.trim().length > 0) {
+                      clearQuestionErrors("description");
+                    }
+                  }}
+                  onBlur={() => {
+                    onBlur();
+                    if (!value || value.trim().length === 0) {
+                      setQuestionError("description", {
+                        type: "manual",
+                        message: "La descripción es requerida"
+                      });
+                    }
+                  }}
+                  mode="outlined"
+                  style={[styles.formInput, !!questionErrors.description && { borderColor: '#B00020' }]}
+                  placeholder="Ingrese una descripción detallada de su pregunta"
+                  multiline
+                  numberOfLines={4}
+                  disabled={isCreatingQuestion}
+                  textAlignVertical="top"                  error={!!questionErrors.description}
+                  right={
+                    value && value.trim().length > 0 ? 
+                    <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                  }
+                />
+              )}
             />
+            {questionErrors.description && (
+              <HelperText type="error">{questionErrors.description.message}</HelperText>
+            )}
             
-            <TextInput
-              label="Etiquetas (separadas por comas)"
-              value={newQuestionTags}
-              onChangeText={setNewQuestionTags}
-              mode="outlined"
-              style={styles.formInput}
-              placeholder="Ej: tarea, duda, consulta"
-              disabled={isCreatingQuestion}
+            <Controller
+              control={questionControl}
+              name="tags"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Etiquetas (separadas por comas)"
+                  value={value}
+                  onChangeText={(text) => {
+                    onChange(text);
+                    setNewQuestionTags(text); // Mantener compatibilidad
+                    clearQuestionErrors("tags"); // Las etiquetas son opcionales
+                  }}
+                  onBlur={onBlur}
+                  mode="outlined"
+                  style={styles.formInput}
+                  placeholder="Ej: tarea, duda, consulta"
+                  disabled={isCreatingQuestion}
+                  right={
+                    value && value.trim().length > 0 ? 
+                    <TextInput.Icon icon="tag-multiple" color="#1976D2" /> : undefined
+                  }
+                />
+              )}
             />
             
             <View style={styles.formButtonContainer}>
               <Button 
                 mode="outlined" 
-                onPress={() => setCreateQuestionVisible(false)}
+                onPress={() => {
+                  resetQuestionForm();
+                  setNewQuestionTitle("");
+                  setNewQuestionDescription("");
+                  setNewQuestionTags("");
+                  setCreateQuestionVisible(false);
+                }}
                 style={styles.formButton}
                 disabled={isCreatingQuestion}
               >
@@ -1893,7 +2135,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
               
               <Button 
                 mode="contained" 
-                onPress={createQuestion}
+                onPress={handleQuestionSubmit(onSubmitCreateQuestion)}
                 style={[styles.formButton, { backgroundColor: '#1976D2' }]}
                 loading={isCreatingQuestion}
                 disabled={isCreatingQuestion}
@@ -1926,44 +2168,121 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
           </View>
           
           <Divider style={styles.divider} />
-          
-          <ScrollView style={styles.contentContainer}>
-            <TextInput
-              label="Título"
-              value={newQuestionTitle}
-              onChangeText={setNewQuestionTitle}
-              mode="outlined"
-              style={styles.formInput}
-              placeholder="Ingrese el título de la pregunta"
-              disabled={isEditingQuestion}
+            <ScrollView style={styles.contentContainer}>
+            <Controller
+              control={editQuestionControl}
+              name="title"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Título *"
+                  value={value}
+                  onChangeText={(text) => {
+                    onChange(text);
+                    setNewQuestionTitle(text); // Mantener compatibilidad
+                    if (text.trim().length >= 3) {
+                      clearEditQuestionErrors("title");
+                    }
+                  }}
+                  onBlur={() => {
+                    onBlur();
+                    if (!value || value.trim().length < 3) {
+                      setEditQuestionError("title", {
+                        type: "manual",
+                        message: !value ? "El título es requerido" : "El título debe tener al menos 3 caracteres"
+                      });
+                    }
+                  }}
+                  mode="outlined"
+                  style={[styles.formInput, !!editQuestionErrors.title && { borderColor: '#B00020' }]}
+                  placeholder="Ingrese el título de la pregunta"
+                  disabled={isEditingQuestion}
+                  error={!!editQuestionErrors.title}
+                  right={
+                    value && value.trim().length >= 3 ? 
+                    <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                  }
+                />
+              )}
             />
+            {editQuestionErrors.title && (
+              <HelperText type="error">{editQuestionErrors.title.message}</HelperText>
+            )}
             
-            <TextInput
-              label="Descripción"
-              value={newQuestionDescription}
-              onChangeText={setNewQuestionDescription}
-              mode="outlined"
-              style={styles.formInput}
-              placeholder="Ingrese una descripción detallada de su pregunta"
-              multiline
-              numberOfLines={4}
-              disabled={isEditingQuestion}
+            <Controller
+              control={editQuestionControl}
+              name="description"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Descripción *"
+                  value={value}                  onChangeText={(text) => {
+                    onChange(text);
+                    setNewQuestionDescription(text); // Mantener compatibilidad
+                    if (text.trim().length > 0) {
+                      clearEditQuestionErrors("description");
+                    }
+                  }}
+                  onBlur={() => {
+                    onBlur();
+                    if (!value || value.trim().length === 0) {
+                      setEditQuestionError("description", {
+                        type: "manual",
+                        message: "La descripción es requerida"
+                      });
+                    }
+                  }}
+                  mode="outlined"
+                  style={[styles.formInput, !!editQuestionErrors.description && { borderColor: '#B00020' }]}
+                  placeholder="Ingrese una descripción detallada de su pregunta"
+                  multiline
+                  numberOfLines={4}
+                  disabled={isEditingQuestion}
+                  textAlignVertical="top"                  error={!!editQuestionErrors.description}
+                  right={
+                    value && value.trim().length > 0 ? 
+                    <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                  }
+                />
+              )}
             />
+            {editQuestionErrors.description && (
+              <HelperText type="error">{editQuestionErrors.description.message}</HelperText>
+            )}
             
-            <TextInput
-              label="Etiquetas (separadas por comas)"
-              value={newQuestionTags}
-              onChangeText={setNewQuestionTags}
-              mode="outlined"
-              style={styles.formInput}
-              placeholder="Ej: tarea, duda, consulta"
-              disabled={isEditingQuestion}
+            <Controller
+              control={editQuestionControl}
+              name="tags"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Etiquetas (separadas por comas)"
+                  value={value}
+                  onChangeText={(text) => {
+                    onChange(text);
+                    setNewQuestionTags(text); // Mantener compatibilidad
+                    clearEditQuestionErrors("tags"); // Las etiquetas son opcionales
+                  }}
+                  onBlur={onBlur}
+                  mode="outlined"
+                  style={styles.formInput}
+                  placeholder="Ej: tarea, duda, consulta"
+                  disabled={isEditingQuestion}
+                  right={
+                    value && value.trim().length > 0 ? 
+                    <TextInput.Icon icon="tag-multiple" color="#1976D2" /> : undefined
+                  }
+                />
+              )}
             />
             
             <View style={styles.formButtonContainer}>
               <Button 
                 mode="outlined" 
-                onPress={() => setEditQuestionVisible(false)}
+                onPress={() => {
+                  resetEditQuestionForm();
+                  setNewQuestionTitle("");
+                  setNewQuestionDescription("");
+                  setNewQuestionTags("");
+                  setEditQuestionVisible(false);
+                }}
                 style={styles.formButton}
                 disabled={isEditingQuestion}
               >
@@ -1972,7 +2291,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
               
               <Button 
                 mode="contained" 
-                onPress={updateQuestion}
+                onPress={handleEditQuestionSubmit(onSubmitEditQuestion)}
                 style={[styles.formButton, { backgroundColor: '#1976D2' }]}
                 loading={isEditingQuestion}
                 disabled={isEditingQuestion}
@@ -2206,26 +2525,57 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
           
           {/* Sección para crear nueva respuesta */}
           <Divider style={styles.divider} />
-          
-          <View style={styles.answersSection}>
+            <View style={styles.answersSection}>
             <Text style={styles.sectionTitle}>Agregar Respuesta</Text>
-            
-            <TextInput
-              label="Tu respuesta"
-              value={newAnswerContent}
-              onChangeText={setNewAnswerContent}
-              mode="outlined"
-              style={styles.formInput}
-              placeholder="Escribe tu respuesta aquí..."
-              multiline
-              numberOfLines={4}
-              disabled={isCreatingAnswer}
+            <Controller
+              control={answerControl}
+              name="content"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Tu respuesta *"
+                  value={value}
+                  onChangeText={(text) => {
+                    onChange(text);
+                    setNewAnswerContent(text); // Mantener compatibilidad con estado existente
+                    if (text.trim().length > 0) {
+                      clearAnswerErrors("content");
+                    }
+                  }}
+                  onBlur={() => {
+                    onBlur();
+                    // Validar al perder el foco
+                    if (!value || value.trim().length === 0) {
+                      setAnswerError("content", {
+                        type: "manual",
+                        message: "El contenido de la respuesta es requerido"
+                      });
+                    }
+                  }}
+                  mode="outlined"
+                  style={[styles.formInput, !!answerErrors.content && { borderColor: '#B00020' }]}
+                  placeholder="Escribe tu respuesta aquí..."
+                  multiline
+                  numberOfLines={4}
+                  disabled={isCreatingAnswer}
+                  textAlignVertical="top"
+                  error={!!answerErrors.content}                  right={
+                    value && value.trim().length > 0 ? 
+                    <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                  }
+                />
+              )}
             />
+            {answerErrors.content && (
+              <HelperText type="error">{answerErrors.content.message}</HelperText>
+            )}
             
             <View style={styles.formButtonContainer}>
               <Button 
                 mode="outlined" 
-                onPress={() => setNewAnswerContent("")}
+                onPress={() => {
+                  resetAnswerForm();
+                  setNewAnswerContent("");
+                }}
                 style={styles.formButton}
                 disabled={isCreatingAnswer}
               >
@@ -2234,7 +2584,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
               
               <Button 
                 mode="contained" 
-                onPress={createAnswer}
+                onPress={handleAnswerSubmit(onSubmitAnswer)}
                 style={[styles.formButton, { backgroundColor: '#1976D2' }]}
                 loading={isCreatingAnswer}
                 disabled={isCreatingAnswer}
@@ -2247,8 +2597,86 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
       </Modal>
     );
   };
-  
-  // Función para crear una nueva respuesta
+    // Función para crear una nueva respuesta con React Hook Form
+  const onSubmitAnswer = async (data: { content: string }) => {
+    if (!selectedQuestion || !session?.token || !session.userId) {
+      Alert.alert("Error", "No se pudo crear la respuesta. Falta información requerida.");
+      return;
+    }
+    
+    setIsCreatingAnswer(true);
+    
+    try {
+      const answerData = {
+        question_id: selectedQuestion._id,
+        user_id: session.userId,
+        content: data.content.trim()
+      };
+      
+      console.log("Creando respuesta con datos:", answerData);
+      
+      const response = await forumClient.post(
+        '/answers/',
+        answerData,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      console.log("Respuesta de creación de respuesta:", response.data);
+      
+      // Obtener el ID de la nueva respuesta de la respuesta del servidor
+      const newAnswerId = response.data.answer?._id || response.data._id || Date.now().toString();
+      
+      // Limpiar el formulario
+      resetAnswerForm();
+      setNewAnswerContent("");
+      
+      // Actualizar el contador de respuestas en la pregunta seleccionada
+      const newAnswersArray = [...selectedQuestion.answers, newAnswerId];
+      const updatedSelectedQuestion = {
+        ...selectedQuestion,
+        answers: newAnswersArray,
+        answerCount: (selectedQuestion.answerCount || selectedQuestion.answers.length) + 1
+      };
+      setSelectedQuestion(updatedSelectedQuestion);
+      
+      // Actualizar el contador de respuestas en la lista de preguntas
+      const updatedQuestions = questions.map(q => {
+        if (q._id === selectedQuestion._id) {
+          const updatedAnswersArray = [...q.answers, newAnswerId];
+          return { 
+            ...q, 
+            answers: updatedAnswersArray, 
+            answerCount: (q.answerCount || q.answers.length) + 1
+          };
+        }
+        return q;
+      });
+      setQuestions(updatedQuestions);
+      
+      // Refrescar la lista de respuestas
+      fetchAnswers(selectedQuestion._id);
+      
+      Alert.alert(
+        "Éxito",
+        "La respuesta se ha creado correctamente."
+      );
+    } catch (error) {
+      console.error("Error al crear la respuesta:", error);
+      Alert.alert(
+        "Error",
+        "No se pudo crear la respuesta. Por favor, intenta de nuevo."
+      );
+    } finally {
+      setIsCreatingAnswer(false);
+    }
+  };
+
+  // Función para crear una nueva respuesta (mantener compatibilidad)
   const createAnswer = async () => {
     if (!selectedQuestion || !session?.token || !session.userId) {
       Alert.alert("Error", "No se pudo crear la respuesta. Falta información requerida.");
@@ -2325,15 +2753,72 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
       setIsCreatingAnswer(false);
     }
   };
-
   // Función para abrir el modal de edición de respuesta
   const openEditAnswer = (answer: Answer) => {
     setAnswerToEdit(answer);
     setEditAnswerContent(answer.content);
-    setEditAnswerVisible(true);
+    setEditAnswerValue("content", answer.content); // Inicializar el formulario con el contenido
+    clearEditAnswerErrors(); // Limpiar errores previos
+    setEditAnswerVisible(true);  };
+
+  // Función para actualizar una respuesta existente con React Hook Form
+  const onSubmitEditAnswer = async (data: { content: string }) => {
+    if (!answerToEdit || !session?.token) {
+      Alert.alert("Error", "No se pudo modificar la respuesta. Falta información requerida.");
+      return;
+    }
+    
+    setIsEditingAnswer(true);
+    
+    try {
+      const answerData = {
+        content: data.content.trim()
+      };
+      
+      console.log("Modificando respuesta con datos:", answerData);
+      
+      const response = await forumClient.put(
+        `/answers/${answerToEdit._id}`,
+        answerData,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      console.log("Respuesta de modificación de respuesta:", response.data);
+      
+      // Limpiar el formulario
+      resetEditAnswerForm();
+      setEditAnswerContent("");
+      setAnswerToEdit(null);
+      
+      // Cerrar el modal de edición
+      setEditAnswerVisible(false);
+      
+      // Refrescar la lista de respuestas
+      if (selectedQuestion) {
+        fetchAnswers(selectedQuestion._id);
+      }
+      
+      Alert.alert(
+        "Éxito",
+        "La respuesta se ha modificado correctamente."
+      );
+    } catch (error) {
+      console.error("Error al modificar la respuesta:", error);
+      Alert.alert(
+        "Error",
+        "No se pudo modificar la respuesta. Por favor, intenta de nuevo."
+      );
+    } finally {
+      setIsEditingAnswer(false);
+    }
   };
 
-  // Función para actualizar una respuesta existente
+  // Función para actualizar una respuesta existente (mantener compatibilidad)
   const updateAnswer = async () => {
     if (!answerToEdit || !session?.token) {
       Alert.alert("Error", "No se pudo modificar la respuesta. Falta información requerida.");
@@ -2750,24 +3235,58 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
           </View>
           
           <Divider style={styles.divider} />
-          
-          <ScrollView style={styles.contentContainer}>
-            <TextInput
-              label="Contenido de la respuesta"
-              value={editAnswerContent}
-              onChangeText={setEditAnswerContent}
-              mode="outlined"
-              style={styles.formInput}
-              placeholder="Escribe tu respuesta aquí..."
-              multiline
-              numberOfLines={4}
-              disabled={isEditingAnswer}
+            <ScrollView style={styles.contentContainer}>
+            <Controller
+              control={editAnswerControl}
+              name="content"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Contenido de la respuesta *"
+                  value={value}
+                  onChangeText={(text) => {
+                    onChange(text);
+                    setEditAnswerContent(text); // Mantener compatibilidad con estado existente
+                    if (text.trim().length > 0) {
+                      clearEditAnswerErrors("content");
+                    }
+                  }}
+                  onBlur={() => {
+                    onBlur();
+                    // Validar al perder el foco
+                    if (!value || value.trim().length === 0) {
+                      setEditAnswerError("content", {
+                        type: "manual",
+                        message: "El contenido de la respuesta es requerido"
+                      });
+                    }
+                  }}
+                  mode="outlined"
+                  style={[styles.formInput, !!editAnswerErrors.content && { borderColor: '#B00020' }]}
+                  placeholder="Escribe tu respuesta aquí..."
+                  multiline
+                  numberOfLines={4}
+                  disabled={isEditingAnswer}
+                  textAlignVertical="top"
+                  error={!!editAnswerErrors.content}
+                  right={
+                    value && value.trim().length > 0 ? 
+                    <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                  }
+                />
+              )}
             />
+            {editAnswerErrors.content && (
+              <HelperText type="error">{editAnswerErrors.content.message}</HelperText>
+            )}
             
             <View style={styles.formButtonContainer}>
               <Button 
                 mode="outlined" 
-                onPress={() => setEditAnswerVisible(false)}
+                onPress={() => {
+                  resetEditAnswerForm();
+                  setEditAnswerContent("");
+                  setEditAnswerVisible(false);
+                }}
                 style={styles.formButton}
                 disabled={isEditingAnswer}
               >
@@ -2776,10 +3295,10 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
               
               <Button 
                 mode="contained" 
-                onPress={updateAnswer}
+                onPress={handleEditAnswerSubmit(onSubmitEditAnswer)}
                 style={[styles.formButton, { backgroundColor: '#1976D2' }]}
                 loading={isEditingAnswer}
-                disabled={isEditingAnswer || !editAnswerContent.trim()}
+                disabled={isEditingAnswer}
               >
                 {isEditingAnswer ? 'Guardando...' : 'Guardar Cambios'}
               </Button>
