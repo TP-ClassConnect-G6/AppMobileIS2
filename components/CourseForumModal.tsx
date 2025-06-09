@@ -160,9 +160,26 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
       tags: ""
     }
   });
-
   // React Hook Form para validación de edición de preguntas
   const { control: editQuestionControl, handleSubmit: handleEditQuestionSubmit, formState: { errors: editQuestionErrors }, setError: setEditQuestionError, clearErrors: clearEditQuestionErrors, reset: resetEditQuestionForm, setValue: setEditQuestionValue } = useForm({
+    defaultValues: {
+      title: "",
+      description: "",
+      tags: ""
+    }
+  });
+
+  // React Hook Form para validación de creación de foros
+  const { control: forumControl, handleSubmit: handleForumSubmit, formState: { errors: forumErrors }, setError: setForumError, clearErrors: clearForumErrors, reset: resetForumForm } = useForm({
+    defaultValues: {
+      title: "",
+      description: "",
+      tags: ""
+    }
+  });
+
+  // React Hook Form para validación de edición de foros
+  const { control: editForumControl, handleSubmit: handleEditForumSubmit, formState: { errors: editForumErrors }, setError: setEditForumError, clearErrors: clearEditForumErrors, reset: resetEditForumForm, setValue: setEditForumValue } = useForm({
     defaultValues: {
       title: "",
       description: "",
@@ -507,8 +524,72 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
     // Cargar las respuestas de la pregunta
     fetchAnswers(question._id);
   };
+  // Función para crear un nuevo foro con React Hook Form
+  const onSubmitCreateForum = async (data: { title: string; description: string; tags: string }) => {
+    if (!courseId || !session?.token || !session.userId) {
+      Alert.alert("Error", "No se pudo crear el foro. Falta información requerida.");
+      return;
+    }
+    
+    setIsCreating(true);
+    
+    try {
+      // Preparar los tags (separados por comas)
+      const tags = data.tags.trim() 
+        ? data.tags.split(',').map(tag => tag.trim()) 
+        : [];
+      
+      const forumData = {
+        title: data.title.trim(),
+        description: data.description.trim(),
+        user_id: session.userId,
+        course_id: courseId,
+        tags: tags
+      };
+      
+      console.log("Creando foro con datos:", forumData);
+      
+      const response = await forumClient.post(
+        '/forums/',
+        forumData,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      console.log("Respuesta de creación de foro:", response.data);
+      
+      // Limpiar el formulario
+      resetForumForm();
+      setNewForumTitle("");
+      setNewForumDescription("");
+      setNewForumTags("");
+      
+      // Cerrar el modal de creación
+      setCreateForumVisible(false);
+      
+      // Refrescar la lista de foros
+      fetchForums();
+      
+      Alert.alert(
+        "Éxito",
+        "El foro se ha creado correctamente."
+      );
+    } catch (error) {
+      console.error("Error al crear el foro:", error);
+      Alert.alert(
+        "Error",
+        "No se pudo crear el foro. Por favor, intente nuevamente."
+      );
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
-  // Función para crear un nuevo foro
+  // Función para crear un nuevo foro (mantener compatibilidad)
   const createForum = async () => {
     if (!courseId || !session?.token || !session.userId) {
       Alert.alert("Error", "No se pudo crear el foro. Falta información requerida.");
@@ -581,13 +662,95 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
       setIsCreating(false);
     }
   };
-
   const openEditForum = (forum: Forum) => {
     setForumToEdit(forum);
     setNewForumTitle(forum.title);
     setNewForumDescription(forum.description);
     setNewForumTags(forum.tags.join(", "));
+    // Inicializar el formulario con los datos del foro
+    setEditForumValue("title", forum.title);
+    setEditForumValue("description", forum.description);
+    setEditForumValue("tags", forum.tags.join(", "));
+    clearEditForumErrors(); // Limpiar errores previos
     setEditForumVisible(true);
+  };
+
+  // Función para editar un foro con React Hook Form
+  const onSubmitEditForum = async (data: { title: string; description: string; tags: string }) => {
+    if (!forumToEdit || !session?.token) {
+      Alert.alert("Error", "No se pudo modificar el foro. Falta información requerida.");
+      return;
+    }
+    
+    setIsEditing(true);
+    
+    try {
+      // Preparar los tags (separados por comas)
+      const tags = data.tags.trim() 
+        ? data.tags.split(',').map(tag => tag.trim()) 
+        : [];
+      
+      const forumData = {
+        title: data.title.trim(),
+        description: data.description.trim(),
+        user_id: forumToEdit.user_id,
+        course_id: forumToEdit.course_id,
+        tags: tags
+      };
+      
+      console.log("Modificando foro con datos:", forumData);
+      
+      const response = await forumClient.put(
+        `/forums/${forumToEdit._id}`,
+        forumData,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      const responseData = response.data;
+      console.log("Respuesta de modificación de foro:", responseData);
+      
+      // Limpiar el formulario
+      resetEditForumForm();
+      setNewForumTitle("");
+      setNewForumDescription("");
+      setNewForumTags("");
+      setForumToEdit(null);
+      
+      // Cerrar el modal de edición
+      setEditForumVisible(false);
+      
+      // Refrescar la lista de foros
+      fetchForums();
+      
+      // Si estamos en el detalle de este foro, actualizamos también el foro seleccionado
+      if (selectedForum && selectedForum._id === forumToEdit._id) {
+        const updatedForum = {
+          ...forumToEdit,
+          title: data.title.trim(),
+          description: data.description.trim(),
+          tags: tags
+        };
+        setSelectedForum(updatedForum);
+      }
+      
+      Alert.alert(
+        "Éxito",
+        "El foro se ha modificado correctamente."
+      );
+    } catch (error) {
+      console.error("Error al modificar el foro:", error);
+      Alert.alert(
+        "Error",
+        "No se pudo modificar el foro. Por favor, intente nuevamente."
+      );
+    } finally {
+      setIsEditing(false);
+    }
   };
 
   // Función para modificar un foro existente
@@ -3075,44 +3238,123 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
           </View>
           
           <Divider style={styles.divider} />
-          
-          <ScrollView style={styles.contentContainer}>
-            <TextInput
-              label="Título"
-              value={newForumTitle}
-              onChangeText={setNewForumTitle}
-              mode="outlined"
-              style={styles.formInput}
-              placeholder="Ingrese el título del foro"
-              disabled={isCreating}
+            <ScrollView style={styles.contentContainer}>
+            <Controller
+              control={forumControl}
+              name="title"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Título *"
+                  value={value}
+                  onChangeText={(text) => {
+                    onChange(text);
+                    setNewForumTitle(text); // Mantener compatibilidad
+                    if (text.trim().length >= 3) {
+                      clearForumErrors("title");
+                    }
+                  }}
+                  onBlur={() => {
+                    onBlur();
+                    if (!value || value.trim().length < 3) {
+                      setForumError("title", {
+                        type: "manual",
+                        message: !value ? "El título es requerido" : "El título debe tener al menos 3 caracteres"
+                      });
+                    }
+                  }}
+                  mode="outlined"
+                  style={[styles.formInput, !!forumErrors.title && { borderColor: '#B00020' }]}
+                  placeholder="Ingrese el título del foro"
+                  disabled={isCreating}
+                  error={!!forumErrors.title}
+                  right={
+                    value && value.trim().length >= 3 ? 
+                    <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                  }
+                />
+              )}
             />
+            {forumErrors.title && (
+              <HelperText type="error">{forumErrors.title.message}</HelperText>
+            )}
             
-            <TextInput
-              label="Descripción"
-              value={newForumDescription}
-              onChangeText={setNewForumDescription}
-              mode="outlined"
-              style={styles.formInput}
-              placeholder="Ingrese una descripción para el foro"
-              multiline
-              numberOfLines={4}
-              disabled={isCreating}
+            <Controller
+              control={forumControl}
+              name="description"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Descripción *"
+                  value={value}
+                  onChangeText={(text) => {
+                    onChange(text);
+                    setNewForumDescription(text); // Mantener compatibilidad
+                    if (text.trim().length > 0) {
+                      clearForumErrors("description");
+                    }
+                  }}
+                  onBlur={() => {
+                    onBlur();
+                    if (!value || value.trim().length === 0) {
+                      setForumError("description", {
+                        type: "manual",
+                        message: "La descripción es requerida"
+                      });
+                    }
+                  }}
+                  mode="outlined"
+                  style={[styles.formInput, !!forumErrors.description && { borderColor: '#B00020' }]}
+                  placeholder="Ingrese una descripción para el foro"
+                  multiline
+                  numberOfLines={4}
+                  disabled={isCreating}
+                  textAlignVertical="top"
+                  error={!!forumErrors.description}
+                  right={
+                    value && value.trim().length > 0 ? 
+                    <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                  }
+                />
+              )}
             />
+            {forumErrors.description && (
+              <HelperText type="error">{forumErrors.description.message}</HelperText>
+            )}
             
-            <TextInput
-              label="Etiquetas (separadas por comas)"
-              value={newForumTags}
-              onChangeText={setNewForumTags}
-              mode="outlined"
-              style={styles.formInput}
-              placeholder="Ej: duda, parcial, proyecto"
-              disabled={isCreating}
+            <Controller
+              control={forumControl}
+              name="tags"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Etiquetas (separadas por comas)"
+                  value={value}
+                  onChangeText={(text) => {
+                    onChange(text);
+                    setNewForumTags(text); // Mantener compatibilidad
+                    clearForumErrors("tags"); // Las etiquetas son opcionales
+                  }}
+                  onBlur={onBlur}
+                  mode="outlined"
+                  style={styles.formInput}
+                  placeholder="Ej: duda, parcial, proyecto"
+                  disabled={isCreating}
+                  right={
+                    value && value.trim().length > 0 ? 
+                    <TextInput.Icon icon="tag-multiple" color="#1976D2" /> : undefined
+                  }
+                />
+              )}
             />
             
             <View style={styles.formButtonContainer}>
               <Button 
                 mode="outlined" 
-                onPress={() => setCreateForumVisible(false)}
+                onPress={() => {
+                  resetForumForm();
+                  setNewForumTitle("");
+                  setNewForumDescription("");
+                  setNewForumTags("");
+                  setCreateForumVisible(false);
+                }}
                 style={styles.formButton}
                 disabled={isCreating}
               >
@@ -3121,7 +3363,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
               
               <Button 
                 mode="contained" 
-                onPress={createForum}
+                onPress={handleForumSubmit(onSubmitCreateForum)}
                 style={[styles.formButton, { backgroundColor: '#1976D2' }]}
                 loading={isCreating}
                 disabled={isCreating}
@@ -3154,44 +3396,123 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
           </View>
           
           <Divider style={styles.divider} />
-          
-          <ScrollView style={styles.contentContainer}>
-            <TextInput
-              label="Título"
-              value={newForumTitle}
-              onChangeText={setNewForumTitle}
-              mode="outlined"
-              style={styles.formInput}
-              placeholder="Ingrese el título del foro"
-              disabled={isEditing}
+            <ScrollView style={styles.contentContainer}>
+            <Controller
+              control={editForumControl}
+              name="title"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Título *"
+                  value={value}
+                  onChangeText={(text) => {
+                    onChange(text);
+                    setNewForumTitle(text); // Mantener compatibilidad
+                    if (text.trim().length >= 3) {
+                      clearEditForumErrors("title");
+                    }
+                  }}
+                  onBlur={() => {
+                    onBlur();
+                    if (!value || value.trim().length < 3) {
+                      setEditForumError("title", {
+                        type: "manual",
+                        message: !value ? "El título es requerido" : "El título debe tener al menos 3 caracteres"
+                      });
+                    }
+                  }}
+                  mode="outlined"
+                  style={[styles.formInput, !!editForumErrors.title && { borderColor: '#B00020' }]}
+                  placeholder="Ingrese el título del foro"
+                  disabled={isEditing}
+                  error={!!editForumErrors.title}
+                  right={
+                    value && value.trim().length >= 3 ? 
+                    <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                  }
+                />
+              )}
             />
+            {editForumErrors.title && (
+              <HelperText type="error">{editForumErrors.title.message}</HelperText>
+            )}
             
-            <TextInput
-              label="Descripción"
-              value={newForumDescription}
-              onChangeText={setNewForumDescription}
-              mode="outlined"
-              style={styles.formInput}
-              placeholder="Ingrese una descripción para el foro"
-              multiline
-              numberOfLines={4}
-              disabled={isEditing}
+            <Controller
+              control={editForumControl}
+              name="description"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Descripción *"
+                  value={value}
+                  onChangeText={(text) => {
+                    onChange(text);
+                    setNewForumDescription(text); // Mantener compatibilidad
+                    if (text.trim().length > 0) {
+                      clearEditForumErrors("description");
+                    }
+                  }}
+                  onBlur={() => {
+                    onBlur();
+                    if (!value || value.trim().length === 0) {
+                      setEditForumError("description", {
+                        type: "manual",
+                        message: "La descripción es requerida"
+                      });
+                    }
+                  }}
+                  mode="outlined"
+                  style={[styles.formInput, !!editForumErrors.description && { borderColor: '#B00020' }]}
+                  placeholder="Ingrese una descripción para el foro"
+                  multiline
+                  numberOfLines={4}
+                  disabled={isEditing}
+                  textAlignVertical="top"
+                  error={!!editForumErrors.description}
+                  right={
+                    value && value.trim().length > 0 ? 
+                    <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                  }
+                />
+              )}
             />
+            {editForumErrors.description && (
+              <HelperText type="error">{editForumErrors.description.message}</HelperText>
+            )}
             
-            <TextInput
-              label="Etiquetas (separadas por comas)"
-              value={newForumTags}
-              onChangeText={setNewForumTags}
-              mode="outlined"
-              style={styles.formInput}
-              placeholder="Ej: duda, parcial, proyecto"
-              disabled={isEditing}
+            <Controller
+              control={editForumControl}
+              name="tags"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Etiquetas (separadas por comas)"
+                  value={value}
+                  onChangeText={(text) => {
+                    onChange(text);
+                    setNewForumTags(text); // Mantener compatibilidad
+                    clearEditForumErrors("tags"); // Las etiquetas son opcionales
+                  }}
+                  onBlur={onBlur}
+                  mode="outlined"
+                  style={styles.formInput}
+                  placeholder="Ej: duda, parcial, proyecto"
+                  disabled={isEditing}
+                  right={
+                    value && value.trim().length > 0 ? 
+                    <TextInput.Icon icon="tag-multiple" color="#1976D2" /> : undefined
+                  }
+                />
+              )}
             />
             
             <View style={styles.formButtonContainer}>
               <Button 
                 mode="outlined" 
-                onPress={() => setEditForumVisible(false)}
+                onPress={() => {
+                  resetEditForumForm();
+                  setNewForumTitle("");
+                  setNewForumDescription("");
+                  setNewForumTags("");
+                  setEditForumVisible(false);
+                }}
                 style={styles.formButton}
                 disabled={isEditing}
               >
@@ -3200,7 +3521,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
               
               <Button 
                 mode="contained" 
-                onPress={updateForum}
+                onPress={handleEditForumSubmit(onSubmitEditForum)}
                 style={[styles.formButton, { backgroundColor: '#1976D2' }]}
                 loading={isEditing}
                 disabled={isEditing}
