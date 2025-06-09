@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { StyleSheet, View, ScrollView, ActivityIndicator, Alert, TouchableOpacity } from "react-native";
-import { Modal, Portal, Text, Title, Button, Divider, Paragraph, Chip, Card, TextInput } from "react-native-paper";
+import { Modal, Portal, Text, Title, Button, Divider, Paragraph, Chip, Card, TextInput, HelperText } from "react-native-paper";
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSession } from "@/contexts/session";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { forumClient, client } from "@/lib/http";
 import jwtDecode from "jwt-decode";
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { useForm, Controller, FieldError } from 'react-hook-form';
 
 // Tipo para el usuario
 type UserProfile = {
@@ -28,6 +30,22 @@ type Question = {
   is_active: boolean;
   answers: string[];
   accepted_answer: string | null;
+  votes: {
+    up: string[];
+    down: string[];
+  };
+  userName?: string; // Campo opcional para almacenar el nombre del usuario
+  answerCount?: number; // Campo opcional para el conteo de respuestas desde el backend
+};
+
+// Tipo para las respuestas
+type Answer = {
+  _id: string;
+  content: string;
+  created_at: string;
+  is_active: boolean;
+  question_id: string;
+  user_id: string;
   votes: {
     up: string[];
     down: string[];
@@ -87,17 +105,88 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
   const [newQuestionTitle, setNewQuestionTitle] = useState("");
   const [newQuestionDescription, setNewQuestionDescription] = useState("");
   const [newQuestionTags, setNewQuestionTags] = useState("");
-  
-  // Estado para edición de preguntas
+    // Estado para edición de preguntas
   const [editQuestionVisible, setEditQuestionVisible] = useState(false);
   const [isEditingQuestion, setIsEditingQuestion] = useState(false);
   const [questionToEdit, setQuestionToEdit] = useState<Question | null>(null);
+    // Estado para las respuestas
+  const [answers, setAnswers] = useState<Answer[]>([]);
+  const [loadingAnswers, setLoadingAnswers] = useState(false);
+  const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
+  const [questionDetailVisible, setQuestionDetailVisible] = useState(false);
+    // Estado para creación de respuestas
+  const [newAnswerContent, setNewAnswerContent] = useState("");
+  const [isCreatingAnswer, setIsCreatingAnswer] = useState(false);
+    // Estado para edición de respuestas
+  const [editAnswerVisible, setEditAnswerVisible] = useState(false);
+  const [isEditingAnswer, setIsEditingAnswer] = useState(false);
+  const [answerToEdit, setAnswerToEdit] = useState<Answer | null>(null);
+  const [editAnswerContent, setEditAnswerContent] = useState("");
+  
+  // Estado para eliminación de respuestas
+  const [isDeletingAnswer, setIsDeletingAnswer] = useState(false);
   
   // Estado para los campos del formulario de creación/edición
   const [newForumTitle, setNewForumTitle] = useState("");
   const [newForumDescription, setNewForumDescription] = useState("");
   const [newForumTags, setNewForumTags] = useState("");
-  
+    // Estado para filtros de búsqueda de preguntas
+  const [searchTag, setSearchTag] = useState("");
+  const [sortOrder, setSortOrder] = useState<"newest" | "popular">("newest");
+  const [createdAfter, setCreatedAfter] = useState<Date | null>(null);
+  const [createdBefore, setCreatedBefore] = useState<Date | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+    // Estados para controlar los DateTimePickers
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);  // React Hook Form para validación de respuestas
+  const { control: answerControl, handleSubmit: handleAnswerSubmit, formState: { errors: answerErrors }, setError: setAnswerError, clearErrors: clearAnswerErrors, reset: resetAnswerForm } = useForm({
+    defaultValues: {
+      content: ""
+    }
+  });
+
+  // React Hook Form para validación de edición de respuestas
+  const { control: editAnswerControl, handleSubmit: handleEditAnswerSubmit, formState: { errors: editAnswerErrors }, setError: setEditAnswerError, clearErrors: clearEditAnswerErrors, reset: resetEditAnswerForm, setValue: setEditAnswerValue } = useForm({
+    defaultValues: {
+      content: ""
+    }
+  });
+
+  // React Hook Form para validación de creación de preguntas
+  const { control: questionControl, handleSubmit: handleQuestionSubmit, formState: { errors: questionErrors }, setError: setQuestionError, clearErrors: clearQuestionErrors, reset: resetQuestionForm } = useForm({
+    defaultValues: {
+      title: "",
+      description: "",
+      tags: ""
+    }
+  });
+  // React Hook Form para validación de edición de preguntas
+  const { control: editQuestionControl, handleSubmit: handleEditQuestionSubmit, formState: { errors: editQuestionErrors }, setError: setEditQuestionError, clearErrors: clearEditQuestionErrors, reset: resetEditQuestionForm, setValue: setEditQuestionValue } = useForm({
+    defaultValues: {
+      title: "",
+      description: "",
+      tags: ""
+    }
+  });
+
+  // React Hook Form para validación de creación de foros
+  const { control: forumControl, handleSubmit: handleForumSubmit, formState: { errors: forumErrors }, setError: setForumError, clearErrors: clearForumErrors, reset: resetForumForm } = useForm({
+    defaultValues: {
+      title: "",
+      description: "",
+      tags: ""
+    }
+  });
+
+  // React Hook Form para validación de edición de foros
+  const { control: editForumControl, handleSubmit: handleEditForumSubmit, formState: { errors: editForumErrors }, setError: setEditForumError, clearErrors: clearEditForumErrors, reset: resetEditForumForm, setValue: setEditForumValue } = useForm({
+    defaultValues: {
+      title: "",
+      description: "",
+      tags: ""
+    }
+  });
+
   const { session } = useSession();
   useEffect(() => {
     if (visible && courseId) {
@@ -163,18 +252,58 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
       console.error("Error al enriquecer los foros con información de usuario:", error);
       return forumsData;
     }
-  };
-  // Función para cargar las preguntas de un foro con paginación
-  const fetchQuestions = async (forumId: string, page: number = 1) => {
+  };  // Función para cargar las preguntas de un foro con paginación
+  const fetchQuestions = async (
+    forumId: string, 
+    page: number = 1, 
+    filters?: {
+      tag?: string;
+      sort?: string;
+      createdAfter?: string | Date;
+      createdBefore?: string | Date;
+    }
+  ) => {
     if (!session?.token) {
       return;
     }
-    
-    setLoadingQuestions(true);
+      setLoadingQuestions(true);
     
     try {
+      // Construir los parámetros de la query dinámicamente
+      const params = new URLSearchParams({
+        forum_id: forumId,
+        limit: questionsPerPage.toString(),
+        page: page.toString(),
+        is_active: 'true'
+      });      // Usar filtros pasados como parámetro o los del estado
+      const currentTag = filters?.tag !== undefined ? filters.tag : searchTag;
+      const currentSort = filters?.sort !== undefined ? filters.sort : sortOrder;
+      const currentAfter = filters?.createdAfter !== undefined ? filters.createdAfter : createdAfter;
+      const currentBefore = filters?.createdBefore !== undefined ? filters.createdBefore : createdBefore;
+
+      // Agregar filtros opcionales si están definidos
+      if (currentTag.trim()) {
+        params.append('tag', currentTag.trim());
+      }
+      
+      if (currentSort) {
+        params.append('sort', currentSort);
+      }
+      
+      if (currentAfter) {
+        // Convertir Date a string en formato ISO si es necesario
+        const afterString = typeof currentAfter === 'string' ? currentAfter : format(currentAfter, 'yyyy-MM-dd');
+        params.append('created_after', afterString);
+      }
+      
+      if (currentBefore) {
+        // Convertir Date a string en formato ISO si es necesario
+        const beforeString = typeof currentBefore === 'string' ? currentBefore : format(currentBefore, 'yyyy-MM-dd');
+        params.append('created_before', beforeString);
+      }
+
       const response = await forumClient.get(
-        `/questions/?forum_id=${forumId}&limit=${questionsPerPage}&page=${page}&is_active=true`,
+        `/questions/?${params.toString()}`,
         {
           headers: {
             'Authorization': `Bearer ${session.token}`,
@@ -184,10 +313,11 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
       );
       
       console.log("Questions response:", JSON.stringify(response.data, null, 2));
-      
-      if (response.data && response.data.questions) {
+        if (response.data && response.data.questions) {
         // Enriquecer las preguntas con información de usuario
-        const enrichedQuestions = await enrichQuestionsWithUserInfo(response.data.questions);
+        let enrichedQuestions = await enrichQuestionsWithUserInfo(response.data.questions);
+        // Enriquecer las preguntas con el conteo real de respuestas
+        enrichedQuestions = await enrichQuestionsWithAnswerCount(enrichedQuestions);
         setQuestions(enrichedQuestions);
         
         // Actualizar información de paginación
@@ -243,6 +373,73 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
     } catch (error) {
       console.error("Error al enriquecer las preguntas con información de usuario:", error);
       return questionsData;
+    }  };
+
+  // Función para cargar las respuestas de una pregunta
+  const fetchAnswers = async (questionId: string) => {
+    if (!session?.token) {
+      return;
+    }
+    
+    setLoadingAnswers(true);
+    
+    try {
+      const response = await forumClient.get(
+        `/answers/?is_active=true&question_id=${questionId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      console.log("Answers response:", JSON.stringify(response.data, null, 2));
+      
+      if (response.data && response.data.answers) {
+        // Enriquecer las respuestas con información de usuario
+        const enrichedAnswers = await enrichAnswersWithUserInfo(response.data.answers);
+        setAnswers(enrichedAnswers);
+      } else {
+        console.warn('Formato de respuesta inesperado en respuestas:', response.data);
+        setAnswers([]);
+      }
+    } catch (error) {
+      console.error("Error al obtener respuestas:", error);
+      setAnswers([]);
+    } finally {
+      setLoadingAnswers(false);
+    }
+  };
+
+  // Función para enriquecer las respuestas con información de usuario
+  const enrichAnswersWithUserInfo = async (answersData: Answer[]) => {
+    const enrichedAnswers = [...answersData];
+    const userPromises = answersData
+      .filter(answer => answer.user_id) // Filtrar null user_id
+      .map(answer => fetchUserProfile(answer.user_id));
+    
+    try {
+      const userResults = await Promise.allSettled(userPromises);
+      
+      let userIndex = 0;
+      for (let i = 0; i < enrichedAnswers.length; i++) {
+        if (enrichedAnswers[i].user_id) {
+          const result = userResults[userIndex];
+          if (result.status === 'fulfilled' && result.value) {
+            enrichedAnswers[i] = {
+              ...enrichedAnswers[i],
+              userName: result.value.name
+            };
+          }
+          userIndex++;
+        }
+      }
+      
+      return enrichedAnswers;
+    } catch (error) {
+      console.error("Error al enriquecer las respuestas con información de usuario:", error);
+      return answersData;
     }
   };
 
@@ -308,9 +505,91 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
     
     // Reiniciar estado de paginación y cargar primera página de preguntas
     setCurrentPage(1);
-    fetchQuestions(forum._id, 1);
+    fetchQuestions(forum._id, 1);  };
+
+  // Función para abrir el detalle de una pregunta y cargar sus respuestas
+  const openQuestionDetail = async (question: Question) => {
+    // Si la pregunta no tiene el nombre del usuario, intentamos obtenerlo
+    let questionWithUser = {...question};
+    if (!question.userName && question.user_id) {
+      const userProfile = await fetchUserProfile(question.user_id);
+      if (userProfile) {
+        questionWithUser.userName = userProfile.name;
+      }
+    }
+    
+    setSelectedQuestion(questionWithUser);
+    setQuestionDetailVisible(true);
+    
+    // Cargar las respuestas de la pregunta
+    fetchAnswers(question._id);
   };
-    // Función para crear un nuevo foro
+  // Función para crear un nuevo foro con React Hook Form
+  const onSubmitCreateForum = async (data: { title: string; description: string; tags: string }) => {
+    if (!courseId || !session?.token || !session.userId) {
+      Alert.alert("Error", "No se pudo crear el foro. Falta información requerida.");
+      return;
+    }
+    
+    setIsCreating(true);
+    
+    try {
+      // Preparar los tags (separados por comas)
+      const tags = data.tags.trim() 
+        ? data.tags.split(',').map(tag => tag.trim()) 
+        : [];
+      
+      const forumData = {
+        title: data.title.trim(),
+        description: data.description.trim(),
+        user_id: session.userId,
+        course_id: courseId,
+        tags: tags
+      };
+      
+      console.log("Creando foro con datos:", forumData);
+      
+      const response = await forumClient.post(
+        '/forums/',
+        forumData,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      console.log("Respuesta de creación de foro:", response.data);
+      
+      // Limpiar el formulario
+      resetForumForm();
+      setNewForumTitle("");
+      setNewForumDescription("");
+      setNewForumTags("");
+      
+      // Cerrar el modal de creación
+      setCreateForumVisible(false);
+      
+      // Refrescar la lista de foros
+      fetchForums();
+      
+      Alert.alert(
+        "Éxito",
+        "El foro se ha creado correctamente."
+      );
+    } catch (error) {
+      console.error("Error al crear el foro:", error);
+      Alert.alert(
+        "Error",
+        "No se pudo crear el foro. Por favor, intente nuevamente."
+      );
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  // Función para crear un nuevo foro (mantener compatibilidad)
   const createForum = async () => {
     if (!courseId || !session?.token || !session.userId) {
       Alert.alert("Error", "No se pudo crear el foro. Falta información requerida.");
@@ -383,13 +662,95 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
       setIsCreating(false);
     }
   };
-
   const openEditForum = (forum: Forum) => {
     setForumToEdit(forum);
     setNewForumTitle(forum.title);
     setNewForumDescription(forum.description);
     setNewForumTags(forum.tags.join(", "));
+    // Inicializar el formulario con los datos del foro
+    setEditForumValue("title", forum.title);
+    setEditForumValue("description", forum.description);
+    setEditForumValue("tags", forum.tags.join(", "));
+    clearEditForumErrors(); // Limpiar errores previos
     setEditForumVisible(true);
+  };
+
+  // Función para editar un foro con React Hook Form
+  const onSubmitEditForum = async (data: { title: string; description: string; tags: string }) => {
+    if (!forumToEdit || !session?.token) {
+      Alert.alert("Error", "No se pudo modificar el foro. Falta información requerida.");
+      return;
+    }
+    
+    setIsEditing(true);
+    
+    try {
+      // Preparar los tags (separados por comas)
+      const tags = data.tags.trim() 
+        ? data.tags.split(',').map(tag => tag.trim()) 
+        : [];
+      
+      const forumData = {
+        title: data.title.trim(),
+        description: data.description.trim(),
+        user_id: forumToEdit.user_id,
+        course_id: forumToEdit.course_id,
+        tags: tags
+      };
+      
+      console.log("Modificando foro con datos:", forumData);
+      
+      const response = await forumClient.put(
+        `/forums/${forumToEdit._id}`,
+        forumData,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      const responseData = response.data;
+      console.log("Respuesta de modificación de foro:", responseData);
+      
+      // Limpiar el formulario
+      resetEditForumForm();
+      setNewForumTitle("");
+      setNewForumDescription("");
+      setNewForumTags("");
+      setForumToEdit(null);
+      
+      // Cerrar el modal de edición
+      setEditForumVisible(false);
+      
+      // Refrescar la lista de foros
+      fetchForums();
+      
+      // Si estamos en el detalle de este foro, actualizamos también el foro seleccionado
+      if (selectedForum && selectedForum._id === forumToEdit._id) {
+        const updatedForum = {
+          ...forumToEdit,
+          title: data.title.trim(),
+          description: data.description.trim(),
+          tags: tags
+        };
+        setSelectedForum(updatedForum);
+      }
+      
+      Alert.alert(
+        "Éxito",
+        "El foro se ha modificado correctamente."
+      );
+    } catch (error) {
+      console.error("Error al modificar el foro:", error);
+      Alert.alert(
+        "Error",
+        "No se pudo modificar el foro. Por favor, intente nuevamente."
+      );
+    } finally {
+      setIsEditing(false);
+    }
   };
 
   // Función para modificar un foro existente
@@ -553,10 +914,140 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
     if (currentPage < totalPages && selectedForum) {
       const newPage = currentPage + 1;
       fetchQuestions(selectedForum._id, newPage);
+    }  };
+
+  // Función para crear una nueva pregunta con React Hook Form
+  const onSubmitCreateQuestion = async (data: { title: string; description: string; tags: string }) => {
+    if (!selectedForum || !session?.token) {
+      Alert.alert("Error", "No se pudo crear la pregunta. Falta información requerida.");
+      return;
+    }
+    
+    setIsCreatingQuestion(true);
+    
+    try {
+      // Preparar los tags (separados por comas)
+      const tags = data.tags.trim() 
+        ? data.tags.split(',').map(tag => tag.trim()) 
+        : [];
+      
+      const questionData = {
+        forum_id: selectedForum._id,
+        title: data.title.trim(),
+        description: data.description.trim(),
+        user_id: session.userId,
+        tags: tags
+      };
+      
+      console.log("Creando pregunta con datos:", questionData);
+      
+      const response = await forumClient.post(
+        '/questions/',
+        questionData,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      console.log("Respuesta de creación de pregunta:", response.data);
+      
+      // Limpiar el formulario
+      resetQuestionForm();
+      setNewQuestionTitle("");
+      setNewQuestionDescription("");
+      setNewQuestionTags("");
+      
+      // Cerrar el modal de creación
+      setCreateQuestionVisible(false);
+      
+      // Refrescar la lista de preguntas
+      fetchQuestions(selectedForum._id, currentPage);
+      
+      Alert.alert(
+        "Éxito",
+        "La pregunta se ha creado correctamente."
+      );
+    } catch (error) {
+      console.error("Error al crear la pregunta:", error);
+      Alert.alert(
+        "Error",
+        "No se pudo crear la pregunta. Por favor, intenta de nuevo."
+      );
+    } finally {
+      setIsCreatingQuestion(false);
     }
   };
 
-  // Función para crear una nueva pregunta
+  // Función para editar una pregunta con React Hook Form
+  const onSubmitEditQuestion = async (data: { title: string; description: string; tags: string }) => {
+    if (!questionToEdit || !selectedForum || !session?.token) {
+      Alert.alert("Error", "No se pudo modificar la pregunta. Falta información requerida.");
+      return;
+    }
+    
+    setIsEditingQuestion(true);
+    
+    try {
+      // Preparar los tags (separados por comas)
+      const tags = data.tags.trim() 
+        ? data.tags.split(',').map(tag => tag.trim()) 
+        : [];
+      
+      const questionData = {
+        forum_id: selectedForum._id,
+        title: data.title.trim(),
+        description: data.description.trim(),
+        user_id: questionToEdit.user_id,
+        tags: tags
+      };
+      
+      console.log("Modificando pregunta con datos:", questionData);
+      
+      const response = await forumClient.put(
+        `/questions/${questionToEdit._id}`,
+        questionData,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      console.log("Respuesta de modificación de pregunta:", response.data);
+      
+      // Limpiar el formulario
+      resetEditQuestionForm();
+      setNewQuestionTitle("");
+      setNewQuestionDescription("");
+      setNewQuestionTags("");
+      setQuestionToEdit(null);
+      
+      // Cerrar el modal de edición
+      setEditQuestionVisible(false);
+      
+      // Refrescar la lista de preguntas
+      fetchQuestions(selectedForum._id, currentPage);
+      
+      Alert.alert(
+        "Éxito",
+        "La pregunta se ha modificado correctamente."
+      );
+    } catch (error) {
+      console.error("Error al modificar la pregunta:", error);
+      Alert.alert(
+        "Error",
+        "No se pudo modificar la pregunta. Por favor, intenta de nuevo."
+      );
+    } finally {
+      setIsEditingQuestion(false);
+    }
+  };
+
+  // Función para crear una nueva pregunta (mantener compatibilidad)
   const createQuestion = async () => {
     if (!selectedForum || !session?.token) {
       Alert.alert("Error", "No se pudo crear la pregunta. Falta información requerida.");
@@ -628,13 +1119,17 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
     } finally {
       setIsCreatingQuestion(false);
     }
-  };
-  // Función para abrir el modal de edición de pregunta
+  };  // Función para abrir el modal de edición de pregunta
   const openEditQuestion = (question: Question) => {
     setQuestionToEdit(question);
     setNewQuestionTitle(question.title);
     setNewQuestionDescription(question.description);
     setNewQuestionTags(question.tags.join(", "));
+    // Inicializar el formulario con los datos de la pregunta
+    setEditQuestionValue("title", question.title);
+    setEditQuestionValue("description", question.description);
+    setEditQuestionValue("tags", question.tags.join(", "));
+    clearEditQuestionErrors(); // Limpiar errores previos
     setEditQuestionVisible(true);
   };
 
@@ -902,8 +1397,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
       );
     }
   };
-  
-  // Función para verificar el estado de voto del usuario actual en una pregunta
+    // Función para verificar el estado de voto del usuario actual en una pregunta
   const getUserVoteStatus = (question: Question) => {
     if (!session || !session.userId) {
       return { upvoted: false, downvoted: false };
@@ -913,6 +1407,204 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
     const downvoted = question.votes.down.includes(session.userId);
     
     return { upvoted, downvoted };
+  };
+
+  // Función para manejar los votos de respuestas (upvote/downvote)
+  const handleAnswerVote = async (answerId: string, voteType: 'up' | 'down') => {
+    if (!session?.token || !session.userId) {
+      Alert.alert("Error", "Debe iniciar sesión para votar.");
+      return;
+    }
+    
+    try {
+      // Encontrar la respuesta actual para verificar si el usuario ya votó
+      const currentAnswer = answers.find(a => a._id === answerId);
+      if (!currentAnswer) return;
+      
+      // Verificar si el usuario ya votó en esta categoría
+      const hasUpvoted = currentAnswer.votes.up.includes(session.userId);
+      const hasDownvoted = currentAnswer.votes.down.includes(session.userId);
+      
+      // Preparar el objeto de voto
+      const voteData = {
+        user_id: session.userId,
+        type: voteType
+      };
+      
+      console.log(`Enviando voto para respuesta ${answerId}:`, voteData);
+      
+      const response = await forumClient.post(
+        `/answers/${answerId}/votes`,
+        voteData,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      console.log("Respuesta de voto:", response.data);
+      
+      // Actualizar localmente la respuesta con los nuevos votos
+      const updatedAnswers = answers.map(a => {
+        if (a._id === answerId) {
+          // Crear una copia de los votos actuales
+          const updatedVotes = { ...a.votes };
+          
+          // Lógica para manejar la actualización local de votos
+          if (voteType === 'up') {
+            // Añadimos el voto positivo
+            updatedVotes.up = [...updatedVotes.up, session.userId];
+            // Y si había dado downvote, lo quitamos
+            if (hasDownvoted) {
+              updatedVotes.down = updatedVotes.down.filter(id => id !== session.userId);
+            }
+          } else if (voteType === 'down') {
+            // Añadimos el voto negativo
+            updatedVotes.down = [...updatedVotes.down, session.userId];
+            // Y si había dado upvote, lo quitamos
+            if (hasUpvoted) {
+              updatedVotes.up = updatedVotes.up.filter(id => id !== session.userId);
+            }
+          }
+          
+          return { ...a, votes: updatedVotes };
+        }
+        return a;
+      });
+      
+      setAnswers(updatedAnswers);
+    } catch (error) {
+      console.error("Error al votar respuesta:", error);
+      Alert.alert(
+        "Error",
+        "No se pudo registrar su voto. Por favor, intente nuevamente."
+      );
+    }
+  };
+
+  // Función para eliminar un voto existente de una respuesta
+  const handleDeleteAnswerVote = async (answerId: string, voteType: 'up' | 'down') => {
+    if (!session?.token || !session.userId) {
+      Alert.alert("Error", "Debe iniciar sesión para eliminar su voto.");
+      return;
+    }
+    
+    try {
+      // Encontrar la respuesta actual
+      const currentAnswer = answers.find(a => a._id === answerId);
+      if (!currentAnswer) return;
+      
+      // Verificar si el usuario tiene un voto del tipo especificado
+      const hasUpvoted = voteType === 'up' && currentAnswer.votes.up.includes(session.userId);
+      const hasDownvoted = voteType === 'down' && currentAnswer.votes.down.includes(session.userId);
+      
+      // Solo proceder si el usuario tiene un voto del tipo que quiere eliminar
+      if (!hasUpvoted && !hasDownvoted) {
+        console.log(`No hay voto de tipo ${voteType} para eliminar en la respuesta`);
+        return;
+      }
+      
+      console.log(`Eliminando voto ${voteType} para respuesta ${answerId}`);
+      
+      const response = await forumClient.delete(
+        `/answers/${answerId}/votes?user_id=${session.userId}&type=${voteType}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      console.log("Respuesta de eliminar voto:", response.data);
+      
+      // Actualizar localmente la respuesta con los nuevos votos
+      const updatedAnswers = answers.map(a => {
+        if (a._id === answerId) {
+          // Crear una copia de los votos actuales
+          const updatedVotes = { ...a.votes };
+          
+          // Eliminar el voto según el tipo
+          if (voteType === 'up') {
+            updatedVotes.up = updatedVotes.up.filter(id => id !== session.userId);
+          } else if (voteType === 'down') {
+            updatedVotes.down = updatedVotes.down.filter(id => id !== session.userId);
+          }
+          
+          return { ...a, votes: updatedVotes };
+        }
+        return a;
+      });
+      
+      setAnswers(updatedAnswers);
+    } catch (error) {
+      console.error("Error al eliminar el voto de respuesta:", error);
+      Alert.alert(
+        "Error",
+        "No se pudo eliminar su voto. Por favor, intente nuevamente."
+      );
+    }
+  };
+  
+  // Función para verificar el estado de voto del usuario actual en una respuesta
+  const getAnswerVoteStatus = (answer: Answer) => {
+    if (!session || !session.userId) {
+      return { upvoted: false, downvoted: false };
+    }
+    
+    const upvoted = answer.votes.up.includes(session.userId);
+    const downvoted = answer.votes.down.includes(session.userId);
+    
+    return { upvoted, downvoted };
+  };
+
+  // Función para enriquecer las preguntas con el conteo real de respuestas
+  const enrichQuestionsWithAnswerCount = async (questionsData: Question[]) => {
+    const enrichedQuestions = [...questionsData];
+    
+    try {
+      // Crear promesas para obtener el conteo de respuestas de cada pregunta
+      const answerCountPromises = questionsData.map(async (question) => {
+        try {
+          const response = await forumClient.get(
+            `/answers/?is_active=true&question_id=${question._id}`,
+            {
+              headers: {
+                'Authorization': `Bearer ${session?.token}`,
+                'Content-Type': 'application/json',
+              },
+            }
+          );
+          
+          // Retornar el conteo real de respuestas
+          return response.data?.answers?.length || 0;
+        } catch (error) {
+          console.error(`Error al obtener respuestas para pregunta ${question._id}:`, error);
+          return question.answers?.length || 0; // Fallback al array local
+        }
+      });
+      
+      // Esperar a que todas las promesas se resuelvan
+      const answerCounts = await Promise.allSettled(answerCountPromises);
+      
+      // Actualizar cada pregunta con su conteo real de respuestas
+      for (let i = 0; i < enrichedQuestions.length; i++) {
+        const result = answerCounts[i];
+        if (result.status === 'fulfilled') {
+          enrichedQuestions[i] = {
+            ...enrichedQuestions[i],
+            answerCount: result.value
+          };
+        }
+      }
+      
+      return enrichedQuestions;
+    } catch (error) {
+      console.error("Error al enriquecer las preguntas con conteo de respuestas:", error);
+      return questionsData;
+    }
   };
 
   const renderForumList = () => {
@@ -1000,25 +1692,29 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                 Ver
               </Button>
               
-              <Button 
-                mode="text" 
-                onPress={() => openEditForum(forum)}
-                style={styles.editButton}
-                icon="pencil"
-                labelStyle={styles.buttonLabel}
-              >
-                Editar
-              </Button>
-              
-              <Button 
-                mode="text" 
-                onPress={() => deleteForum(forum._id)}
-                style={styles.deleteButton}
-                icon="delete"
-                labelStyle={[styles.buttonLabel, { color: '#D32F2F' }]}
-              >
-                Eliminar
-              </Button>
+              {session?.userId === forum.user_id && (
+                <>
+                  <Button 
+                    mode="text" 
+                    onPress={() => openEditForum(forum)}
+                    style={styles.editButton}
+                    icon="pencil"
+                    labelStyle={styles.buttonLabel}
+                  >
+                    Editar
+                  </Button>
+                  
+                  <Button 
+                    mode="text" 
+                    onPress={() => deleteForum(forum._id)}
+                    style={styles.deleteButton}
+                    icon="delete"
+                    labelStyle={[styles.buttonLabel, { color: '#D32F2F' }]}
+                  >
+                    Eliminar
+                  </Button>
+                </>
+              )}
             </Card.Actions>
           </Card>
         ))}
@@ -1092,6 +1788,164 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
               </Button>
             </View>
             
+            {/* Filtros de búsqueda de preguntas */}
+            <View style={styles.filtersContainer}>
+              <TouchableOpacity
+                onPress={() => setShowFilters(!showFilters)}
+                style={styles.filterToggle}
+              >
+                <MaterialCommunityIcons
+                  name={showFilters ? "filter" : "filter-outline"}
+                  size={20}
+                  color="#666"
+                />
+                <Text style={styles.filterToggleText}>
+                  {showFilters ? "Ocultar filtros" : "Mostrar filtros"}
+                </Text>
+                <MaterialCommunityIcons
+                  name={showFilters ? "chevron-up" : "chevron-down"}
+                  size={20}
+                  color="#666"
+                />
+              </TouchableOpacity>
+              
+              {showFilters && (
+                <View style={styles.filtersExpanded}>
+                  {/* Filtro por etiqueta */}
+                  <TextInput
+                    label="Buscar por etiqueta"
+                    value={searchTag}
+                    onChangeText={setSearchTag}
+                    mode="outlined"
+                    style={styles.filterInput}
+                    placeholder="Ej: javascript, react, python..."
+                    left={<TextInput.Icon icon="tag-outline" />}
+                  />
+                  
+                  {/* Filtro por orden */}
+                  <View style={styles.sortContainer}>
+                    <Text style={styles.sortLabel}>Ordenar por:</Text>
+                    <View style={styles.sortButtons}>
+                      <Button
+                        mode={sortOrder === "newest" ? "contained" : "outlined"}
+                        onPress={() => setSortOrder("newest")}
+                        style={[styles.sortButton, sortOrder === "newest" && styles.sortButtonActive]}
+                        compact
+                      >
+                        Recientes
+                      </Button>
+                      <Button
+                        mode={sortOrder === "popular" ? "contained" : "outlined"}
+                        onPress={() => setSortOrder("popular")}
+                        style={[styles.sortButton, sortOrder === "popular" && styles.sortButtonActive]}
+                        compact
+                      >
+                        Populares
+                      </Button>
+                    </View>
+                  </View>
+                    {/* Filtros de fecha */}
+                  <View style={styles.dateFiltersContainer}>
+                    <Text style={styles.sortLabel}>Filtrar por fecha:</Text>
+                    <View style={styles.dateInputsContainer}>
+                      <Button
+                        mode="outlined"
+                        onPress={() => setShowStartDatePicker(true)}
+                        style={styles.dateInput}
+                        icon="calendar-start"
+                        contentStyle={styles.dateButtonContent}
+                      >
+                        {createdAfter 
+                          ? `Desde: ${format(createdAfter, 'dd/MM/yyyy')}`
+                          : "Fecha desde"}
+                      </Button>
+                      <Button
+                        mode="outlined"
+                        onPress={() => setShowEndDatePicker(true)}
+                        style={styles.dateInput}
+                        icon="calendar-end"
+                        contentStyle={styles.dateButtonContent}
+                      >
+                        {createdBefore 
+                          ? `Hasta: ${format(createdBefore, 'dd/MM/yyyy')}`
+                          : "Fecha hasta"}
+                      </Button>
+                    </View>
+                  </View>
+
+                  {/* DateTimePickers */}
+                  {showStartDatePicker && (
+                    <DateTimePicker
+                      value={createdAfter || new Date()}
+                      mode="date"
+                      display="default"
+                      onChange={(event, selectedDate) => {
+                        setShowStartDatePicker(false);
+                        if (selectedDate) {
+                          setCreatedAfter(selectedDate);
+                        }
+                      }}
+                    />
+                  )}
+
+                  {showEndDatePicker && (
+                    <DateTimePicker
+                      value={createdBefore || new Date()}
+                      mode="date"
+                      display="default"
+                      onChange={(event, selectedDate) => {
+                        setShowEndDatePicker(false);
+                        if (selectedDate) {
+                          setCreatedBefore(selectedDate);
+                        }
+                      }}
+                    />
+                  )}
+                    {/* Botones de acción de filtros */}
+                  <View style={styles.filterActionsContainer}>
+                    <Button
+                      mode="contained"
+                      onPress={() => {
+                        // Aplicar filtros - refrescar preguntas con los nuevos filtros
+                        if (selectedForum) {
+                          setCurrentPage(1); // Reset a la primera página
+                          fetchQuestions(selectedForum._id, 1);
+                        }
+                      }}
+                      style={styles.applyFiltersButton}
+                      icon="magnify"
+                    >
+                      Aplicar filtros
+                    </Button>
+                    <Button
+                      mode="outlined"
+                      onPress={() => {
+                        // Limpiar filtros - pasar valores vacíos directamente
+                        setSearchTag("");
+                        setSortOrder("newest");
+                        setCreatedAfter(null);
+                        setCreatedBefore(null);
+                        // Refrescar preguntas sin filtros pasando filtros vacíos
+                        if (selectedForum) {
+                          setCurrentPage(1);
+                          fetchQuestions(selectedForum._id, 1, {
+                            tag: "",
+                            sort: "newest",
+                            createdAfter: "",
+                            createdBefore: ""
+                          });
+                        }
+                      }}
+                      style={styles.clearFiltersButton}
+                      icon="filter-remove"
+                    >
+                      Limpiar
+                    </Button>
+                  </View>
+                </View>
+              )}
+            </View>
+            
             {loadingQuestions ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="small" color="#0000ff" />
@@ -1121,15 +1975,15 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                             {question.userName || question.user_id || 'Usuario anónimo'}
                           </Text>
                         </View>
-                        
-                        <View style={styles.metadata}>
+                          <View style={styles.metadata}>
                           <MaterialCommunityIcons name="calendar" size={16} color="#666" />
                           <Text style={styles.metadataText}>{formatDate(question.created_at)}</Text>
                         </View>
-                        
-                        <View style={styles.metadata}>
+                          <View style={styles.metadata}>
                           <MaterialCommunityIcons name="comment-multiple-outline" size={16} color="#666" />
-                          <Text style={styles.metadataText}>{question.answers.length} respuestas</Text>
+                          <Text style={styles.metadataText}>
+                            {question.answerCount !== undefined ? question.answerCount : question.answers.length} respuestas
+                          </Text>
                         </View>
                       </View>
                         {question.tags && question.tags.length > 0 && (
@@ -1141,29 +1995,25 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                           ))}
                         </View>
                       )}
-                    </Card.Content>
+                      </Card.Content>
                     <Card.Actions style={styles.cardActions}>
+                      {/* Botones de votación */}
                       <View style={styles.votingActionsContainer}>
                         <TouchableOpacity 
                           style={styles.voteButton}
                           onPress={() => {
                             const isUpvoted = getUserVoteStatus(question).upvoted;
                             if (isUpvoted) {
-                              // Si ya votó positivamente, elimina el voto
                               handleDeleteVote(question._id, 'up');
                             } else {
-                              // Si no ha votado o votó negativamente, añade voto positivo
                               handleVote(question._id, 'up');
                             }
                           }}
                           accessibilityLabel="Voto positivo"
-                          accessibilityHint={getUserVoteStatus(question).upvoted 
-                            ? "Eliminar voto positivo de esta pregunta" 
-                            : "Dar voto positivo a esta pregunta"}
                         >
                           <MaterialCommunityIcons 
                             name={getUserVoteStatus(question).upvoted ? "thumb-up" : "thumb-up-outline"} 
-                            size={20} 
+                            size={18} 
                             color={getUserVoteStatus(question).upvoted ? '#4CAF50' : '#757575'} 
                           />
                           <Text style={[styles.voteCountInline, getUserVoteStatus(question).upvoted ? styles.positiveVotes : null]}>
@@ -1175,21 +2025,16 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                           onPress={() => {
                             const isDownvoted = getUserVoteStatus(question).downvoted;
                             if (isDownvoted) {
-                              // Si ya votó negativamente, elimina el voto
                               handleDeleteVote(question._id, 'down');
                             } else {
-                              // Si no ha votado o votó positivamente, añade voto negativo
                               handleVote(question._id, 'down');
                             }
                           }}
                           accessibilityLabel="Voto negativo"
-                          accessibilityHint={getUserVoteStatus(question).downvoted 
-                            ? "Eliminar voto negativo de esta pregunta" 
-                            : "Dar voto negativo a esta pregunta"}
                         >
                           <MaterialCommunityIcons 
                             name={getUserVoteStatus(question).downvoted ? "thumb-down" : "thumb-down-outline"} 
-                            size={20} 
+                            size={18} 
                             color={getUserVoteStatus(question).downvoted ? '#F44336' : '#757575'} 
                           />
                           <Text style={[styles.voteCountInline, getUserVoteStatus(question).downvoted ? styles.negativeVotes : null]}>
@@ -1197,27 +2042,44 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                           </Text>
                         </TouchableOpacity>
                       </View>
-                      
+                        {/* Botones de acción */}
                       <View style={styles.questionActionButtons}>
                         <Button 
                           mode="text" 
-                          onPress={() => openEditQuestion(question)}
-                          style={styles.editButton}
-                          icon="pencil"
+                          onPress={() => openQuestionDetail(question)}
+                          style={styles.detailButton}
+                          icon="comment-multiple-outline"
                           labelStyle={styles.buttonLabel}
+                          compact
                         >
-                          Editar
+                          Ver Respuestas
                         </Button>
                         
-                        <Button 
-                          mode="text" 
-                          onPress={() => deleteQuestion(question._id)}
-                          style={styles.deleteButton}
-                          icon="delete"
-                          labelStyle={[styles.buttonLabel, { color: '#D32F2F' }]}
-                        >
-                          Eliminar
-                        </Button>
+                        {session?.userId === question.user_id && (
+                          <>
+                            <Button 
+                              mode="text" 
+                              onPress={() => openEditQuestion(question)}
+                              style={styles.editButton}
+                              icon="pencil"
+                              labelStyle={styles.buttonLabel}
+                              compact
+                            >
+                              Editar
+                            </Button>
+                            
+                            <Button 
+                              mode="text" 
+                              onPress={() => deleteQuestion(question._id)}
+                              style={styles.deleteButton}
+                              icon="delete"
+                              labelStyle={[styles.buttonLabel, { color: '#D32F2F' }]}
+                              compact
+                            >
+                              Eliminar
+                            </Button>
+                          </>
+                        )}
                       </View>
                     </Card.Actions>
                   </Card>
@@ -1251,7 +2113,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
               </View>
             )}
           </View>
-            <View style={styles.buttonContainer}>
+          <View style={styles.buttonContainer}>
             <Button 
               mode="outlined" 
               style={styles.actionButton}
@@ -1261,28 +2123,32 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
               Volver
             </Button>
             
-            <Button 
-              mode="contained" 
-              style={[styles.actionButton, { backgroundColor: '#1976D2' }]}
-              onPress={() => {
-                setForumDetailVisible(false);
-                openEditForum(selectedForum);
-              }}
-              icon="pencil"
-              disabled={isDeleting}
-            >
-              Editar
-            </Button>
-              <Button 
-              mode="contained" 
-              style={[styles.actionButton, { backgroundColor: '#D32F2F' }]}
-              onPress={() => deleteForum(selectedForum._id)}
-              icon="delete"
-              disabled={isDeleting}
-              loading={isDeleting}
-            >
-              Eliminar
-            </Button>
+            {session?.userId === selectedForum.user_id && (
+              <>
+                <Button 
+                  mode="contained" 
+                  style={[styles.actionButton, { backgroundColor: '#1976D2' }]}
+                  onPress={() => {
+                    setForumDetailVisible(false);
+                    openEditForum(selectedForum);
+                  }}
+                  icon="pencil"
+                  disabled={isDeleting}
+                >
+                  Editar
+                </Button>
+                  <Button 
+                  mode="contained" 
+                  style={[styles.actionButton, { backgroundColor: '#D32F2F' }]}
+                  onPress={() => deleteForum(selectedForum._id)}
+                  icon="delete"
+                  disabled={isDeleting}
+                  loading={isDeleting}
+                >
+                  Eliminar
+                </Button>
+              </>
+            )}
           </View>
         </ScrollView>
         
@@ -1308,44 +2174,122 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
           </View>
           
           <Divider style={styles.divider} />
-          
-          <ScrollView style={styles.contentContainer}>
-            <TextInput
-              label="Título"
-              value={newQuestionTitle}
-              onChangeText={setNewQuestionTitle}
-              mode="outlined"
-              style={styles.formInput}
-              placeholder="Ingrese el título de la pregunta"
-              disabled={isCreatingQuestion}
+            <ScrollView style={styles.contentContainer}>
+            <Controller
+              control={questionControl}
+              name="title"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Título *"
+                  value={value}
+                  onChangeText={(text) => {
+                    onChange(text);
+                    setNewQuestionTitle(text); // Mantener compatibilidad
+                    if (text.trim().length >= 3) {
+                      clearQuestionErrors("title");
+                    }
+                  }}
+                  onBlur={() => {
+                    onBlur();
+                    if (!value || value.trim().length < 3) {
+                      setQuestionError("title", {
+                        type: "manual",
+                        message: !value ? "El título es requerido" : "El título debe tener al menos 3 caracteres"
+                      });
+                    }
+                  }}
+                  mode="outlined"
+                  style={[styles.formInput, !!questionErrors.title && { borderColor: '#B00020' }]}
+                  placeholder="Ingrese el título de la pregunta"
+                  disabled={isCreatingQuestion}
+                  error={!!questionErrors.title}
+                  right={
+                    value && value.trim().length >= 3 ? 
+                    <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                  }
+                />
+              )}
             />
+            {questionErrors.title && (
+              <HelperText type="error">{questionErrors.title.message}</HelperText>
+            )}
             
-            <TextInput
-              label="Descripción"
-              value={newQuestionDescription}
-              onChangeText={setNewQuestionDescription}
-              mode="outlined"
-              style={styles.formInput}
-              placeholder="Ingrese una descripción detallada de su pregunta"
-              multiline
-              numberOfLines={4}
-              disabled={isCreatingQuestion}
+            <Controller
+              control={questionControl}
+              name="description"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Descripción *"
+                  value={value}
+                  onChangeText={(text) => {
+                    onChange(text);
+                    setNewQuestionDescription(text); // Mantener compatibilidad
+                    if (text.trim().length > 0) {
+                      clearQuestionErrors("description");
+                    }
+                  }}
+                  onBlur={() => {
+                    onBlur();
+                    if (!value || value.trim().length === 0) {
+                      setQuestionError("description", {
+                        type: "manual",
+                        message: "La descripción es requerida"
+                      });
+                    }
+                  }}
+                  mode="outlined"
+                  style={[styles.formInput, !!questionErrors.description && { borderColor: '#B00020' }]}
+                  placeholder="Ingrese una descripción detallada de su pregunta"
+                  multiline
+                  numberOfLines={4}
+                  disabled={isCreatingQuestion}
+                  textAlignVertical="top"                  error={!!questionErrors.description}
+                  right={
+                    value && value.trim().length > 0 ? 
+                    <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                  }
+                />
+              )}
             />
+            {questionErrors.description && (
+              <HelperText type="error">{questionErrors.description.message}</HelperText>
+            )}
             
-            <TextInput
-              label="Etiquetas (separadas por comas)"
-              value={newQuestionTags}
-              onChangeText={setNewQuestionTags}
-              mode="outlined"
-              style={styles.formInput}
-              placeholder="Ej: tarea, duda, consulta"
-              disabled={isCreatingQuestion}
+            <Controller
+              control={questionControl}
+              name="tags"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Etiquetas (separadas por comas)"
+                  value={value}
+                  onChangeText={(text) => {
+                    onChange(text);
+                    setNewQuestionTags(text); // Mantener compatibilidad
+                    clearQuestionErrors("tags"); // Las etiquetas son opcionales
+                  }}
+                  onBlur={onBlur}
+                  mode="outlined"
+                  style={styles.formInput}
+                  placeholder="Ej: tarea, duda, consulta"
+                  disabled={isCreatingQuestion}
+                  right={
+                    value && value.trim().length > 0 ? 
+                    <TextInput.Icon icon="tag-multiple" color="#1976D2" /> : undefined
+                  }
+                />
+              )}
             />
             
             <View style={styles.formButtonContainer}>
               <Button 
                 mode="outlined" 
-                onPress={() => setCreateQuestionVisible(false)}
+                onPress={() => {
+                  resetQuestionForm();
+                  setNewQuestionTitle("");
+                  setNewQuestionDescription("");
+                  setNewQuestionTags("");
+                  setCreateQuestionVisible(false);
+                }}
                 style={styles.formButton}
                 disabled={isCreatingQuestion}
               >
@@ -1354,7 +2298,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
               
               <Button 
                 mode="contained" 
-                onPress={createQuestion}
+                onPress={handleQuestionSubmit(onSubmitCreateQuestion)}
                 style={[styles.formButton, { backgroundColor: '#1976D2' }]}
                 loading={isCreatingQuestion}
                 disabled={isCreatingQuestion}
@@ -1387,44 +2331,121 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
           </View>
           
           <Divider style={styles.divider} />
-          
-          <ScrollView style={styles.contentContainer}>
-            <TextInput
-              label="Título"
-              value={newQuestionTitle}
-              onChangeText={setNewQuestionTitle}
-              mode="outlined"
-              style={styles.formInput}
-              placeholder="Ingrese el título de la pregunta"
-              disabled={isEditingQuestion}
+            <ScrollView style={styles.contentContainer}>
+            <Controller
+              control={editQuestionControl}
+              name="title"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Título *"
+                  value={value}
+                  onChangeText={(text) => {
+                    onChange(text);
+                    setNewQuestionTitle(text); // Mantener compatibilidad
+                    if (text.trim().length >= 3) {
+                      clearEditQuestionErrors("title");
+                    }
+                  }}
+                  onBlur={() => {
+                    onBlur();
+                    if (!value || value.trim().length < 3) {
+                      setEditQuestionError("title", {
+                        type: "manual",
+                        message: !value ? "El título es requerido" : "El título debe tener al menos 3 caracteres"
+                      });
+                    }
+                  }}
+                  mode="outlined"
+                  style={[styles.formInput, !!editQuestionErrors.title && { borderColor: '#B00020' }]}
+                  placeholder="Ingrese el título de la pregunta"
+                  disabled={isEditingQuestion}
+                  error={!!editQuestionErrors.title}
+                  right={
+                    value && value.trim().length >= 3 ? 
+                    <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                  }
+                />
+              )}
             />
+            {editQuestionErrors.title && (
+              <HelperText type="error">{editQuestionErrors.title.message}</HelperText>
+            )}
             
-            <TextInput
-              label="Descripción"
-              value={newQuestionDescription}
-              onChangeText={setNewQuestionDescription}
-              mode="outlined"
-              style={styles.formInput}
-              placeholder="Ingrese una descripción detallada de su pregunta"
-              multiline
-              numberOfLines={4}
-              disabled={isEditingQuestion}
+            <Controller
+              control={editQuestionControl}
+              name="description"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Descripción *"
+                  value={value}                  onChangeText={(text) => {
+                    onChange(text);
+                    setNewQuestionDescription(text); // Mantener compatibilidad
+                    if (text.trim().length > 0) {
+                      clearEditQuestionErrors("description");
+                    }
+                  }}
+                  onBlur={() => {
+                    onBlur();
+                    if (!value || value.trim().length === 0) {
+                      setEditQuestionError("description", {
+                        type: "manual",
+                        message: "La descripción es requerida"
+                      });
+                    }
+                  }}
+                  mode="outlined"
+                  style={[styles.formInput, !!editQuestionErrors.description && { borderColor: '#B00020' }]}
+                  placeholder="Ingrese una descripción detallada de su pregunta"
+                  multiline
+                  numberOfLines={4}
+                  disabled={isEditingQuestion}
+                  textAlignVertical="top"                  error={!!editQuestionErrors.description}
+                  right={
+                    value && value.trim().length > 0 ? 
+                    <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                  }
+                />
+              )}
             />
+            {editQuestionErrors.description && (
+              <HelperText type="error">{editQuestionErrors.description.message}</HelperText>
+            )}
             
-            <TextInput
-              label="Etiquetas (separadas por comas)"
-              value={newQuestionTags}
-              onChangeText={setNewQuestionTags}
-              mode="outlined"
-              style={styles.formInput}
-              placeholder="Ej: tarea, duda, consulta"
-              disabled={isEditingQuestion}
+            <Controller
+              control={editQuestionControl}
+              name="tags"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Etiquetas (separadas por comas)"
+                  value={value}
+                  onChangeText={(text) => {
+                    onChange(text);
+                    setNewQuestionTags(text); // Mantener compatibilidad
+                    clearEditQuestionErrors("tags"); // Las etiquetas son opcionales
+                  }}
+                  onBlur={onBlur}
+                  mode="outlined"
+                  style={styles.formInput}
+                  placeholder="Ej: tarea, duda, consulta"
+                  disabled={isEditingQuestion}
+                  right={
+                    value && value.trim().length > 0 ? 
+                    <TextInput.Icon icon="tag-multiple" color="#1976D2" /> : undefined
+                  }
+                />
+              )}
             />
             
             <View style={styles.formButtonContainer}>
               <Button 
                 mode="outlined" 
-                onPress={() => setEditQuestionVisible(false)}
+                onPress={() => {
+                  resetEditQuestionForm();
+                  setNewQuestionTitle("");
+                  setNewQuestionDescription("");
+                  setNewQuestionTags("");
+                  setEditQuestionVisible(false);
+                }}
                 style={styles.formButton}
                 disabled={isEditingQuestion}
               >
@@ -1433,7 +2454,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
               
               <Button 
                 mode="contained" 
-                onPress={updateQuestion}
+                onPress={handleEditQuestionSubmit(onSubmitEditQuestion)}
                 style={[styles.formButton, { backgroundColor: '#1976D2' }]}
                 loading={isEditingQuestion}
                 disabled={isEditingQuestion}
@@ -1442,10 +2463,732 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
               </Button>
             </View>
           </ScrollView>
-        </Modal>
+          </Modal>
       </Modal>
     );
   };
+
+  // Función para renderizar el modal de detalle de pregunta con respuestas
+  const renderQuestionDetailModal = () => {
+    if (!selectedQuestion) return null;
+
+    return (
+      <Modal
+        visible={questionDetailVisible}
+        onDismiss={() => setQuestionDetailVisible(false)}
+        contentContainerStyle={styles.modalContainer}
+      >
+        <ScrollView>
+          <View style={styles.questionDetailHeader}>
+            <Title style={styles.questionDetailTitle}>{selectedQuestion.title}</Title>
+              <TouchableOpacity 
+              style={styles.closeButton}
+              onPress={() => {
+                setQuestionDetailVisible(false);
+                // Refrescar la lista de preguntas para mantener los contadores actualizados
+                if (selectedForum) {
+                  fetchQuestions(selectedForum._id, currentPage);
+                }
+              }}
+            >
+              <MaterialCommunityIcons name="close" size={24} color="#000" />
+            </TouchableOpacity>
+          </View>
+          
+          <Divider style={styles.divider} />
+          
+          {/* Contenido de la pregunta */}
+          <View style={styles.questionDetailContainer}>
+            <Text style={styles.sectionTitle}>Descripción</Text>
+            <Paragraph style={styles.questionDetailDescription}>
+              {selectedQuestion.description}
+            </Paragraph>
+            
+            {/* Metadatos de la pregunta */}
+            <View style={styles.metadataContainer}>
+              <View style={styles.metadata}>
+                <MaterialCommunityIcons name="account" size={16} color="#666" />
+                <Text style={styles.metadataText}>
+                  Por: {selectedQuestion.userName || selectedQuestion.user_id || 'Usuario anónimo'}
+                </Text>
+              </View>
+              
+              <View style={styles.metadata}>
+                <MaterialCommunityIcons name="calendar" size={16} color="#666" />
+                <Text style={styles.metadataText}>{formatDate(selectedQuestion.created_at)}</Text>
+              </View>
+                <View style={styles.metadata}>
+                <MaterialCommunityIcons name="comment-multiple-outline" size={16} color="#666" />
+                <Text style={styles.metadataText}>{answers.length} respuestas</Text>
+              </View>
+            </View>
+            
+            {/* Tags de la pregunta */}
+            {selectedQuestion.tags && selectedQuestion.tags.length > 0 && (
+              <View style={styles.tagsContainer}>
+                {selectedQuestion.tags.map((tag, index) => (
+                  <Chip key={index} style={styles.tag} mode="outlined" textStyle={{ fontSize: 12 }}>
+                    {tag}
+                  </Chip>
+                ))}
+              </View>
+            )}
+          </View>
+          
+          <Divider style={styles.divider} />
+          
+          {/* Sección de respuestas */}
+          <View style={styles.answersSection}>
+            <View style={styles.answersSectionHeader}>
+              <Text style={styles.sectionTitle}>
+                Respuestas ({answers.length})
+              </Text>
+            </View>
+            
+            {loadingAnswers ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color="#0000ff" />
+                <Text style={styles.loadingText}>Cargando respuestas...</Text>
+              </View>
+            ) : answers.length === 0 ? (
+              <Text style={styles.emptyText}>
+                No hay respuestas para esta pregunta. ¡Sé el primero en responder!
+              </Text>
+            ) : (
+              <View>
+                {answers.map((answer) => (
+                  <Card key={answer._id} style={styles.answerCard}>
+                    <Card.Content>
+                      <Paragraph style={styles.answerContent}>
+                        {answer.content}
+                      </Paragraph>
+                        <View style={styles.answerMetadata}>
+                        <View style={styles.metadata}>
+                          <MaterialCommunityIcons name="account" size={14} color="#666" />
+                          <Text style={styles.answerMetadataText}>
+                            {answer.userName || answer.user_id || 'Usuario anónimo'}
+                          </Text>
+                        </View>
+                        
+                        <View style={styles.metadata}>
+                          <MaterialCommunityIcons name="calendar" size={14} color="#666" />
+                          <Text style={styles.answerMetadataText}>
+                            {formatDate(answer.created_at)}
+                          </Text>
+                        </View>
+                      </View>
+                    </Card.Content>
+                    
+                    {/* Botones de votación para respuestas */}
+                    <Card.Actions style={styles.cardActions}>
+                      <View style={styles.votingActionsContainer}>
+                        <TouchableOpacity 
+                          style={styles.voteButton}
+                          onPress={() => {
+                            const isUpvoted = getAnswerVoteStatus(answer).upvoted;
+                            if (isUpvoted) {
+                              handleDeleteAnswerVote(answer._id, 'up');
+                            } else {
+                              handleAnswerVote(answer._id, 'up');
+                            }
+                          }}
+                          accessibilityLabel="Voto positivo"
+                        >
+                          <MaterialCommunityIcons 
+                            name={getAnswerVoteStatus(answer).upvoted ? "thumb-up" : "thumb-up-outline"} 
+                            size={18} 
+                            color={getAnswerVoteStatus(answer).upvoted ? '#4CAF50' : '#757575'} 
+                          />
+                          <Text style={[styles.voteCountInline, getAnswerVoteStatus(answer).upvoted ? styles.positiveVotes : null]}>
+                            {answer.votes.up.length}
+                          </Text>
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity 
+                          style={styles.voteButton}
+                          onPress={() => {
+                            const isDownvoted = getAnswerVoteStatus(answer).downvoted;
+                            if (isDownvoted) {
+                              handleDeleteAnswerVote(answer._id, 'down');
+                            } else {
+                              handleAnswerVote(answer._id, 'down');
+                            }
+                          }}
+                          accessibilityLabel="Voto negativo"
+                        >
+                          <MaterialCommunityIcons 
+                            name={getAnswerVoteStatus(answer).downvoted ? "thumb-down" : "thumb-down-outline"} 
+                            size={18} 
+                            color={getAnswerVoteStatus(answer).downvoted ? '#F44336' : '#757575'} 
+                          />
+                          <Text style={[styles.voteCountInline, getAnswerVoteStatus(answer).downvoted ? styles.negativeVotes : null]}>
+                            {answer.votes.down.length}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </Card.Actions>
+
+                    {/* Botón para marcar como respuesta aceptada - Solo visible para el autor de la pregunta */}
+                    {selectedQuestion?.user_id === session?.userId && selectedQuestion?.accepted_answer !== answer._id && (
+                      <Card.Actions style={styles.acceptAnswerActions}>
+                        <Button 
+                          mode="outlined" 
+                          onPress={() => acceptAnswer(answer._id)}
+                          icon="check-circle"
+                          labelStyle={[styles.buttonLabel, { color: '#4CAF50' }]}
+                          style={[styles.acceptAnswerButton]}
+                          compact
+                        >
+                          Marcar como Aceptada
+                        </Button>
+                      </Card.Actions>
+                    )}
+
+                    {/* Indicador de respuesta aceptada */}
+                    {selectedQuestion?.accepted_answer === answer._id && (
+                      <Card.Actions style={styles.acceptedAnswerActions}>
+                        <View style={styles.acceptedAnswerBadge}>
+                          <MaterialCommunityIcons name="check-circle" size={20} color="#4CAF50" />
+                          <Text style={styles.acceptedAnswerText}>Respuesta Aceptada</Text>
+                        </View>
+                      </Card.Actions>
+                    )}
+
+                      {/* Botones de acción para respuestas */}
+                    {session?.userId === answer.user_id && (
+                      <Card.Actions style={styles.answerActions}>
+                        <Button 
+                          mode="text" 
+                          onPress={() => openEditAnswer(answer)}
+                          icon="pencil"
+                          labelStyle={styles.buttonLabel}
+                          compact
+                          disabled={isDeletingAnswer}
+                        >
+                          Editar
+                        </Button>
+                        
+                        <Button 
+                          mode="text" 
+                          onPress={() => deleteAnswer(answer._id)}
+                          icon="delete"
+                          labelStyle={[styles.buttonLabel, { color: '#D32F2F' }]}
+                          compact
+                          disabled={isDeletingAnswer}
+                        >
+                          Eliminar
+                        </Button>
+                      </Card.Actions>
+                    )}
+                  </Card>
+                ))}
+              </View>
+            )}
+          </View>
+          
+          {/* Sección para crear nueva respuesta */}
+          <Divider style={styles.divider} />
+            <View style={styles.answersSection}>
+            <Text style={styles.sectionTitle}>Agregar Respuesta</Text>
+            <Controller
+              control={answerControl}
+              name="content"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Tu respuesta *"
+                  value={value}
+                  onChangeText={(text) => {
+                    onChange(text);
+                    setNewAnswerContent(text); // Mantener compatibilidad con estado existente
+                    if (text.trim().length > 0) {
+                      clearAnswerErrors("content");
+                    }
+                  }}
+                  onBlur={() => {
+                    onBlur();
+                    // Validar al perder el foco
+                    if (!value || value.trim().length === 0) {
+                      setAnswerError("content", {
+                        type: "manual",
+                        message: "El contenido de la respuesta es requerido"
+                      });
+                    }
+                  }}
+                  mode="outlined"
+                  style={[styles.formInput, !!answerErrors.content && { borderColor: '#B00020' }]}
+                  placeholder="Escribe tu respuesta aquí..."
+                  multiline
+                  numberOfLines={4}
+                  disabled={isCreatingAnswer}
+                  textAlignVertical="top"
+                  error={!!answerErrors.content}                  right={
+                    value && value.trim().length > 0 ? 
+                    <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                  }
+                />
+              )}
+            />
+            {answerErrors.content && (
+              <HelperText type="error">{answerErrors.content.message}</HelperText>
+            )}
+            
+            <View style={styles.formButtonContainer}>
+              <Button 
+                mode="outlined" 
+                onPress={() => {
+                  resetAnswerForm();
+                  setNewAnswerContent("");
+                }}
+                style={styles.formButton}
+                disabled={isCreatingAnswer}
+              >
+                Limpiar
+              </Button>
+              
+              <Button 
+                mode="contained" 
+                onPress={handleAnswerSubmit(onSubmitAnswer)}
+                style={[styles.formButton, { backgroundColor: '#1976D2' }]}
+                loading={isCreatingAnswer}
+                disabled={isCreatingAnswer}
+              >
+                {isCreatingAnswer ? 'Enviando...' : 'Enviar Respuesta'}
+              </Button>
+            </View>
+          </View>
+        </ScrollView>
+      </Modal>
+    );
+  };
+    // Función para crear una nueva respuesta con React Hook Form
+  const onSubmitAnswer = async (data: { content: string }) => {
+    if (!selectedQuestion || !session?.token || !session.userId) {
+      Alert.alert("Error", "No se pudo crear la respuesta. Falta información requerida.");
+      return;
+    }
+    
+    setIsCreatingAnswer(true);
+    
+    try {
+      const answerData = {
+        question_id: selectedQuestion._id,
+        user_id: session.userId,
+        content: data.content.trim()
+      };
+      
+      console.log("Creando respuesta con datos:", answerData);
+      
+      const response = await forumClient.post(
+        '/answers/',
+        answerData,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      console.log("Respuesta de creación de respuesta:", response.data);
+      
+      // Obtener el ID de la nueva respuesta de la respuesta del servidor
+      const newAnswerId = response.data.answer?._id || response.data._id || Date.now().toString();
+      
+      // Limpiar el formulario
+      resetAnswerForm();
+      setNewAnswerContent("");
+      
+      // Actualizar el contador de respuestas en la pregunta seleccionada
+      const newAnswersArray = [...selectedQuestion.answers, newAnswerId];
+      const updatedSelectedQuestion = {
+        ...selectedQuestion,
+        answers: newAnswersArray,
+        answerCount: (selectedQuestion.answerCount || selectedQuestion.answers.length) + 1
+      };
+      setSelectedQuestion(updatedSelectedQuestion);
+      
+      // Actualizar el contador de respuestas en la lista de preguntas
+      const updatedQuestions = questions.map(q => {
+        if (q._id === selectedQuestion._id) {
+          const updatedAnswersArray = [...q.answers, newAnswerId];
+          return { 
+            ...q, 
+            answers: updatedAnswersArray, 
+            answerCount: (q.answerCount || q.answers.length) + 1
+          };
+        }
+        return q;
+      });
+      setQuestions(updatedQuestions);
+      
+      // Refrescar la lista de respuestas
+      fetchAnswers(selectedQuestion._id);
+      
+      Alert.alert(
+        "Éxito",
+        "La respuesta se ha creado correctamente."
+      );
+    } catch (error) {
+      console.error("Error al crear la respuesta:", error);
+      Alert.alert(
+        "Error",
+        "No se pudo crear la respuesta. Por favor, intenta de nuevo."
+      );
+    } finally {
+      setIsCreatingAnswer(false);
+    }
+  };
+
+  // Función para crear una nueva respuesta (mantener compatibilidad)
+  const createAnswer = async () => {
+    if (!selectedQuestion || !session?.token || !session.userId) {
+      Alert.alert("Error", "No se pudo crear la respuesta. Falta información requerida.");
+      return;
+    }
+    
+    if (!newAnswerContent.trim()) {
+      Alert.alert("Error", "El contenido de la respuesta es obligatorio.");
+      return;
+    }
+    
+    setIsCreatingAnswer(true);
+    
+    try {
+      const answerData = {
+        question_id: selectedQuestion._id,
+        user_id: session.userId,
+        content: newAnswerContent.trim()
+      };
+      
+      console.log("Creando respuesta con datos:", answerData);
+      
+      const response = await forumClient.post(
+        '/answers/',
+        answerData,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );      console.log("Respuesta de creación de respuesta:", response.data);
+      
+      // Obtener el ID de la nueva respuesta de la respuesta del servidor
+      const newAnswerId = response.data.answer?._id || response.data._id || Date.now().toString();
+      
+      // Limpiar el formulario
+      setNewAnswerContent("");      // Actualizar el contador de respuestas en la pregunta seleccionada
+      const newAnswersArray = [...selectedQuestion.answers, newAnswerId];
+      const updatedSelectedQuestion = {
+        ...selectedQuestion,
+        answers: newAnswersArray,
+        answerCount: (selectedQuestion.answerCount || selectedQuestion.answers.length) + 1 // Incrementar el conteo actual
+      };
+      setSelectedQuestion(updatedSelectedQuestion);
+      
+      // Actualizar el contador de respuestas en la lista de preguntas
+      const updatedQuestions = questions.map(q => {
+        if (q._id === selectedQuestion._id) {
+          const updatedAnswersArray = [...q.answers, newAnswerId];
+          return { 
+            ...q, 
+            answers: updatedAnswersArray, 
+            answerCount: (q.answerCount || q.answers.length) + 1 // Incrementar el conteo actual
+          };
+        }
+        return q;
+      });
+      setQuestions(updatedQuestions);
+      
+      // Refrescar la lista de respuestas
+      fetchAnswers(selectedQuestion._id);
+      
+      Alert.alert(
+        "Éxito",
+        "La respuesta se ha creado correctamente."
+      );
+    } catch (error) {
+      console.error("Error al crear la respuesta:", error);
+      Alert.alert(
+        "Error",
+        "No se pudo crear la respuesta. Por favor, intente nuevamente."
+      );    } finally {
+      setIsCreatingAnswer(false);
+    }
+  };
+  // Función para abrir el modal de edición de respuesta
+  const openEditAnswer = (answer: Answer) => {
+    setAnswerToEdit(answer);
+    setEditAnswerContent(answer.content);
+    setEditAnswerValue("content", answer.content); // Inicializar el formulario con el contenido
+    clearEditAnswerErrors(); // Limpiar errores previos
+    setEditAnswerVisible(true);  };
+
+  // Función para actualizar una respuesta existente con React Hook Form
+  const onSubmitEditAnswer = async (data: { content: string }) => {
+    if (!answerToEdit || !session?.token) {
+      Alert.alert("Error", "No se pudo modificar la respuesta. Falta información requerida.");
+      return;
+    }
+    
+    setIsEditingAnswer(true);
+    
+    try {
+      const answerData = {
+        content: data.content.trim()
+      };
+      
+      console.log("Modificando respuesta con datos:", answerData);
+      
+      const response = await forumClient.put(
+        `/answers/${answerToEdit._id}`,
+        answerData,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      console.log("Respuesta de modificación de respuesta:", response.data);
+      
+      // Limpiar el formulario
+      resetEditAnswerForm();
+      setEditAnswerContent("");
+      setAnswerToEdit(null);
+      
+      // Cerrar el modal de edición
+      setEditAnswerVisible(false);
+      
+      // Refrescar la lista de respuestas
+      if (selectedQuestion) {
+        fetchAnswers(selectedQuestion._id);
+      }
+      
+      Alert.alert(
+        "Éxito",
+        "La respuesta se ha modificado correctamente."
+      );
+    } catch (error) {
+      console.error("Error al modificar la respuesta:", error);
+      Alert.alert(
+        "Error",
+        "No se pudo modificar la respuesta. Por favor, intenta de nuevo."
+      );
+    } finally {
+      setIsEditingAnswer(false);
+    }
+  };
+
+  // Función para actualizar una respuesta existente (mantener compatibilidad)
+  const updateAnswer = async () => {
+    if (!answerToEdit || !session?.token) {
+      Alert.alert("Error", "No se pudo modificar la respuesta. Falta información requerida.");
+      return;
+    }
+    
+    if (!editAnswerContent.trim()) {
+      Alert.alert("Error", "El contenido de la respuesta es obligatorio.");
+      return;
+    }
+    
+    setIsEditingAnswer(true);
+    
+    try {
+      const answerData = {
+        content: editAnswerContent.trim()
+      };
+      
+      console.log("Modificando respuesta con datos:", answerData);
+      
+      const response = await forumClient.put(
+        `/answers/${answerToEdit._id}`,
+        answerData,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      console.log("Respuesta de modificación de respuesta:", response.data);
+      
+      // Limpiar el formulario
+      setEditAnswerContent("");
+      setAnswerToEdit(null);
+      
+      // Cerrar el modal de edición
+      setEditAnswerVisible(false);
+      
+      // Refrescar la lista de respuestas
+      if (selectedQuestion) {
+        fetchAnswers(selectedQuestion._id);
+      }
+      
+      Alert.alert(
+        "Éxito",
+        "La respuesta se ha modificado correctamente."
+      );
+    } catch (error) {
+      console.error("Error al modificar la respuesta:", error);
+      Alert.alert(
+        "Error",
+        "No se pudo modificar la respuesta. Por favor, intente nuevamente."
+      );    } finally {
+      setIsEditingAnswer(false);
+    }
+  };
+
+  // Función para eliminar una respuesta
+  const deleteAnswer = async (answerId: string) => {
+    if (!session?.token) {
+      Alert.alert("Error", "No se pudo eliminar la respuesta. Falta información requerida.");
+      return;
+    }
+    
+    // Mostrar confirmación antes de eliminar
+    Alert.alert(
+      "Confirmar eliminación",
+      "¿Estás seguro de que deseas eliminar esta respuesta? Esta acción no se puede deshacer.",
+      [
+        {
+          text: "Cancelar",
+          style: "cancel"
+        },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            setIsDeletingAnswer(true);
+            
+            try {
+              await forumClient.delete(
+                `/answers/${answerId}`,
+                {
+                  headers: {
+                    'Authorization': `Bearer ${session.token}`,
+                    'Content-Type': 'application/json',
+                  },
+                }
+              );
+              
+              console.log("Respuesta eliminada correctamente:", answerId);
+              
+              // Actualizar el contador de respuestas en la pregunta seleccionada
+              if (selectedQuestion) {
+                const updatedAnswersArray = selectedQuestion.answers.filter(id => id !== answerId);
+                const updatedSelectedQuestion = {
+                  ...selectedQuestion,
+                  answers: updatedAnswersArray,
+                  answerCount: Math.max(0, (selectedQuestion.answerCount || selectedQuestion.answers.length) - 1)
+                };
+                setSelectedQuestion(updatedSelectedQuestion);
+                
+                // Actualizar también en la lista de preguntas
+                const updatedQuestions = questions.map(q => {
+                  if (q._id === selectedQuestion._id) {
+                    return {
+                      ...q,
+                      answers: updatedAnswersArray,
+                      answerCount: Math.max(0, (q.answerCount || q.answers.length) - 1)
+                    };
+                  }
+                  return q;
+                });
+                setQuestions(updatedQuestions);
+              }
+              
+              // Refrescar la lista de respuestas
+              if (selectedQuestion) {
+                fetchAnswers(selectedQuestion._id);
+              }
+              
+              Alert.alert(
+                "Éxito",
+                "La respuesta se ha eliminado correctamente."
+              );
+            } catch (error) {
+              console.error("Error al eliminar la respuesta:", error);
+              Alert.alert(
+                "Error",
+                "No se pudo eliminar la respuesta. Por favor, intente nuevamente."
+              );
+            } finally {
+              setIsDeletingAnswer(false);
+            }
+          }
+        }
+      ]    );
+  };
+  
+  // Función para marcar una respuesta como aceptada
+ 
+  const acceptAnswer = async (answerId: string) => {
+    if (!selectedQuestion || !session?.token || !session.userId) {
+      Alert.alert("Error", "No se pudo marcar la respuesta como aceptada. Falta información requerida.");
+      return;
+    }
+    
+    // Verificar que el usuario sea el autor de la pregunta
+    if (selectedQuestion.user_id !== session.userId) {
+      Alert.alert("Error", "Solo el autor de la pregunta puede marcar respuestas como aceptadas.");
+      return;
+    }
+    
+    try {
+      const acceptData = {
+        answer_id: answerId
+      };
+      
+      console.log("Marcando respuesta como aceptada:", acceptData);
+      
+      const response = await forumClient.put(
+        `/questions/${selectedQuestion._id}/accept-answer`,
+        acceptData,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      console.log("Respuesta de aceptar respuesta:", response.data);
+      
+      // Actualizar la pregunta seleccionada localmente
+      const updatedSelectedQuestion = {
+        ...selectedQuestion,
+        accepted_answer: answerId
+      };
+      setSelectedQuestion(updatedSelectedQuestion);
+      
+      // Actualizar también en la lista de preguntas
+      const updatedQuestions = questions.map(q => {
+        if (q._id === selectedQuestion._id) {
+          return {
+            ...q,
+            accepted_answer: answerId
+          };
+        }
+        return q;
+      });
+      setQuestions(updatedQuestions);
+      
+      Alert.alert(
+        "Éxito",
+        "La respuesta se ha marcado como aceptada correctamente."
+      );
+    } catch (error) {
+      console.error("Error al marcar la respuesta como aceptada:", error);
+      Alert.alert(
+        "Error",
+        "No se pudo marcar la respuesta como aceptada. Por favor, intente nuevamente."
+      );
+    }
+  };
+
   return (
     <Portal>
       <Modal
@@ -1473,12 +3216,11 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
         </ScrollView>
         
         {renderForumDetail()}
-        
-        {/* Modal para crear un nuevo foro */}
+          {/* Modal para crear un nuevo foro */}
         <Modal
           visible={createForumVisible}
           onDismiss={() => !isCreating && setCreateForumVisible(false)}
-          contentContainerStyle={styles.modalContainer}
+          contentContainerStyle={styles.createForumModalContainer}
         >
           <View style={styles.headerContainer}>
             <Title style={styles.headerTitle}>
@@ -1496,44 +3238,123 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
           </View>
           
           <Divider style={styles.divider} />
-          
-          <ScrollView style={styles.contentContainer}>
-            <TextInput
-              label="Título"
-              value={newForumTitle}
-              onChangeText={setNewForumTitle}
-              mode="outlined"
-              style={styles.formInput}
-              placeholder="Ingrese el título del foro"
-              disabled={isCreating}
+            <ScrollView style={styles.contentContainer}>
+            <Controller
+              control={forumControl}
+              name="title"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Título *"
+                  value={value}
+                  onChangeText={(text) => {
+                    onChange(text);
+                    setNewForumTitle(text); // Mantener compatibilidad
+                    if (text.trim().length >= 3) {
+                      clearForumErrors("title");
+                    }
+                  }}
+                  onBlur={() => {
+                    onBlur();
+                    if (!value || value.trim().length < 3) {
+                      setForumError("title", {
+                        type: "manual",
+                        message: !value ? "El título es requerido" : "El título debe tener al menos 3 caracteres"
+                      });
+                    }
+                  }}
+                  mode="outlined"
+                  style={[styles.formInput, !!forumErrors.title && { borderColor: '#B00020' }]}
+                  placeholder="Ingrese el título del foro"
+                  disabled={isCreating}
+                  error={!!forumErrors.title}
+                  right={
+                    value && value.trim().length >= 3 ? 
+                    <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                  }
+                />
+              )}
             />
+            {forumErrors.title && (
+              <HelperText type="error">{forumErrors.title.message}</HelperText>
+            )}
             
-            <TextInput
-              label="Descripción"
-              value={newForumDescription}
-              onChangeText={setNewForumDescription}
-              mode="outlined"
-              style={styles.formInput}
-              placeholder="Ingrese una descripción para el foro"
-              multiline
-              numberOfLines={4}
-              disabled={isCreating}
+            <Controller
+              control={forumControl}
+              name="description"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Descripción *"
+                  value={value}
+                  onChangeText={(text) => {
+                    onChange(text);
+                    setNewForumDescription(text); // Mantener compatibilidad
+                    if (text.trim().length > 0) {
+                      clearForumErrors("description");
+                    }
+                  }}
+                  onBlur={() => {
+                    onBlur();
+                    if (!value || value.trim().length === 0) {
+                      setForumError("description", {
+                        type: "manual",
+                        message: "La descripción es requerida"
+                      });
+                    }
+                  }}
+                  mode="outlined"
+                  style={[styles.formInput, !!forumErrors.description && { borderColor: '#B00020' }]}
+                  placeholder="Ingrese una descripción para el foro"
+                  multiline
+                  numberOfLines={4}
+                  disabled={isCreating}
+                  textAlignVertical="top"
+                  error={!!forumErrors.description}
+                  right={
+                    value && value.trim().length > 0 ? 
+                    <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                  }
+                />
+              )}
             />
+            {forumErrors.description && (
+              <HelperText type="error">{forumErrors.description.message}</HelperText>
+            )}
             
-            <TextInput
-              label="Etiquetas (separadas por comas)"
-              value={newForumTags}
-              onChangeText={setNewForumTags}
-              mode="outlined"
-              style={styles.formInput}
-              placeholder="Ej: duda, parcial, proyecto"
-              disabled={isCreating}
+            <Controller
+              control={forumControl}
+              name="tags"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Etiquetas (separadas por comas)"
+                  value={value}
+                  onChangeText={(text) => {
+                    onChange(text);
+                    setNewForumTags(text); // Mantener compatibilidad
+                    clearForumErrors("tags"); // Las etiquetas son opcionales
+                  }}
+                  onBlur={onBlur}
+                  mode="outlined"
+                  style={styles.formInput}
+                  placeholder="Ej: duda, parcial, proyecto"
+                  disabled={isCreating}
+                  right={
+                    value && value.trim().length > 0 ? 
+                    <TextInput.Icon icon="tag-multiple" color="#1976D2" /> : undefined
+                  }
+                />
+              )}
             />
             
             <View style={styles.formButtonContainer}>
               <Button 
                 mode="outlined" 
-                onPress={() => setCreateForumVisible(false)}
+                onPress={() => {
+                  resetForumForm();
+                  setNewForumTitle("");
+                  setNewForumDescription("");
+                  setNewForumTags("");
+                  setCreateForumVisible(false);
+                }}
                 style={styles.formButton}
                 disabled={isCreating}
               >
@@ -1542,7 +3363,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
               
               <Button 
                 mode="contained" 
-                onPress={createForum}
+                onPress={handleForumSubmit(onSubmitCreateForum)}
                 style={[styles.formButton, { backgroundColor: '#1976D2' }]}
                 loading={isCreating}
                 disabled={isCreating}
@@ -1575,44 +3396,123 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
           </View>
           
           <Divider style={styles.divider} />
-          
-          <ScrollView style={styles.contentContainer}>
-            <TextInput
-              label="Título"
-              value={newForumTitle}
-              onChangeText={setNewForumTitle}
-              mode="outlined"
-              style={styles.formInput}
-              placeholder="Ingrese el título del foro"
-              disabled={isEditing}
+            <ScrollView style={styles.contentContainer}>
+            <Controller
+              control={editForumControl}
+              name="title"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Título *"
+                  value={value}
+                  onChangeText={(text) => {
+                    onChange(text);
+                    setNewForumTitle(text); // Mantener compatibilidad
+                    if (text.trim().length >= 3) {
+                      clearEditForumErrors("title");
+                    }
+                  }}
+                  onBlur={() => {
+                    onBlur();
+                    if (!value || value.trim().length < 3) {
+                      setEditForumError("title", {
+                        type: "manual",
+                        message: !value ? "El título es requerido" : "El título debe tener al menos 3 caracteres"
+                      });
+                    }
+                  }}
+                  mode="outlined"
+                  style={[styles.formInput, !!editForumErrors.title && { borderColor: '#B00020' }]}
+                  placeholder="Ingrese el título del foro"
+                  disabled={isEditing}
+                  error={!!editForumErrors.title}
+                  right={
+                    value && value.trim().length >= 3 ? 
+                    <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                  }
+                />
+              )}
             />
+            {editForumErrors.title && (
+              <HelperText type="error">{editForumErrors.title.message}</HelperText>
+            )}
             
-            <TextInput
-              label="Descripción"
-              value={newForumDescription}
-              onChangeText={setNewForumDescription}
-              mode="outlined"
-              style={styles.formInput}
-              placeholder="Ingrese una descripción para el foro"
-              multiline
-              numberOfLines={4}
-              disabled={isEditing}
+            <Controller
+              control={editForumControl}
+              name="description"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Descripción *"
+                  value={value}
+                  onChangeText={(text) => {
+                    onChange(text);
+                    setNewForumDescription(text); // Mantener compatibilidad
+                    if (text.trim().length > 0) {
+                      clearEditForumErrors("description");
+                    }
+                  }}
+                  onBlur={() => {
+                    onBlur();
+                    if (!value || value.trim().length === 0) {
+                      setEditForumError("description", {
+                        type: "manual",
+                        message: "La descripción es requerida"
+                      });
+                    }
+                  }}
+                  mode="outlined"
+                  style={[styles.formInput, !!editForumErrors.description && { borderColor: '#B00020' }]}
+                  placeholder="Ingrese una descripción para el foro"
+                  multiline
+                  numberOfLines={4}
+                  disabled={isEditing}
+                  textAlignVertical="top"
+                  error={!!editForumErrors.description}
+                  right={
+                    value && value.trim().length > 0 ? 
+                    <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                  }
+                />
+              )}
             />
+            {editForumErrors.description && (
+              <HelperText type="error">{editForumErrors.description.message}</HelperText>
+            )}
             
-            <TextInput
-              label="Etiquetas (separadas por comas)"
-              value={newForumTags}
-              onChangeText={setNewForumTags}
-              mode="outlined"
-              style={styles.formInput}
-              placeholder="Ej: duda, parcial, proyecto"
-              disabled={isEditing}
+            <Controller
+              control={editForumControl}
+              name="tags"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Etiquetas (separadas por comas)"
+                  value={value}
+                  onChangeText={(text) => {
+                    onChange(text);
+                    setNewForumTags(text); // Mantener compatibilidad
+                    clearEditForumErrors("tags"); // Las etiquetas son opcionales
+                  }}
+                  onBlur={onBlur}
+                  mode="outlined"
+                  style={styles.formInput}
+                  placeholder="Ej: duda, parcial, proyecto"
+                  disabled={isEditing}
+                  right={
+                    value && value.trim().length > 0 ? 
+                    <TextInput.Icon icon="tag-multiple" color="#1976D2" /> : undefined
+                  }
+                />
+              )}
             />
             
             <View style={styles.formButtonContainer}>
               <Button 
                 mode="outlined" 
-                onPress={() => setEditForumVisible(false)}
+                onPress={() => {
+                  resetEditForumForm();
+                  setNewForumTitle("");
+                  setNewForumDescription("");
+                  setNewForumTags("");
+                  setEditForumVisible(false);
+                }}
                 style={styles.formButton}
                 disabled={isEditing}
               >
@@ -1621,12 +3521,107 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
               
               <Button 
                 mode="contained" 
-                onPress={updateForum}
+                onPress={handleEditForumSubmit(onSubmitEditForum)}
                 style={[styles.formButton, { backgroundColor: '#1976D2' }]}
                 loading={isEditing}
                 disabled={isEditing}
               >
                 {isEditing ? 'Guardando...' : 'Guardar Cambios'}
+              </Button>
+              </View>
+          </ScrollView>
+        </Modal>
+          {/* Modal para detalle de pregunta con respuestas */}
+        {renderQuestionDetailModal()}
+        
+        {/* Modal para editar respuesta */}
+        <Modal
+          visible={editAnswerVisible}
+          onDismiss={() => !isEditingAnswer && setEditAnswerVisible(false)}
+          contentContainerStyle={styles.modalContainer}
+        >
+          <View style={styles.headerContainer}>
+            <Title style={styles.headerTitle}>
+              Editar Respuesta
+            </Title>
+            
+            {!isEditingAnswer && (
+              <TouchableOpacity 
+                style={styles.closeButton}
+                onPress={() => setEditAnswerVisible(false)}
+              >
+                <MaterialCommunityIcons name="close" size={24} color="#000" />
+              </TouchableOpacity>
+            )}
+          </View>
+          
+          <Divider style={styles.divider} />
+            <ScrollView style={styles.contentContainer}>
+            <Controller
+              control={editAnswerControl}
+              name="content"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Contenido de la respuesta *"
+                  value={value}
+                  onChangeText={(text) => {
+                    onChange(text);
+                    setEditAnswerContent(text); // Mantener compatibilidad con estado existente
+                    if (text.trim().length > 0) {
+                      clearEditAnswerErrors("content");
+                    }
+                  }}
+                  onBlur={() => {
+                    onBlur();
+                    // Validar al perder el foco
+                    if (!value || value.trim().length === 0) {
+                      setEditAnswerError("content", {
+                        type: "manual",
+                        message: "El contenido de la respuesta es requerido"
+                      });
+                    }
+                  }}
+                  mode="outlined"
+                  style={[styles.formInput, !!editAnswerErrors.content && { borderColor: '#B00020' }]}
+                  placeholder="Escribe tu respuesta aquí..."
+                  multiline
+                  numberOfLines={4}
+                  disabled={isEditingAnswer}
+                  textAlignVertical="top"
+                  error={!!editAnswerErrors.content}
+                  right={
+                    value && value.trim().length > 0 ? 
+                    <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                  }
+                />
+              )}
+            />
+            {editAnswerErrors.content && (
+              <HelperText type="error">{editAnswerErrors.content.message}</HelperText>
+            )}
+            
+            <View style={styles.formButtonContainer}>
+              <Button 
+                mode="outlined" 
+                onPress={() => {
+                  resetEditAnswerForm();
+                  setEditAnswerContent("");
+                  setEditAnswerVisible(false);
+                }}
+                style={styles.formButton}
+                disabled={isEditingAnswer}
+              >
+                Cancelar
+              </Button>
+              
+              <Button 
+                mode="contained" 
+                onPress={handleEditAnswerSubmit(onSubmitEditAnswer)}
+                style={[styles.formButton, { backgroundColor: '#1976D2' }]}
+                loading={isEditingAnswer}
+                disabled={isEditingAnswer}
+              >
+                {isEditingAnswer ? 'Guardando...' : 'Guardar Cambios'}
               </Button>
             </View>
           </ScrollView>
@@ -1639,10 +3634,18 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
 const styles = StyleSheet.create({
   modalContainer: {
     backgroundColor: 'white',
-    margin: 20,
+    margin: 5,
     borderRadius: 10,
-    maxHeight: '90%',
-    width: '90%',
+    maxHeight: '98%',
+    width: '95%',
+    alignSelf: 'center',
+  },
+  createForumModalContainer: {
+    backgroundColor: 'white',
+    margin: 5,
+    borderRadius: 10,
+    maxHeight: '98%',
+    width: '95%',
     alignSelf: 'center',
   },
   headerContainer: {
@@ -1747,21 +3750,21 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     borderTopWidth: 1,
     borderTopColor: '#eee',
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'column',
     paddingHorizontal: 8,
+    paddingVertical: 8,
   },
   detailButton: {
-    marginLeft: 'auto',
+    marginBottom: 4,
   },
   editButton: {
-    marginLeft: 4,
+    marginBottom: 4,
   },
   deleteButton: {
-    marginLeft: 4,
+    marginBottom: 0,
   },
   buttonLabel: {
-    fontSize: 14,
+    fontSize: 12,
   },
   detailHeader: {
     flexDirection: 'row',
@@ -1842,14 +3845,16 @@ const styles = StyleSheet.create({
     marginRight: 12,
     paddingTop: 4,
     minWidth: 40,
-  },
-  votingActionsContainer: {
+  },  votingActionsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-start',
   },
   questionActionButtons: {
-    flexDirection: 'row',
-    marginLeft: 'auto',
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    width: '100%',
+    marginTop: 8,
   },
   voteButton: {
     flexDirection: 'row',
@@ -1877,14 +3882,181 @@ const styles = StyleSheet.create({
   },
   questionContent: {
     flex: 1,
-  },
-  voteInfo: {
+  },  voteInfo: {
     fontSize: 12,
     color: '#666',
     marginRight: 'auto',
     alignItems: 'center',
     flexDirection: 'row',
-  }
+  },
+  // Estilos para el modal de detalle de pregunta
+  questionDetailHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  questionDetailTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    flex: 1,
+    marginRight: 16,
+  },
+  questionDetailContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  questionDetailDescription: {
+    fontSize: 16,
+    lineHeight: 24,
+    marginBottom: 16,
+    color: '#333',
+  },
+  answersSection: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  answersSectionHeader: {
+    marginBottom: 12,
+  },
+  answerCard: {
+    marginBottom: 12,
+    elevation: 1,
+    backgroundColor: '#f8f9fa',
+  },
+  answerContent: {
+    fontSize: 15,
+    lineHeight: 22,
+    marginBottom: 12,
+    color: '#333',
+  },
+  answerMetadata: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+  },
+  answerMetadataText: {
+    fontSize: 13,
+    color: '#666',
+    marginLeft: 4,
+    marginRight: 12,
+  },
+  answerActions: {
+    paddingTop: 8,
+    paddingBottom: 4,
+    paddingHorizontal: 8,
+  },
+  acceptAnswerActions: {
+    paddingTop: 4,
+    paddingBottom: 4,
+    paddingHorizontal: 8,
+  },
+  acceptAnswerButton: {
+    borderColor: '#4CAF50',
+  },
+  acceptedAnswerActions: {
+    paddingTop: 4,
+    paddingBottom: 8,
+    paddingHorizontal: 8,
+  },
+  acceptedAnswerBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8F5E8',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  acceptedAnswerText: {
+    fontSize: 14,
+    color: '#4CAF50',
+    fontWeight: 'bold',    marginLeft: 6,
+  },
+  // Estilos para los filtros de búsqueda
+  filtersContainer: {
+    marginTop: 8,
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 8,
+    backgroundColor: '#f9f9f9',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  filterToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    elevation: 1,
+    marginBottom: 12,
+  },
+  filterToggleText: {
+    fontSize: 14,
+    color: '#333',
+    marginLeft: 8,
+    marginRight: 8,
+  },
+  filtersExpanded: {
+    paddingTop: 8,
+    paddingBottom: 8,
+    paddingLeft: 16,
+    paddingRight: 16,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    elevation: 1,
+  },
+  filterInput: {
+    marginBottom: 12,
+  },
+  sortContainer: {
+    marginBottom: 12,
+  },
+  sortLabel: {
+    fontSize: 14,
+    color: '#333',
+    marginBottom: 4,
+  },
+  sortButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  sortButton: {
+    flex: 1,
+    marginRight: 8,
+  },
+  sortButtonActive: {
+    backgroundColor: '#1976D2',
+    color: 'white',
+  },
+  dateFiltersContainer: {
+    marginBottom: 12,
+  },
+  dateInputsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },  dateInput: {
+    flex: 1,
+    marginRight: 8,
+  },
+  dateButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+  filterActionsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  applyFiltersButton: {
+    flex: 1,
+    marginRight: 8,
+  },
+  clearFiltersButton: {
+    flex: 1,
+  },
 });
 
 export default CourseForumModal;

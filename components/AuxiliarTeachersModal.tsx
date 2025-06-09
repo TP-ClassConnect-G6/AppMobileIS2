@@ -42,6 +42,7 @@ const AuxiliarTeachersModal = ({ visible, onDismiss, courseId, courseName }: Aux
   const [isLoadingTeacherId, setIsLoadingTeacherId] = useState(false);
   const [createTaskPermission, setCreateTaskPermission] = useState(false);
   const [createExamPermission, setCreateExamPermission] = useState(false);
+  const [communicatePermission, setCommunicatePermission] = useState(false);
 
   // Función para obtener los docentes auxiliares del curso
   const fetchAuxiliarTeachers = async () => {
@@ -111,10 +112,8 @@ const AuxiliarTeachersModal = ({ visible, onDismiss, courseId, courseName }: Aux
     if (!courseId || !session?.token || !auxiliarEmail) {
       Alert.alert('Error', 'El email del docente es obligatorio');
       return;
-    }
-
-    // Verificar que al menos un permiso esté seleccionado
-    if (!createTaskPermission && !createExamPermission) {
+    }    // Verificar que al menos un permiso esté seleccionado
+    if (!createTaskPermission && !createExamPermission && !communicatePermission) {
       Alert.alert('Error', 'Debe seleccionar al menos un permiso');
       return;
     }
@@ -144,11 +143,11 @@ const AuxiliarTeachersModal = ({ visible, onDismiss, courseId, courseName }: Aux
           {
             text: 'Confirmar',
             onPress: async () => {
-              try {
-                // Preparar las permisiones seleccionadas
+              try {                // Preparar las permisiones seleccionadas
                 const permissions = [];
                 if (createTaskPermission) permissions.push('create task');
                 if (createExamPermission) permissions.push('create exam');
+                if (communicatePermission) permissions.push('comunicate');
 
                 // Crear el cuerpo de la petición
                 const requestBody = {
@@ -273,12 +272,12 @@ const AuxiliarTeachersModal = ({ visible, onDismiss, courseId, courseName }: Aux
       ]
     );
   };
-  
-  // Función para limpiar el formulario
+    // Función para limpiar el formulario
   const resetForm = () => {
     setAuxiliarEmail('');
     setCreateTaskPermission(false);
     setCreateExamPermission(false);
+    setCommunicatePermission(false);
     setAddDialogVisible(false);
   };
   // Cargar los docentes auxiliares cuando se abre el modal
@@ -408,8 +407,7 @@ const AuxiliarTeachersModal = ({ visible, onDismiss, courseId, courseName }: Aux
                 Crear tareas
               </Text>
             </View>
-            
-            <View style={styles.checkboxContainer}>
+              <View style={styles.checkboxContainer}>
               <Checkbox
                 status={createExamPermission ? 'checked' : 'unchecked'}
                 onPress={() => setCreateExamPermission(!createExamPermission)}
@@ -419,7 +417,16 @@ const AuxiliarTeachersModal = ({ visible, onDismiss, courseId, courseName }: Aux
               </Text>
             </View>
             
-            {!createTaskPermission && !createExamPermission && (
+            <View style={styles.checkboxContainer}>
+              <Checkbox
+                status={communicatePermission ? 'checked' : 'unchecked'}
+                onPress={() => setCommunicatePermission(!communicatePermission)}
+              />              <Text onPress={() => setCommunicatePermission(!communicatePermission)} style={styles.checkboxLabel}>
+                Comunicate
+              </Text>
+            </View>
+            
+            {!createTaskPermission && !createExamPermission && !communicatePermission && (
               <Text style={styles.errorInputText}>Debe seleccionar al menos un permiso</Text>
             )}
           </Dialog.Content>
@@ -428,7 +435,7 @@ const AuxiliarTeachersModal = ({ visible, onDismiss, courseId, courseName }: Aux
             <Button 
               onPress={addAuxiliarTeacher} 
               loading={isSubmitting}
-              disabled={isSubmitting || !auxiliarEmail || (!createTaskPermission && !createExamPermission)}
+              disabled={isSubmitting || !auxiliarEmail || (!createTaskPermission && !createExamPermission && !communicatePermission)}
             >
               Añadir
             </Button>
