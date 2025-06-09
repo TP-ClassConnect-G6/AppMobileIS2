@@ -2568,12 +2568,11 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
         </ScrollView>
         
         {renderForumDetail()}
-        
-        {/* Modal para crear un nuevo foro */}
+          {/* Modal para crear un nuevo foro */}
         <Modal
           visible={createForumVisible}
           onDismiss={() => !isCreating && setCreateForumVisible(false)}
-          contentContainerStyle={styles.modalContainer}
+          contentContainerStyle={styles.createForumModalContainer}
         >
           <View style={styles.headerContainer}>
             <Title style={styles.headerTitle}>
@@ -2795,10 +2794,18 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
 const styles = StyleSheet.create({
   modalContainer: {
     backgroundColor: 'white',
-    margin: 20,
+    margin: 5,
     borderRadius: 10,
-    maxHeight: '90%',
-    width: '90%',
+    maxHeight: '98%',
+    width: '95%',
+    alignSelf: 'center',
+  },
+  createForumModalContainer: {
+    backgroundColor: 'white',
+    margin: 5,
+    borderRadius: 10,
+    maxHeight: '98%',
+    width: '95%',
     alignSelf: 'center',
   },
   headerContainer: {

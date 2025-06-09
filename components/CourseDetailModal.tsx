@@ -506,7 +506,8 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                     </Text>
                   ))}
                 </View>
-              )}              {isTeacher ? (
+              )}
+              {isTeacher ? (
                 <>
                   {isTeacherAssigned || (isAuxiliar && (canCreateExam || canCreateTask || canCommunicate)) ? (
                     <>
