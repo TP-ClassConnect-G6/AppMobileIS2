@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { forumClient, client } from "@/lib/http";
 import jwtDecode from "jwt-decode";
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 // Tipo para el usuario
 type UserProfile = {
@@ -128,13 +129,16 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
   const [newForumTitle, setNewForumTitle] = useState("");
   const [newForumDescription, setNewForumDescription] = useState("");
   const [newForumTags, setNewForumTags] = useState("");
-  
-  // Estado para filtros de búsqueda de preguntas
+    // Estado para filtros de búsqueda de preguntas
   const [searchTag, setSearchTag] = useState("");
   const [sortOrder, setSortOrder] = useState<"newest" | "popular">("newest");
-  const [createdAfter, setCreatedAfter] = useState("");
-  const [createdBefore, setCreatedBefore] = useState("");
+  const [createdAfter, setCreatedAfter] = useState<Date | null>(null);
+  const [createdBefore, setCreatedBefore] = useState<Date | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  
+  // Estados para controlar los DateTimePickers
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
 
   const { session } = useSession();
   useEffect(() => {
@@ -208,8 +212,8 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
     filters?: {
       tag?: string;
       sort?: string;
-      createdAfter?: string;
-      createdBefore?: string;
+      createdAfter?: string | Date;
+      createdBefore?: string | Date;
     }
   ) => {
     if (!session?.token) {
@@ -224,9 +228,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
         limit: questionsPerPage.toString(),
         page: page.toString(),
         is_active: 'true'
-      });
-
-      // Usar filtros pasados como parámetro o los del estado
+      });      // Usar filtros pasados como parámetro o los del estado
       const currentTag = filters?.tag !== undefined ? filters.tag : searchTag;
       const currentSort = filters?.sort !== undefined ? filters.sort : sortOrder;
       const currentAfter = filters?.createdAfter !== undefined ? filters.createdAfter : createdAfter;
@@ -242,11 +244,15 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
       }
       
       if (currentAfter) {
-        params.append('created_after', currentAfter);
+        // Convertir Date a string en formato ISO si es necesario
+        const afterString = typeof currentAfter === 'string' ? currentAfter : format(currentAfter, 'yyyy-MM-dd');
+        params.append('created_after', afterString);
       }
       
       if (currentBefore) {
-        params.append('created_before', currentBefore);
+        // Convertir Date a string en formato ISO si es necesario
+        const beforeString = typeof currentBefore === 'string' ? currentBefore : format(currentBefore, 'yyyy-MM-dd');
+        params.append('created_before', beforeString);
       }
 
       const response = await forumClient.get(
@@ -1511,31 +1517,63 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                       </Button>
                     </View>
                   </View>
-                  
-                  {/* Filtros de fecha */}
+                    {/* Filtros de fecha */}
                   <View style={styles.dateFiltersContainer}>
                     <Text style={styles.sortLabel}>Filtrar por fecha:</Text>
                     <View style={styles.dateInputsContainer}>
-                      <TextInput
-                        label="Desde (YYYY-MM-DD)"
-                        value={createdAfter}
-                        onChangeText={setCreatedAfter}
+                      <Button
                         mode="outlined"
+                        onPress={() => setShowStartDatePicker(true)}
                         style={styles.dateInput}
-                        placeholder="2024-01-01"
-                        left={<TextInput.Icon icon="calendar-start" />}
-                      />
-                      <TextInput
-                        label="Hasta (YYYY-MM-DD)"
-                        value={createdBefore}
-                        onChangeText={setCreatedBefore}
+                        icon="calendar-start"
+                        contentStyle={styles.dateButtonContent}
+                      >
+                        {createdAfter 
+                          ? `Desde: ${format(createdAfter, 'dd/MM/yyyy')}`
+                          : "Fecha desde"}
+                      </Button>
+                      <Button
                         mode="outlined"
+                        onPress={() => setShowEndDatePicker(true)}
                         style={styles.dateInput}
-                        placeholder="2024-12-31"
-                        left={<TextInput.Icon icon="calendar-end" />}
-                      />
+                        icon="calendar-end"
+                        contentStyle={styles.dateButtonContent}
+                      >
+                        {createdBefore 
+                          ? `Hasta: ${format(createdBefore, 'dd/MM/yyyy')}`
+                          : "Fecha hasta"}
+                      </Button>
                     </View>
                   </View>
+
+                  {/* DateTimePickers */}
+                  {showStartDatePicker && (
+                    <DateTimePicker
+                      value={createdAfter || new Date()}
+                      mode="date"
+                      display="default"
+                      onChange={(event, selectedDate) => {
+                        setShowStartDatePicker(false);
+                        if (selectedDate) {
+                          setCreatedAfter(selectedDate);
+                        }
+                      }}
+                    />
+                  )}
+
+                  {showEndDatePicker && (
+                    <DateTimePicker
+                      value={createdBefore || new Date()}
+                      mode="date"
+                      display="default"
+                      onChange={(event, selectedDate) => {
+                        setShowEndDatePicker(false);
+                        if (selectedDate) {
+                          setCreatedBefore(selectedDate);
+                        }
+                      }}
+                    />
+                  )}
                     {/* Botones de acción de filtros */}
                   <View style={styles.filterActionsContainer}>
                     <Button
@@ -1558,8 +1596,8 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                         // Limpiar filtros - pasar valores vacíos directamente
                         setSearchTag("");
                         setSortOrder("newest");
-                        setCreatedAfter("");
-                        setCreatedBefore("");
+                        setCreatedAfter(null);
+                        setCreatedBefore(null);
                         // Refrescar preguntas sin filtros pasando filtros vacíos
                         if (selectedForum) {
                           setCurrentPage(1);
@@ -3151,10 +3189,14 @@ const styles = StyleSheet.create({
   dateInputsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-  },
-  dateInput: {
+  },  dateInput: {
     flex: 1,
     marginRight: 8,
+  },
+  dateButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
   },
   filterActionsContainer: {
     flexDirection: 'row',
