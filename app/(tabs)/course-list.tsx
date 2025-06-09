@@ -208,6 +208,16 @@ export default function CourseListScreen() {
   // Estado para mostrar solo favoritos
   const [showOnlyFavourites, setShowOnlyFavourites] = useState(false);
 
+  
+  const params = useLocalSearchParams();
+
+  useEffect(() => {
+    if (params.courseId) {
+      setSelectedCourseId(params.courseId as string);
+      setDetailModalVisible(true);
+    }
+  }, [params.courseId]);
+
   const [filters, setFilters] = useState({ 
     course_name: '', 
     category: '', 
