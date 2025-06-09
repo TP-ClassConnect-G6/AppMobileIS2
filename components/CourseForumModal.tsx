@@ -201,9 +201,17 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
       console.error("Error al enriquecer los foros con información de usuario:", error);
       return forumsData;
     }
-  };
-  // Función para cargar las preguntas de un foro con paginación
-  const fetchQuestions = async (forumId: string, page: number = 1) => {
+  };  // Función para cargar las preguntas de un foro con paginación
+  const fetchQuestions = async (
+    forumId: string, 
+    page: number = 1, 
+    filters?: {
+      tag?: string;
+      sort?: string;
+      createdAfter?: string;
+      createdBefore?: string;
+    }
+  ) => {
     if (!session?.token) {
       return;
     }
@@ -218,21 +226,27 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
         is_active: 'true'
       });
 
+      // Usar filtros pasados como parámetro o los del estado
+      const currentTag = filters?.tag !== undefined ? filters.tag : searchTag;
+      const currentSort = filters?.sort !== undefined ? filters.sort : sortOrder;
+      const currentAfter = filters?.createdAfter !== undefined ? filters.createdAfter : createdAfter;
+      const currentBefore = filters?.createdBefore !== undefined ? filters.createdBefore : createdBefore;
+
       // Agregar filtros opcionales si están definidos
-      if (searchTag.trim()) {
-        params.append('tag', searchTag.trim());
+      if (currentTag.trim()) {
+        params.append('tag', currentTag.trim());
       }
       
-      if (sortOrder) {
-        params.append('sort', sortOrder);
+      if (currentSort) {
+        params.append('sort', currentSort);
       }
       
-      if (createdAfter) {
-        params.append('created_after', createdAfter);
+      if (currentAfter) {
+        params.append('created_after', currentAfter);
       }
       
-      if (createdBefore) {
-        params.append('created_before', createdBefore);
+      if (currentBefore) {
+        params.append('created_before', currentBefore);
       }
 
       const response = await forumClient.get(
@@ -1485,7 +1499,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                         style={[styles.sortButton, sortOrder === "newest" && styles.sortButtonActive]}
                         compact
                       >
-                        Más recientes
+                        Recientes
                       </Button>
                       <Button
                         mode={sortOrder === "popular" ? "contained" : "outlined"}
@@ -1493,7 +1507,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                         style={[styles.sortButton, sortOrder === "popular" && styles.sortButtonActive]}
                         compact
                       >
-                        Más populares
+                        Populares
                       </Button>
                     </View>
                   </View>
@@ -1522,8 +1536,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                       />
                     </View>
                   </View>
-                  
-                  {/* Botones de acción de filtros */}
+                    {/* Botones de acción de filtros */}
                   <View style={styles.filterActionsContainer}>
                     <Button
                       mode="contained"
@@ -1542,15 +1555,20 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                     <Button
                       mode="outlined"
                       onPress={() => {
-                        // Limpiar filtros
+                        // Limpiar filtros - pasar valores vacíos directamente
                         setSearchTag("");
                         setSortOrder("newest");
                         setCreatedAfter("");
                         setCreatedBefore("");
-                        // Refrescar preguntas sin filtros
+                        // Refrescar preguntas sin filtros pasando filtros vacíos
                         if (selectedForum) {
                           setCurrentPage(1);
-                          fetchQuestions(selectedForum._id, 1);
+                          fetchQuestions(selectedForum._id, 1, {
+                            tag: "",
+                            sort: "newest",
+                            createdAfter: "",
+                            createdBefore: ""
+                          });
                         }
                       }}
                       style={styles.clearFiltersButton}
