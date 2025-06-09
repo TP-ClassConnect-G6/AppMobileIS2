@@ -129,6 +129,13 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
   const [newForumDescription, setNewForumDescription] = useState("");
   const [newForumTags, setNewForumTags] = useState("");
   
+  // Estado para filtros de búsqueda de preguntas
+  const [searchTag, setSearchTag] = useState("");
+  const [sortOrder, setSortOrder] = useState<"newest" | "popular">("newest");
+  const [createdAfter, setCreatedAfter] = useState("");
+  const [createdBefore, setCreatedBefore] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+
   const { session } = useSession();
   useEffect(() => {
     if (visible && courseId) {
@@ -200,12 +207,36 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
     if (!session?.token) {
       return;
     }
-    
-    setLoadingQuestions(true);
+      setLoadingQuestions(true);
     
     try {
+      // Construir los parámetros de la query dinámicamente
+      const params = new URLSearchParams({
+        forum_id: forumId,
+        limit: questionsPerPage.toString(),
+        page: page.toString(),
+        is_active: 'true'
+      });
+
+      // Agregar filtros opcionales si están definidos
+      if (searchTag.trim()) {
+        params.append('tag', searchTag.trim());
+      }
+      
+      if (sortOrder) {
+        params.append('sort', sortOrder);
+      }
+      
+      if (createdAfter) {
+        params.append('created_after', createdAfter);
+      }
+      
+      if (createdBefore) {
+        params.append('created_before', createdBefore);
+      }
+
       const response = await forumClient.get(
-        `/questions/?forum_id=${forumId}&limit=${questionsPerPage}&page=${page}&is_active=true`,
+        `/questions/?${params.toString()}`,
         {
           headers: {
             'Authorization': `Bearer ${session.token}`,
@@ -1410,6 +1441,128 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
               </Button>
             </View>
             
+            {/* Filtros de búsqueda de preguntas */}
+            <View style={styles.filtersContainer}>
+              <TouchableOpacity
+                onPress={() => setShowFilters(!showFilters)}
+                style={styles.filterToggle}
+              >
+                <MaterialCommunityIcons
+                  name={showFilters ? "filter" : "filter-outline"}
+                  size={20}
+                  color="#666"
+                />
+                <Text style={styles.filterToggleText}>
+                  {showFilters ? "Ocultar filtros" : "Mostrar filtros"}
+                </Text>
+                <MaterialCommunityIcons
+                  name={showFilters ? "chevron-up" : "chevron-down"}
+                  size={20}
+                  color="#666"
+                />
+              </TouchableOpacity>
+              
+              {showFilters && (
+                <View style={styles.filtersExpanded}>
+                  {/* Filtro por etiqueta */}
+                  <TextInput
+                    label="Buscar por etiqueta"
+                    value={searchTag}
+                    onChangeText={setSearchTag}
+                    mode="outlined"
+                    style={styles.filterInput}
+                    placeholder="Ej: javascript, react, python..."
+                    left={<TextInput.Icon icon="tag-outline" />}
+                  />
+                  
+                  {/* Filtro por orden */}
+                  <View style={styles.sortContainer}>
+                    <Text style={styles.sortLabel}>Ordenar por:</Text>
+                    <View style={styles.sortButtons}>
+                      <Button
+                        mode={sortOrder === "newest" ? "contained" : "outlined"}
+                        onPress={() => setSortOrder("newest")}
+                        style={[styles.sortButton, sortOrder === "newest" && styles.sortButtonActive]}
+                        compact
+                      >
+                        Más recientes
+                      </Button>
+                      <Button
+                        mode={sortOrder === "popular" ? "contained" : "outlined"}
+                        onPress={() => setSortOrder("popular")}
+                        style={[styles.sortButton, sortOrder === "popular" && styles.sortButtonActive]}
+                        compact
+                      >
+                        Más populares
+                      </Button>
+                    </View>
+                  </View>
+                  
+                  {/* Filtros de fecha */}
+                  <View style={styles.dateFiltersContainer}>
+                    <Text style={styles.sortLabel}>Filtrar por fecha:</Text>
+                    <View style={styles.dateInputsContainer}>
+                      <TextInput
+                        label="Desde (YYYY-MM-DD)"
+                        value={createdAfter}
+                        onChangeText={setCreatedAfter}
+                        mode="outlined"
+                        style={styles.dateInput}
+                        placeholder="2024-01-01"
+                        left={<TextInput.Icon icon="calendar-start" />}
+                      />
+                      <TextInput
+                        label="Hasta (YYYY-MM-DD)"
+                        value={createdBefore}
+                        onChangeText={setCreatedBefore}
+                        mode="outlined"
+                        style={styles.dateInput}
+                        placeholder="2024-12-31"
+                        left={<TextInput.Icon icon="calendar-end" />}
+                      />
+                    </View>
+                  </View>
+                  
+                  {/* Botones de acción de filtros */}
+                  <View style={styles.filterActionsContainer}>
+                    <Button
+                      mode="contained"
+                      onPress={() => {
+                        // Aplicar filtros - refrescar preguntas con los nuevos filtros
+                        if (selectedForum) {
+                          setCurrentPage(1); // Reset a la primera página
+                          fetchQuestions(selectedForum._id, 1);
+                        }
+                      }}
+                      style={styles.applyFiltersButton}
+                      icon="magnify"
+                    >
+                      Aplicar filtros
+                    </Button>
+                    <Button
+                      mode="outlined"
+                      onPress={() => {
+                        // Limpiar filtros
+                        setSearchTag("");
+                        setSortOrder("newest");
+                        setCreatedAfter("");
+                        setCreatedBefore("");
+                        // Refrescar preguntas sin filtros
+                        if (selectedForum) {
+                          setCurrentPage(1);
+                          fetchQuestions(selectedForum._id, 1);
+                        }
+                      }}
+                      style={styles.clearFiltersButton}
+                      icon="filter-remove"
+                    >
+                      Limpiar
+                    </Button>
+                  </View>
+                </View>
+              )}
+            </View>
+            
             {loadingQuestions ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="small" color="#0000ff" />
@@ -2018,7 +2171,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                 mode="outlined" 
                 onPress={() => setNewAnswerContent("")}
                 style={styles.formButton}
-                disabled={isCreatingAnswer || !newAnswerContent.trim()}
+                disabled={isCreatingAnswer}
               >
                 Limpiar
               </Button>
@@ -2028,7 +2181,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
                 onPress={createAnswer}
                 style={[styles.formButton, { backgroundColor: '#1976D2' }]}
                 loading={isCreatingAnswer}
-                disabled={isCreatingAnswer || !newAnswerContent.trim()}
+                disabled={isCreatingAnswer}
               >
                 {isCreatingAnswer ? 'Enviando...' : 'Enviar Respuesta'}
               </Button>
@@ -2267,6 +2420,7 @@ const CourseForumModal = ({ visible, onDismiss, courseId, courseName }: CourseFo
   };
   
   // Función para marcar una respuesta como aceptada
+ 
   const acceptAnswer = async (answerId: string) => {
     if (!selectedQuestion || !session?.token || !session.userId) {
       Alert.alert("Error", "No se pudo marcar la respuesta como aceptada. Falta información requerida.");
@@ -2914,9 +3068,88 @@ const styles = StyleSheet.create({
   acceptedAnswerText: {
     fontSize: 14,
     color: '#4CAF50',
-    fontWeight: 'bold',
-    marginLeft: 6,
-  }
+    fontWeight: 'bold',    marginLeft: 6,
+  },
+  // Estilos para los filtros de búsqueda
+  filtersContainer: {
+    marginTop: 8,
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 8,
+    backgroundColor: '#f9f9f9',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  filterToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    elevation: 1,
+    marginBottom: 12,
+  },
+  filterToggleText: {
+    fontSize: 14,
+    color: '#333',
+    marginLeft: 8,
+    marginRight: 8,
+  },
+  filtersExpanded: {
+    paddingTop: 8,
+    paddingBottom: 8,
+    paddingLeft: 16,
+    paddingRight: 16,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    elevation: 1,
+  },
+  filterInput: {
+    marginBottom: 12,
+  },
+  sortContainer: {
+    marginBottom: 12,
+  },
+  sortLabel: {
+    fontSize: 14,
+    color: '#333',
+    marginBottom: 4,
+  },
+  sortButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  sortButton: {
+    flex: 1,
+    marginRight: 8,
+  },
+  sortButtonActive: {
+    backgroundColor: '#1976D2',
+    color: 'white',
+  },
+  dateFiltersContainer: {
+    marginBottom: 12,
+  },
+  dateInputsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  dateInput: {
+    flex: 1,
+    marginRight: 8,
+  },
+  filterActionsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  applyFiltersButton: {
+    flex: 1,
+    marginRight: 8,
+  },
+  clearFiltersButton: {
+    flex: 1,
+  },
 });
 
 export default CourseForumModal;
