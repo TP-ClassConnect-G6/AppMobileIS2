@@ -53,6 +53,7 @@ type CreateCourseRequest = {
   quota: string;
   academic_level: string;
   required_course_name: RequiredCourse[];
+  user_id: string;  // Asegurarnos de enviar el user_id
 };
 
 // Esquema de validación con Zod
@@ -349,12 +350,18 @@ export default function CreateCourseScreen() {
         ...processedData,
         date_init: convertedDateInit, // Fecha ya convertida
         date_end: convertedDateEnd,   // Fecha ya convertida
+        user_id: session.userId, // Asegurarnos de enviar el user_id
       };
-
+      
       console.log("Enviando solicitud:", request);
 
       // Enviar la solicitud al servidor
-      const response = await courseClient.post("/courses", request);
+      const response = await courseClient.post("/courses", request, {
+        headers: {
+          'Authorization': `Bearer ${session.token}`,
+          'Content-Type': 'application/json',
+        },
+      });
       console.log("Respuesta:", response.data);
       
       // Extraer información de la respuesta con la nueva estructura
