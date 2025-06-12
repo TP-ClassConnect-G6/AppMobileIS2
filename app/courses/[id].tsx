@@ -9,6 +9,5 @@ export default function CourseIdAlias() {
 
     console.log("Deep linking para cursos con id:", id);
 
-    //Por alguna razon no funciona. Revisar
     return <Redirect href={`/(tabs)/course-list?courseId=${id}`} />;
 }
