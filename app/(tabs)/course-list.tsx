@@ -170,8 +170,17 @@ const registerInCourse = async (courseId: string, academicLevel: string, token?:
 };
 
 // Función para eliminar un curso
-const deleteCourse = async (courseId: string): Promise<void> => {
-  await courseClient.delete(`/courses/${courseId}`);
+const deleteCourse = async (courseId: string, token?: string, role?: string, userId?: string): Promise<void> => {
+  await courseClient.delete(`/courses/${courseId}`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    data: {
+      role: role,
+      user_id: userId
+    }
+  });
 };
 
 
@@ -283,10 +292,9 @@ export default function CourseListScreen() {
         },
         { 
           text: "Eliminar", 
-          style: "destructive",
-          onPress: async () => {
+          style: "destructive",          onPress: async () => {
             try {
-              await deleteCourse(courseId);
+              await deleteCourse(courseId, session?.token, session?.userType, session?.userId);
               // Actualizamos la caché tras eliminar
               queryClient.invalidateQueries({ queryKey: ['courses'] });
               refetch();
