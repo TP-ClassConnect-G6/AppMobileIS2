@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { StyleSheet, View, ScrollView, ActivityIndicator, Alert } from "react-native";
-import { Modal, Portal, Text, Title, Button, Divider, List, FAB, Card, TextInput, HelperText } from "react-native-paper";
+import { StyleSheet, View, ScrollView, ActivityIndicator, Alert, TouchableOpacity } from "react-native";
+import { Modal, Portal, Text, Title, Button, Divider, List, FAB, Card, TextInput, HelperText, Chip } from "react-native-paper";
+import * as DocumentPicker from 'expo-document-picker';
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
@@ -19,6 +20,14 @@ const moduleSchema = z.object({
     .min(1, "La descripción es requerida")
     .min(10, "La descripción debe tener al menos 10 caracteres")
     .max(500, "La descripción no puede exceder 500 caracteres"),
+  order_idx: z.number()
+    .min(0, "El orden debe ser un número positivo")
+    .optional(),  type: z.enum(["videos", "documentos", "enlaces"], {
+    errorMap: () => ({ message: "Selecciona un tipo válido" })
+  }).optional(),  original_name: z.string()
+    .max(255, "El nombre no puede exceder 255 caracteres")
+    .optional(),
+  resource: z.any().optional(), // Para el archivo opcional
 });
 
 type ModuleFormValues = z.infer<typeof moduleSchema>;
@@ -77,15 +86,37 @@ const createCourseModule = async (
   token: string, 
   userId: string, 
   email: string,
-  title: string, 
-  description: string
+  moduleData: ModuleFormValues,
+  selectedFile?: DocumentPicker.DocumentPickerAsset | null
 ): Promise<Module> => {
   try {
     const formData = new FormData();
     formData.append('x-user-id', userId);
     formData.append('x-user-email', email);
-    formData.append('title', title);
-    formData.append('description', description);
+    formData.append('title', moduleData.title);
+    formData.append('description', moduleData.description);
+    
+    // Agregar campos opcionales si están presentes
+    if (moduleData.order_idx !== undefined && moduleData.order_idx !== null) {
+      formData.append('order_idx', moduleData.order_idx.toString());
+    }
+    
+    if (moduleData.type) {
+      formData.append('type', moduleData.type);
+    }
+    
+    if (moduleData.original_name && moduleData.original_name.trim() !== "") {
+      formData.append('original_name', moduleData.original_name);
+    }
+
+    // Agregar archivo si está presente
+    if (selectedFile) {
+      formData.append('resource', {
+        uri: selectedFile.uri,
+        type: selectedFile.mimeType || 'application/octet-stream',
+        name: selectedFile.name || 'file',
+      } as any);
+    }
 
     const response = await courseClient.post(`/courses/${courseId}/modules`, formData, {
       headers: {
@@ -121,11 +152,10 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
   const { session } = useSession();
   const queryClient = useQueryClient();
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
-  
-  // Estados para el modal de creación de módulo
+    // Estados para el modal de creación de módulo
   const [createModuleVisible, setCreateModuleVisible] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-
+  const [selectedFile, setSelectedFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   // Configurar React Hook Form con validación Zod
   const {
     control,
@@ -133,11 +163,16 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
     formState: { errors },
     reset,
     clearErrors,
+    watch,
+    setValue,
   } = useForm<ModuleFormValues>({
-    resolver: zodResolver(moduleSchema),
-    defaultValues: {
+    resolver: zodResolver(moduleSchema),    defaultValues: {
       title: "",
       description: "",
+      order_idx: undefined,
+      type: undefined,
+      original_name: "",
+      resource: undefined,
     },
   });
 
@@ -187,23 +222,63 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
       `Recurso: ${resource.title}\nTipo: ${resource.resource_type}\nDescripción: ${resource.description}`,
       [{ text: "OK" }]
     );
-  };
-  // Función para abrir el modal de creación de módulo
+  };  // Función para abrir el modal de creación de módulo
   const openCreateModuleModal = () => {
     reset({
       title: "",
       description: "",
+      order_idx: undefined,
+      type: undefined,
+      original_name: "",
+      resource: undefined,
     });
+    setSelectedFile(null);
     setCreateModuleVisible(true);
-  };
-
-  // Función para cerrar el modal de creación de módulo
+  };// Función para cerrar el modal de creación de módulo
   const closeCreateModuleModal = () => {
     setCreateModuleVisible(false);
+    setSelectedFile(null);
     reset({
       title: "",
       description: "",
+      order_idx: undefined,
+      type: undefined,
+      original_name: "",
+      resource: undefined,
     });
+  };
+  
+  // Función para seleccionar archivo
+  const selectFile = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*', // Permite cualquier tipo de archivo
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        setSelectedFile(asset);
+        
+        // Si se selecciona un archivo y no hay nombre original, usar el nombre del archivo
+        if (asset.name) {
+          const currentOriginalName = watch('original_name');
+          if (!currentOriginalName || currentOriginalName.trim() === '') {
+            setValue('original_name', asset.name);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error al seleccionar archivo:', error);
+      Alert.alert('Error', 'No se pudo seleccionar el archivo');
+    }
+  };
+
+  // Función para remover archivo seleccionado
+  const removeSelectedFile = () => {
+    setSelectedFile(null);
+    setValue('resource', undefined);
   };
   // Función para crear un nuevo módulo
   const handleCreateModule = async (data: ModuleFormValues) => {
@@ -228,16 +303,14 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
       return;
     }
 
-    setIsCreating(true);
-    
-    try {
+    setIsCreating(true);    try {
       await createCourseModule(
         courseId,
         session.token,
         session.userId,
         userEmail,
-        data.title.trim(),
-        data.description.trim()
+        data,
+        selectedFile
       );
 
       // Refrescar la lista de módulos
@@ -495,6 +568,122 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
           {errors.description && (
             <HelperText type="error">{errors.description.message}</HelperText>
           )}
+          {/* Orden del módulo (opcional) */}
+          <Controller
+            control={control}
+            name="order_idx"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Orden del módulo (opcional)"
+                mode="outlined"
+                style={styles.input}
+                onBlur={onBlur}
+                onChangeText={(text) => {
+                  // Solo permitir números enteros
+                  if (text === '') {
+                    onChange(undefined);
+                  } else if (/^\d+$/.test(text)) {
+                    const numValue = parseInt(text, 10);
+                    onChange(numValue);
+                    if (errors.order_idx && numValue >= 0) {
+                      clearErrors('order_idx');
+                    }
+                  }
+                  // Si no es un número entero válido, no hacemos nada (no actualiza el valor)
+                }}
+                value={value?.toString() || ''}
+                error={!!errors.order_idx}
+                keyboardType="number-pad"
+                placeholder="Ej: 1, 2, 3..."
+              />
+            )}
+          />
+          {errors.order_idx && (
+            <HelperText type="error">{errors.order_idx.message}</HelperText>
+          )}
+
+          {/* Tipo de contenido (opcional) */}
+          <Text style={styles.fieldLabel}>Tipo de contenido (opcional)</Text>
+          <Controller
+            control={control}
+            name="type"
+            render={({ field: { onChange, value } }) => (
+              <View style={styles.chipContainer}>
+                {['videos', 'documentos', 'enlaces'].map((typeOption) => (
+                  <Chip
+                    key={typeOption}
+                    selected={value === typeOption}
+                    onPress={() => onChange(value === typeOption ? undefined : typeOption)}
+                    style={[
+                      styles.chip,
+                      value === typeOption && styles.selectedChip,
+                    ]}
+                    textStyle={value === typeOption ? styles.selectedChipText : undefined}
+                  >
+                    {typeOption.charAt(0).toUpperCase() + typeOption.slice(1)}
+                  </Chip>
+                ))}
+              </View>
+            )}
+          />
+          {errors.type && (
+            <HelperText type="error">{errors.type.message}</HelperText>
+          )}
+
+          {/* Nombre original (opcional) */}
+          <Controller
+            control={control}
+            name="original_name"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Nombre original del archivo (opcional)"
+                mode="outlined"
+                style={styles.input}
+                onBlur={onBlur}
+                onChangeText={(text) => {
+                  onChange(text);
+                  if (errors.original_name && text.length <= 255) {
+                    clearErrors('original_name');
+                  }
+                }}
+                value={value || ''}
+                error={!!errors.original_name}
+                maxLength={255}
+                placeholder="Ej: documento.pdf, video.mp4..."
+              />
+            )}
+          />
+          {errors.original_name && (
+            <HelperText type="error">{errors.original_name.message}</HelperText>
+          )}
+
+          {/* Subir archivo (opcional) */}
+          <Text style={styles.fieldLabel}>Subir archivo (opcional)</Text>
+          <View style={styles.fileUploadContainer}>
+            {selectedFile ? (
+              <View style={styles.selectedFileContainer}>
+                <View style={styles.fileInfo}>
+                  <Text style={styles.fileName}>{selectedFile.name}</Text>
+                  <Text style={styles.fileSize}>
+                    {selectedFile.size ? `${(selectedFile.size / 1024 / 1024).toFixed(2)} MB` : 'Tamaño desconocido'}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={removeSelectedFile} style={styles.removeFileButton}>
+                  <Text style={styles.removeFileText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <Button
+                mode="outlined"
+                icon="file-upload"
+                onPress={selectFile}
+                style={styles.uploadButton}
+                disabled={isCreating}
+              >
+                Seleccionar archivo
+              </Button>
+            )}
+          </View>
           
           <View style={styles.createModalButtons}>
             <Button 
@@ -671,10 +860,75 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 20,
-  },
-  createModalButton: {
+  },  createModalButton: {
     flex: 1,
     marginHorizontal: 5,
+  },
+  fieldLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 8,
+    marginTop: 8,
+    color: '#333',
+  },
+  chipContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 10,
+  },
+  chip: {
+    marginRight: 8,
+    marginBottom: 8,
+    backgroundColor: '#f5f5f5',
+  },
+  selectedChip: {
+    backgroundColor: '#2E7D32',
+  },  selectedChipText: {
+    color: 'white',
+  },
+  fileUploadContainer: {
+    marginBottom: 15,
+  },
+  selectedFileContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f0f0f0',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  fileInfo: {
+    flex: 1,
+  },
+  fileName: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+  },
+  fileSize: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
+  },
+  removeFileButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#ff4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 10,
+  },
+  removeFileText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  uploadButton: {
+    borderColor: '#2E7D32',
+    borderStyle: 'dashed',
   },
 });
 
