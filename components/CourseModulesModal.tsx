@@ -135,7 +135,7 @@ const createCourseModule = async (
       throw new Error('Formato de respuesta inesperado al crear módulo');
     }
   } catch (error) {
-    console.error('Error al crear módulo del curso:', error);
+    // console.error('Error al crear módulo del curso:', error);
     throw error;
   }
 };
@@ -303,7 +303,8 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
       return;
     }
 
-    setIsCreating(true);    try {
+    setIsCreating(true);
+    try {
       await createCourseModule(
         courseId,
         session.token,
@@ -320,7 +321,7 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
       Alert.alert('Éxito', 'Módulo creado correctamente');
       closeCreateModuleModal();
     } catch (error: any) {
-      console.error('Error al crear módulo:', error);
+    //   console.error('Error al crear módulo:', error);
       
       let errorMessage = 'No se pudo crear el módulo. Inténtalo de nuevo.';
       
@@ -331,8 +332,17 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
           errorMessage = 'No tienes permisos para crear módulos en este curso.';
         } else if (error.response.status === 404) {
           errorMessage = 'Curso no encontrado.';
+        } else if (error.response.status === 409) {
+          // Error específico para orden duplicado
+          if (error.response.data?.detail && error.response.data.detail.includes('Order index already exist')) {
+            errorMessage = 'El número de orden ya existe. Por favor, elige un número de orden diferente.';
+          } else {
+            errorMessage = 'Ya existe un módulo con estos datos. Verifica la información ingresada.';
+          }
         } else if (error.response.data?.message) {
           errorMessage = error.response.data.message;
+        } else if (error.response.data?.detail) {
+          errorMessage = error.response.data.detail;
         }
       }
       
