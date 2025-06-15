@@ -116,6 +116,49 @@ const createCourseModule = async (
   }
 };
 
+// Función para editar un módulo existente
+const editCourseModule = async (
+  courseId: string,
+  moduleId: string,
+  token: string, 
+  userId: string, 
+  email: string,
+  moduleData: ModuleFormValues
+): Promise<Module> => {
+  try {
+    const formData = new FormData();
+    formData.append('x-user-id', userId);
+    formData.append('x-user-email', email);
+    formData.append('title', moduleData.title);
+    formData.append('description', moduleData.description);
+    
+    // Agregar orden si está presente
+    if (moduleData.order_idx !== undefined && moduleData.order_idx !== null) {
+      formData.append('order_idx', moduleData.order_idx.toString());
+    }
+
+    const response = await courseClient.patch(`/courses/${moduleId}/modules/`, formData, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    
+    console.log("Edit module API response:", JSON.stringify(response.data, null, 2));
+    
+    if (response.data?.response) {
+      return response.data.response;
+    } else if (response.data) {
+      return response.data;
+    } else {
+      throw new Error('Formato de respuesta inesperado al editar módulo');
+    }
+  } catch (error) {
+    // console.error('Error al editar módulo del curso:', error);
+    throw error;
+  }
+};
+
 // Props para el componente modal
 type CourseModulesModalProps = {
   visible: boolean;
@@ -126,11 +169,14 @@ type CourseModulesModalProps = {
 
 const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: CourseModulesModalProps) => {
   const { session } = useSession();
-  const queryClient = useQueryClient();
-  const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
+  const queryClient = useQueryClient();  const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
     // Estados para el modal de creación de módulo
   const [createModuleVisible, setCreateModuleVisible] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  // Estados para el modal de edición de módulo
+  const [editModuleVisible, setEditModuleVisible] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [moduleToEdit, setModuleToEdit] = useState<Module | null>(null);
   // Configurar React Hook Form con validación Zod
   const {
     control,
@@ -209,7 +255,100 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
       description: "",
       order_idx: undefined,
     });  };
-  
+    // Función para abrir el modal de edición de módulo
+  const openEditModuleModal = (module: Module) => {
+    setModuleToEdit(module);
+    reset({
+      title: module.title,
+      description: module.description,
+      order_idx: module.order_idx,
+    });
+    setEditModuleVisible(true);
+  };
+
+  // Función para cerrar el modal de edición de módulo
+  const closeEditModuleModal = () => {
+    setEditModuleVisible(false);
+    setModuleToEdit(null);
+    reset({
+      title: "",
+      description: "",
+      order_idx: undefined,
+    });
+  };
+
+  // Función para editar un módulo existente
+  const handleEditModule = async (data: ModuleFormValues) => {
+    if (!courseId || !session?.token || !session?.userId || !moduleToEdit) {
+      Alert.alert('Error', 'Información de sesión incompleta');
+      return;
+    }
+
+    // Extraer el email del token JWT
+    let userEmail = "";
+    try {
+      const decodedToken: any = jwtDecode(session.token);
+      userEmail = decodedToken.email || decodedToken.sub || "";
+    } catch (error) {
+      console.error("Error al decodificar token:", error);
+      Alert.alert('Error', 'No se pudo obtener el email del usuario');
+      return;
+    }
+
+    if (!userEmail) {
+      Alert.alert('Error', 'No se pudo obtener el email del usuario');
+      return;
+    }
+
+    setIsEditing(true);
+    try {
+        await editCourseModule(
+        courseId,
+        moduleToEdit.module_id,
+        session.token,
+        session.userId,
+        userEmail,
+        data
+      );
+
+      // Refrescar la lista de módulos
+      queryClient.invalidateQueries({ queryKey: ['courseModules', courseId] });
+      refetch();
+
+      Alert.alert('Éxito', 'Módulo editado correctamente');
+      closeEditModuleModal();
+    } catch (error: any) {
+      // console.error('Error al editar módulo:', error);
+      
+      let errorMessage = 'No se pudo editar el módulo. Inténtalo de nuevo.';
+      
+      if (error.response) {
+        if (error.response.status === 400) {
+          errorMessage = 'Datos del módulo incorrectos. Verifica los campos.';
+        } else if (error.response.status === 403) {
+          errorMessage = 'No tienes permisos para editar módulos en este curso.';
+        } else if (error.response.status === 404) {
+          errorMessage = 'Módulo o curso no encontrado.';
+        } else if (error.response.status === 409) {
+          // Error específico para orden duplicado
+          if (error.response.data?.detail && error.response.data.detail.includes('Order index already exist')) {
+            errorMessage = 'El número de orden ya existe. Por favor, elige un número de orden diferente.';
+          } else {
+            errorMessage = 'Ya existe un módulo con estos datos. Verifica la información ingresada.';
+          }
+        } else if (error.response.data?.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.response.data?.detail) {
+          errorMessage = error.response.data.detail;
+        }
+      }
+      
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setIsEditing(false);
+    }
+  };
+
   // Función para crear un nuevo módulo
   const handleCreateModule = async (data: ModuleFormValues) => {
     if (!courseId || !session?.token || !session?.userId) {
@@ -394,15 +533,11 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
                         )}
                         
                         <Divider style={styles.resourceDivider} />
-                        
-                        <View style={styles.moduleActions}>
+                          <View style={styles.moduleActions}>
                           <Button 
                             mode="outlined" 
                             icon="pencil"
-                            onPress={() => {
-                              // TODO: Implementar edición de módulo
-                              Alert.alert("Próximamente", "Funcionalidad de edición de módulos en desarrollo");
-                            }}
+                            onPress={() => openEditModuleModal(module)}
                             style={styles.actionButton}
                           >
                             Editar
@@ -556,6 +691,120 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
               disabled={isCreating}
             >
               Crear Módulo
+            </Button>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal para editar módulo existente */}
+      <Modal
+        visible={editModuleVisible}
+        onDismiss={closeEditModuleModal}
+        contentContainerStyle={styles.createModalContainer}
+      >
+        <View style={styles.createModalContent}>
+          <Title style={styles.createModalTitle}>Editar Módulo</Title>
+          
+          <Controller
+            control={control}
+            name="title"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Título del módulo *"
+                mode="outlined"
+                style={styles.input}
+                onBlur={onBlur}
+                onChangeText={(text) => {
+                  onChange(text);
+                  if (errors.title && text.trim().length >= 3) {
+                    clearErrors('title');
+                  }
+                }}
+                value={value}
+                error={!!errors.title}
+                maxLength={100}
+              />
+            )}
+          />
+          {errors.title && (
+            <HelperText type="error">{errors.title.message}</HelperText>
+          )}
+
+          <Controller
+            control={control}
+            name="description"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Descripción del módulo *"
+                mode="outlined"
+                style={styles.input}
+                onBlur={onBlur}
+                onChangeText={(text) => {
+                  onChange(text);
+                  if (errors.description && text.trim().length >= 10) {
+                    clearErrors('description');
+                  }
+                }}
+                value={value}
+                error={!!errors.description}
+                multiline
+                numberOfLines={3}
+                maxLength={500}
+              />
+            )}
+          />
+          {errors.description && (
+            <HelperText type="error">{errors.description.message}</HelperText>
+          )}
+
+          <Controller
+            control={control}
+            name="order_idx"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Orden del módulo (opcional)"
+                mode="outlined"
+                style={styles.input}
+                onBlur={onBlur}
+                onChangeText={(text) => {
+                  if (text === '') {
+                    onChange(undefined);
+                  } else if (/^\d+$/.test(text)) {
+                    const numValue = parseInt(text, 10);
+                    onChange(numValue);
+                    if (errors.order_idx && numValue >= 0) {
+                      clearErrors('order_idx');
+                    }
+                  }
+                }}
+                value={value?.toString() || ''}
+                error={!!errors.order_idx}
+                keyboardType="number-pad"
+                placeholder="Ej: 1, 2, 3..."
+              />
+            )}
+          />
+          {errors.order_idx && (
+            <HelperText type="error">{errors.order_idx.message}</HelperText>
+          )}
+
+          <View style={styles.createModalButtons}>
+            <Button 
+              mode="outlined" 
+              onPress={closeEditModuleModal}
+              style={styles.createModalButton}
+              disabled={isEditing}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              mode="contained" 
+              onPress={handleSubmit(handleEditModule)}
+              style={[styles.createModalButton, styles.createButton]}
+              loading={isEditing}
+              disabled={isEditing}
+            >
+              Guardar Cambios
             </Button>
           </View>
         </View>
