@@ -396,7 +396,8 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                 Error al cargar los detalles del curso
               </Text>
               <Button mode="contained" onPress={() => refetch()}>
-                Intentar nuevamente              </Button>
+                Intentar nuevamente
+              </Button>
             </View>
           ) : courseDetail ? (
             <>

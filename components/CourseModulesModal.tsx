@@ -333,9 +333,6 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
                       style={styles.moduleAccordion}
                     >
                       <View style={styles.moduleContent}>
-                        <Text style={styles.moduleStatus}>
-                          Estado: {module.module_status === 'active' ? 'Activo' : 'Inactivo'}
-                        </Text>
                         
                         {module.resources.length === 0 ? (
                           <View style={styles.noResourcesContainer}>
@@ -400,7 +397,7 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
                           >
                             Editar
                           </Button>
-                          <Button 
+                          <Button
                             mode="outlined" 
                             icon="plus"
                             onPress={() => {
@@ -443,7 +440,8 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
         visible={createModuleVisible}
         onDismiss={closeCreateModuleModal}
         contentContainerStyle={styles.createModalContainer}
-      >        <View style={styles.createModalContent}>
+      >
+        <View style={styles.createModalContent}>
           <Title style={styles.createModalTitle}>Crear Nuevo Módulo</Title>
           
           <Controller
