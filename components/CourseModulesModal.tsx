@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { StyleSheet, View, ScrollView, ActivityIndicator, Alert, TouchableOpacity } from "react-native";
-import { Modal, Portal, Text, Title, Button, Divider, List, FAB, Card, TextInput, HelperText, Chip } from "react-native-paper";
-import * as DocumentPicker from 'expo-document-picker';
+import { StyleSheet, View, ScrollView, ActivityIndicator, Alert } from "react-native";
+import { Modal, Portal, Text, Title, Button, Divider, List, FAB, Card, TextInput, HelperText } from "react-native-paper";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
@@ -22,12 +21,7 @@ const moduleSchema = z.object({
     .max(500, "La descripción no puede exceder 500 caracteres"),
   order_idx: z.number()
     .min(0, "El orden debe ser un número positivo")
-    .optional(),  type: z.enum(["videos", "documentos", "enlaces"], {
-    errorMap: () => ({ message: "Selecciona un tipo válido" })
-  }).optional(),  original_name: z.string()
-    .max(255, "El nombre no puede exceder 255 caracteres")
     .optional(),
-  resource: z.any().optional(), // Para el archivo opcional
 });
 
 type ModuleFormValues = z.infer<typeof moduleSchema>;
@@ -86,8 +80,7 @@ const createCourseModule = async (
   token: string, 
   userId: string, 
   email: string,
-  moduleData: ModuleFormValues,
-  selectedFile?: DocumentPicker.DocumentPickerAsset | null
+  moduleData: ModuleFormValues
 ): Promise<Module> => {
   try {
     const formData = new FormData();
@@ -96,26 +89,9 @@ const createCourseModule = async (
     formData.append('title', moduleData.title);
     formData.append('description', moduleData.description);
     
-    // Agregar campos opcionales si están presentes
+    // Agregar orden si está presente
     if (moduleData.order_idx !== undefined && moduleData.order_idx !== null) {
       formData.append('order_idx', moduleData.order_idx.toString());
-    }
-    
-    if (moduleData.type) {
-      formData.append('type', moduleData.type);
-    }
-    
-    if (moduleData.original_name && moduleData.original_name.trim() !== "") {
-      formData.append('original_name', moduleData.original_name);
-    }
-
-    // Agregar archivo si está presente
-    if (selectedFile) {
-      formData.append('resource', {
-        uri: selectedFile.uri,
-        type: selectedFile.mimeType || 'application/octet-stream',
-        name: selectedFile.name || 'file',
-      } as any);
     }
 
     const response = await courseClient.post(`/courses/${courseId}/modules`, formData, {
@@ -155,7 +131,6 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
     // Estados para el modal de creación de módulo
   const [createModuleVisible, setCreateModuleVisible] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   // Configurar React Hook Form con validación Zod
   const {
     control,
@@ -164,15 +139,11 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
     reset,
     clearErrors,
     watch,
-    setValue,
-  } = useForm<ModuleFormValues>({
+    setValue,} = useForm<ModuleFormValues>({
     resolver: zodResolver(moduleSchema),    defaultValues: {
       title: "",
       description: "",
       order_idx: undefined,
-      type: undefined,
-      original_name: "",
-      resource: undefined,
     },
   });
 
@@ -228,58 +199,17 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
       title: "",
       description: "",
       order_idx: undefined,
-      type: undefined,
-      original_name: "",
-      resource: undefined,
     });
-    setSelectedFile(null);
     setCreateModuleVisible(true);
   };// Función para cerrar el modal de creación de módulo
   const closeCreateModuleModal = () => {
     setCreateModuleVisible(false);
-    setSelectedFile(null);
     reset({
       title: "",
       description: "",
       order_idx: undefined,
-      type: undefined,
-      original_name: "",
-      resource: undefined,
-    });
-  };
+    });  };
   
-  // Función para seleccionar archivo
-  const selectFile = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: '*/*', // Permite cualquier tipo de archivo
-        copyToCacheDirectory: true,
-        multiple: false,
-      });
-
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const asset = result.assets[0];
-        setSelectedFile(asset);
-        
-        // Si se selecciona un archivo y no hay nombre original, usar el nombre del archivo
-        if (asset.name) {
-          const currentOriginalName = watch('original_name');
-          if (!currentOriginalName || currentOriginalName.trim() === '') {
-            setValue('original_name', asset.name);
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Error al seleccionar archivo:', error);
-      Alert.alert('Error', 'No se pudo seleccionar el archivo');
-    }
-  };
-
-  // Función para remover archivo seleccionado
-  const removeSelectedFile = () => {
-    setSelectedFile(null);
-    setValue('resource', undefined);
-  };
   // Función para crear un nuevo módulo
   const handleCreateModule = async (data: ModuleFormValues) => {
     if (!courseId || !session?.token || !session?.userId) {
@@ -301,17 +231,14 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
     if (!userEmail) {
       Alert.alert('Error', 'No se pudo obtener el email del usuario');
       return;
-    }
-
-    setIsCreating(true);
+    }    setIsCreating(true);
     try {
       await createCourseModule(
         courseId,
         session.token,
         session.userId,
         userEmail,
-        data,
-        selectedFile
+        data
       );
 
       // Refrescar la lista de módulos
@@ -612,89 +539,6 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
             <HelperText type="error">{errors.order_idx.message}</HelperText>
           )}
 
-          {/* Tipo de contenido (opcional) */}
-          <Text style={styles.fieldLabel}>Tipo de contenido (opcional)</Text>
-          <Controller
-            control={control}
-            name="type"
-            render={({ field: { onChange, value } }) => (
-              <View style={styles.chipContainer}>
-                {['videos', 'documentos', 'enlaces'].map((typeOption) => (
-                  <Chip
-                    key={typeOption}
-                    selected={value === typeOption}
-                    onPress={() => onChange(value === typeOption ? undefined : typeOption)}
-                    style={[
-                      styles.chip,
-                      value === typeOption && styles.selectedChip,
-                    ]}
-                    textStyle={value === typeOption ? styles.selectedChipText : undefined}
-                  >
-                    {typeOption.charAt(0).toUpperCase() + typeOption.slice(1)}
-                  </Chip>
-                ))}
-              </View>
-            )}
-          />
-          {errors.type && (
-            <HelperText type="error">{errors.type.message}</HelperText>
-          )}
-
-          {/* Nombre original (opcional) */}
-          <Controller
-            control={control}
-            name="original_name"
-            render={({ field: { onChange, onBlur, value } }) => (
-              <TextInput
-                label="Nombre original del archivo (opcional)"
-                mode="outlined"
-                style={styles.input}
-                onBlur={onBlur}
-                onChangeText={(text) => {
-                  onChange(text);
-                  if (errors.original_name && text.length <= 255) {
-                    clearErrors('original_name');
-                  }
-                }}
-                value={value || ''}
-                error={!!errors.original_name}
-                maxLength={255}
-                placeholder="Ej: documento.pdf, video.mp4..."
-              />
-            )}
-          />
-          {errors.original_name && (
-            <HelperText type="error">{errors.original_name.message}</HelperText>
-          )}
-
-          {/* Subir archivo (opcional) */}
-          <Text style={styles.fieldLabel}>Subir archivo (opcional)</Text>
-          <View style={styles.fileUploadContainer}>
-            {selectedFile ? (
-              <View style={styles.selectedFileContainer}>
-                <View style={styles.fileInfo}>
-                  <Text style={styles.fileName}>{selectedFile.name}</Text>
-                  <Text style={styles.fileSize}>
-                    {selectedFile.size ? `${(selectedFile.size / 1024 / 1024).toFixed(2)} MB` : 'Tamaño desconocido'}
-                  </Text>
-                </View>
-                <TouchableOpacity onPress={removeSelectedFile} style={styles.removeFileButton}>
-                  <Text style={styles.removeFileText}>✕</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <Button
-                mode="outlined"
-                icon="file-upload"
-                onPress={selectFile}
-                style={styles.uploadButton}
-                disabled={isCreating}
-              >
-                Seleccionar archivo
-              </Button>
-            )}
-          </View>
-          
           <View style={styles.createModalButtons}>
             <Button 
               mode="outlined" 
@@ -873,72 +717,6 @@ const styles = StyleSheet.create({
   },  createModalButton: {
     flex: 1,
     marginHorizontal: 5,
-  },
-  fieldLabel: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 8,
-    marginTop: 8,
-    color: '#333',
-  },
-  chipContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 10,
-  },
-  chip: {
-    marginRight: 8,
-    marginBottom: 8,
-    backgroundColor: '#f5f5f5',
-  },
-  selectedChip: {
-    backgroundColor: '#2E7D32',
-  },  selectedChipText: {
-    color: 'white',
-  },
-  fileUploadContainer: {
-    marginBottom: 15,
-  },
-  selectedFileContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#f0f0f0',
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  fileInfo: {
-    flex: 1,
-  },
-  fileName: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#333',
-  },
-  fileSize: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 2,
-  },
-  removeFileButton: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#ff4444',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 10,
-  },
-  removeFileText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  uploadButton: {
-    borderColor: '#2E7D32',
-    borderStyle: 'dashed',
   },
 });
 
