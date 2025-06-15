@@ -1,9 +1,27 @@
 import React, { useState, useEffect } from "react";
 import { StyleSheet, View, ScrollView, ActivityIndicator, Alert } from "react-native";
-import { Modal, Portal, Text, Title, Button, Divider, List, FAB, Card } from "react-native-paper";
-import { useQuery } from "@tanstack/react-query";
+import { Modal, Portal, Text, Title, Button, Divider, List, FAB, Card, TextInput, HelperText } from "react-native-paper";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useForm, Controller } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { courseClient } from "@/lib/http";
 import { useSession } from "@/contexts/session";
+import jwtDecode from "jwt-decode";
+
+// Schema de validación para el formulario de módulo
+const moduleSchema = z.object({
+  title: z.string()
+    .min(1, "El título es requerido")
+    .min(3, "El título debe tener al menos 3 caracteres")
+    .max(100, "El título no puede exceder 100 caracteres"),
+  description: z.string()
+    .min(1, "La descripción es requerida")
+    .min(10, "La descripción debe tener al menos 10 caracteres")
+    .max(500, "La descripción no puede exceder 500 caracteres"),
+});
+
+type ModuleFormValues = z.infer<typeof moduleSchema>;
 
 // Tipos para los módulos y recursos
 type Resource = {
@@ -50,6 +68,43 @@ const fetchCourseModules = async (courseId: string, token: string): Promise<Modu
     }
   } catch (error) {
     console.error('Error al obtener módulos del curso:', error);
+    throw error;  }
+};
+
+// Función para crear un nuevo módulo
+const createCourseModule = async (
+  courseId: string, 
+  token: string, 
+  userId: string, 
+  email: string,
+  title: string, 
+  description: string
+): Promise<Module> => {
+  try {
+    const formData = new FormData();
+    formData.append('x-user-id', userId);
+    formData.append('x-user-email', email);
+    formData.append('title', title);
+    formData.append('description', description);
+
+    const response = await courseClient.post(`/courses/${courseId}/modules`, formData, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    
+    console.log("Create module API response:", JSON.stringify(response.data, null, 2));
+    
+    if (response.data?.response) {
+      return response.data.response;
+    } else if (response.data) {
+      return response.data;
+    } else {
+      throw new Error('Formato de respuesta inesperado al crear módulo');
+    }
+  } catch (error) {
+    console.error('Error al crear módulo del curso:', error);
     throw error;
   }
 };
@@ -64,7 +119,27 @@ type CourseModulesModalProps = {
 
 const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: CourseModulesModalProps) => {
   const { session } = useSession();
+  const queryClient = useQueryClient();
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
+  
+  // Estados para el modal de creación de módulo
+  const [createModuleVisible, setCreateModuleVisible] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+
+  // Configurar React Hook Form con validación Zod
+  const {
+    control,
+    handleSubmit,
+    formState: { errors },
+    reset,
+    clearErrors,
+  } = useForm<ModuleFormValues>({
+    resolver: zodResolver(moduleSchema),
+    defaultValues: {
+      title: "",
+      description: "",
+    },
+  });
 
   // Consulta para obtener los módulos del curso
   const { data: modules = [], isLoading, error, refetch } = useQuery({
@@ -104,7 +179,6 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
         return 'file-outline';
     }
   };
-
   // Función para manejar la acción de un recurso
   const handleResourceAction = (resource: Resource) => {
     // Aquí se puede implementar la lógica para abrir/ver el recurso
@@ -113,6 +187,86 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
       `Recurso: ${resource.title}\nTipo: ${resource.resource_type}\nDescripción: ${resource.description}`,
       [{ text: "OK" }]
     );
+  };
+  // Función para abrir el modal de creación de módulo
+  const openCreateModuleModal = () => {
+    reset({
+      title: "",
+      description: "",
+    });
+    setCreateModuleVisible(true);
+  };
+
+  // Función para cerrar el modal de creación de módulo
+  const closeCreateModuleModal = () => {
+    setCreateModuleVisible(false);
+    reset({
+      title: "",
+      description: "",
+    });
+  };
+  // Función para crear un nuevo módulo
+  const handleCreateModule = async (data: ModuleFormValues) => {
+    if (!courseId || !session?.token || !session?.userId) {
+      Alert.alert('Error', 'Información de sesión incompleta');
+      return;
+    }
+
+    // Extraer el email del token JWT
+    let userEmail = "";
+    try {
+      const decodedToken: any = jwtDecode(session.token);
+      userEmail = decodedToken.email || decodedToken.sub || "";
+    } catch (error) {
+      console.error("Error al decodificar token:", error);
+      Alert.alert('Error', 'No se pudo obtener el email del usuario');
+      return;
+    }
+
+    if (!userEmail) {
+      Alert.alert('Error', 'No se pudo obtener el email del usuario');
+      return;
+    }
+
+    setIsCreating(true);
+    
+    try {
+      await createCourseModule(
+        courseId,
+        session.token,
+        session.userId,
+        userEmail,
+        data.title.trim(),
+        data.description.trim()
+      );
+
+      // Refrescar la lista de módulos
+      queryClient.invalidateQueries({ queryKey: ['courseModules', courseId] });
+      refetch();
+
+      Alert.alert('Éxito', 'Módulo creado correctamente');
+      closeCreateModuleModal();
+    } catch (error: any) {
+      console.error('Error al crear módulo:', error);
+      
+      let errorMessage = 'No se pudo crear el módulo. Inténtalo de nuevo.';
+      
+      if (error.response) {
+        if (error.response.status === 400) {
+          errorMessage = 'Datos del módulo incorrectos. Verifica los campos.';
+        } else if (error.response.status === 403) {
+          errorMessage = 'No tienes permisos para crear módulos en este curso.';
+        } else if (error.response.status === 404) {
+          errorMessage = 'Curso no encontrado.';
+        } else if (error.response.data?.message) {
+          errorMessage = error.response.data.message;
+        }
+      }
+      
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   return (
@@ -153,10 +307,7 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
                 mode="contained" 
                 style={styles.createButton}
                 icon="plus"
-                onPress={() => {
-                  // TODO: Implementar creación de módulo
-                  Alert.alert("Próximamente", "Funcionalidad de creación de módulos en desarrollo");
-                }}
+                onPress={openCreateModuleModal}
               >
                 Crear primer módulo
               </Button>
@@ -265,16 +416,12 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
                     </List.Accordion>
                   </Card>
                 ))}
-              
-              {/* Botón para crear nuevo módulo */}
+                {/* Botón para crear nuevo módulo */}
               <Button 
                 mode="contained" 
                 style={styles.createModuleButton}
                 icon="plus"
-                onPress={() => {
-                  // TODO: Implementar creación de módulo
-                  Alert.alert("Próximamente", "Funcionalidad de creación de módulos en desarrollo");
-                }}
+                onPress={openCreateModuleModal}
               >
                 Crear nuevo módulo
               </Button>
@@ -289,6 +436,88 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
             Cerrar
           </Button>
         </ScrollView>
+      </Modal>
+
+      {/* Modal para crear nuevo módulo */}
+      <Modal
+        visible={createModuleVisible}
+        onDismiss={closeCreateModuleModal}
+        contentContainerStyle={styles.createModalContainer}
+      >        <View style={styles.createModalContent}>
+          <Title style={styles.createModalTitle}>Crear Nuevo Módulo</Title>
+          
+          <Controller
+            control={control}
+            name="title"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Título del módulo *"
+                mode="outlined"
+                style={styles.input}
+                onBlur={onBlur}
+                onChangeText={(text) => {
+                  onChange(text);
+                  if (errors.title && text.trim().length >= 3) {
+                    clearErrors('title');
+                  }
+                }}
+                value={value}
+                error={!!errors.title}
+                maxLength={100}
+              />
+            )}
+          />
+          {errors.title && (
+            <HelperText type="error">{errors.title.message}</HelperText>
+          )}
+          
+          <Controller
+            control={control}
+            name="description"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Descripción del módulo *"
+                mode="outlined"
+                style={styles.input}
+                onBlur={onBlur}
+                onChangeText={(text) => {
+                  onChange(text);
+                  if (errors.description && text.trim().length >= 10) {
+                    clearErrors('description');
+                  }
+                }}
+                value={value}
+                error={!!errors.description}
+                multiline
+                numberOfLines={4}
+                maxLength={500}
+              />
+            )}
+          />
+          {errors.description && (
+            <HelperText type="error">{errors.description.message}</HelperText>
+          )}
+          
+          <View style={styles.createModalButtons}>
+            <Button 
+              mode="outlined" 
+              onPress={closeCreateModuleModal}
+              style={styles.createModalButton}
+              disabled={isCreating}
+            >
+              Cancelar
+            </Button>
+              <Button 
+              mode="contained" 
+              onPress={handleSubmit(handleCreateModule)}
+              style={[styles.createModalButton, styles.createButton]}
+              loading={isCreating}
+              disabled={isCreating}
+            >
+              Crear Módulo
+            </Button>
+          </View>
+        </View>
       </Modal>
     </Portal>
   );
@@ -418,9 +647,36 @@ const styles = StyleSheet.create({
     marginTop: 20,
     marginBottom: 10,
     backgroundColor: '#2E7D32',
-  },
-  closeButton: {
+  },  closeButton: {
     marginTop: 10,
+  },
+  createModalContainer: {
+    backgroundColor: 'white',
+    margin: 20,
+    borderRadius: 10,
+    maxHeight: '80%',
+  },
+  createModalContent: {
+    padding: 20,
+  },
+  createModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  input: {
+    marginBottom: 10,
+    backgroundColor: 'white',
+  },
+  createModalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
+  },
+  createModalButton: {
+    flex: 1,
+    marginHorizontal: 5,
   },
 });
 
