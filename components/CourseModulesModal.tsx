@@ -161,6 +161,27 @@ const editCourseModule = async (
   }
 };
 
+// Función para eliminar un módulo existente
+const deleteCourseModule = async (
+  courseId: string,
+  moduleId: string,
+  token: string
+): Promise<void> => {
+  try {
+    const response = await courseClient.delete(`/courses/${moduleId}/modules`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    console.log("Delete module API response:", JSON.stringify(response.data, null, 2));
+  } catch (error) {
+    console.error('Error al eliminar módulo del curso:', error);
+    throw error;
+  }
+};
+
 // Props para el componente modal
 type CourseModulesModalProps = {
   visible: boolean;
@@ -419,6 +440,57 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
     }
   };
 
+  // Función para eliminar un módulo
+  const handleDeleteModule = async (moduleId: string) => {
+    if (!courseId || !session?.token) {
+      Alert.alert('Error', 'Información de sesión incompleta');
+      return;
+    }
+
+    Alert.alert(
+      'Eliminar Módulo',
+      '¿Estás seguro de que deseas eliminar este módulo? Esta acción no se puede deshacer.',
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Eliminar',
+          onPress: async () => {
+            try {
+              await deleteCourseModule(courseId, moduleId, session.token);
+
+              // Refrescar la lista de módulos
+              queryClient.invalidateQueries({ queryKey: ['courseModules', courseId] });
+              refetch();
+
+              Alert.alert('Éxito', 'Módulo eliminado correctamente');
+            } catch (error: any) {
+              // console.error('Error al eliminar módulo:', error);
+              
+              let errorMessage = 'No se pudo eliminar el módulo. Inténtalo de nuevo.';
+              
+              if (error.response) {
+                if (error.response.status === 403) {
+                  errorMessage = 'No tienes permisos para eliminar módulos en este curso.';
+                } else if (error.response.status === 404) {
+                  errorMessage = 'Módulo o curso no encontrado.';
+                } else if (error.response.data?.message) {
+                  errorMessage = error.response.data.message;
+                } else if (error.response.data?.detail) {
+                  errorMessage = error.response.data.detail;
+                }
+              }
+              
+              Alert.alert('Error', errorMessage);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <Portal>
       <Modal
@@ -553,6 +625,14 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
                             style={styles.actionButton}
                           >
                             Recurso
+                          </Button>
+                          <Button
+                            mode="outlined" 
+                            icon="trash-can"
+                            onPress={() => handleDeleteModule(module.module_id)}
+                            style={styles.actionButton}
+                          >
+                            Eliminar
                           </Button>
                         </View>
                       </View>
