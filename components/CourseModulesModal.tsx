@@ -123,7 +123,8 @@ const editCourseModule = async (
   token: string, 
   userId: string, 
   email: string,
-  moduleData: ModuleFormValues
+  moduleData: ModuleFormValues,
+  originalModule: Module
 ): Promise<Module> => {
   try {
     const formData = new FormData();
@@ -132,8 +133,9 @@ const editCourseModule = async (
     formData.append('title', moduleData.title);
     formData.append('description', moduleData.description);
     
-    // Agregar orden si está presente
-    if (moduleData.order_idx !== undefined && moduleData.order_idx !== null) {
+    // Solo agregar orden si fue modificado
+    if (moduleData.order_idx !== undefined && moduleData.order_idx !== null && 
+        moduleData.order_idx !== originalModule.order_idx) {
       formData.append('order_idx', moduleData.order_idx.toString());
     }
 
@@ -298,9 +300,7 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
     if (!userEmail) {
       Alert.alert('Error', 'No se pudo obtener el email del usuario');
       return;
-    }
-
-    setIsEditing(true);
+    }    setIsEditing(true);
     try {
         await editCourseModule(
         courseId,
@@ -308,7 +308,8 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
         session.token,
         session.userId,
         userEmail,
-        data
+        data,
+        moduleToEdit
       );
 
       // Refrescar la lista de módulos
@@ -331,7 +332,7 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
           errorMessage = 'Módulo o curso no encontrado.';
         } else if (error.response.status === 409) {
           // Error específico para orden duplicado
-          if (error.response.data?.detail && error.response.data.detail.includes('Order index already exist')) {
+          if (error.response.data?.detail && (error.response.data.detail.includes('Order index already exist') || error.response.data.detail.includes('Order number already exist, try another'))) {
             errorMessage = 'El número de orden ya existe. Por favor, elige un número de orden diferente.';
           } else {
             errorMessage = 'Ya existe un módulo con estos datos. Verifica la información ingresada.';
@@ -762,7 +763,7 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
             name="order_idx"
             render={({ field: { onChange, onBlur, value } }) => (
               <TextInput
-                label="Orden del módulo (opcional)"
+                label="Orden del módulo *"
                 mode="outlined"
                 style={styles.input}
                 onBlur={onBlur}
