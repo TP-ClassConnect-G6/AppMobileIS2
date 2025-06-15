@@ -397,7 +397,7 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
                       left={(props) => <List.Icon {...props} icon="book-outline" />}
                       right={(props) => (
                         <View style={styles.moduleHeader}>
-                          <Text style={styles.moduleOrder}>#{module.order_idx + 1}</Text>
+                          <Text style={styles.moduleOrder}>#{module.order_idx}</Text>
                           <List.Icon {...props} icon="chevron-down" />
                         </View>
                       )}
