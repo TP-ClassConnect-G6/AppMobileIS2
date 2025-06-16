@@ -645,88 +645,87 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
                       onPress={() => toggleModuleExpansion(module.module_id)}
                       style={styles.moduleAccordion}
                     >
-                      <View style={styles.moduleContent}>
+                      <View style={styles.moduleContent}>  
+                        <Text style={styles.resourcesTitle}>
+                          Recursos ({module.resources.length}):
+                        </Text>
                         
                         {module.resources.length === 0 ? (
                           <View style={styles.noResourcesContainer}>
                             <Text style={styles.noResourcesText}>
                               No hay recursos en este módulo
                             </Text>
-                            <Button 
-                              mode="outlined" 
-                              icon="plus"
-                              onPress={() => {
-                                // TODO: Implementar adición de recurso
-                                Alert.alert("Próximamente", "Funcionalidad de adición de recursos en desarrollo");
-                              }}
-                              style={styles.addResourceButton}
-                            >
-                              Agregar recurso
-                            </Button>
                           </View>
                         ) : (
-                          <>
-                            <Text style={styles.resourcesTitle}>
-                              Recursos ({module.resources.length}):
-                            </Text>
-                            {module.resources.map((resource) => {
-                              const resourceUrl = resource.resource || resource.url;
-                              const fileName = resource.original_name || resource.title;
-                              const resourceType = resource.type || resource.resource_type;
-                              
-                              // Crear una descripción más informativa
-                              let displayDescription = resource.description || '';
-                              if (fileName && fileName !== resource.title) {
-                                displayDescription = `${fileName}${displayDescription ? ` • ${displayDescription}` : ''}`;
-                              }
-                              if (resourceType && !displayDescription.includes(resourceType)) {
-                                displayDescription = `${resourceType}${displayDescription ? ` • ${displayDescription}` : ''}`;
-                              }
-                              
-                              return (
-                                <List.Item
-                                  key={resource.resource_id}
-                                  title={resource.title || fileName || 'Recurso sin título'}
-                                  description={displayDescription || 'Sin descripción'}
-                                  left={(props) => (
-                                    <List.Icon 
-                                      {...props} 
-                                      icon={getResourceIcon(resourceType)} 
-                                    />
-                                  )}
-                                  right={(props) => (
-                                    <View style={styles.resourceActions}>
+                          module.resources.map((resource) => {
+                            const resourceUrl = resource.resource || resource.url;
+                            const fileName = resource.original_name || resource.title;
+                            const resourceType = resource.type || resource.resource_type;
+                            
+                            // Crear una descripción más informativa
+                            let displayDescription = resource.description || '';
+                            if (fileName && fileName !== resource.title) {
+                              displayDescription = `${fileName}${displayDescription ? ` • ${displayDescription}` : ''}`;
+                            }
+                            if (resourceType && !displayDescription.includes(resourceType)) {
+                              displayDescription = `${resourceType}${displayDescription ? ` • ${displayDescription}` : ''}`;
+                            }
+                            
+                            return (
+                              <List.Item
+                                key={resource.resource_id}
+                                title={resource.title || fileName || 'Recurso sin título'}
+                                description={displayDescription || 'Sin descripción'}
+                                left={(props) => (
+                                  <List.Icon 
+                                    {...props} 
+                                    icon={getResourceIcon(resourceType)} 
+                                  />
+                                )}
+                                right={(props) => (
+                                  <View style={styles.resourceActions}>
+                                    <Button
+                                      mode="text"
+                                      onPress={() => handleResourceAction(resource)}
+                                      icon={resourceUrl ? "open-in-new" : "eye"}
+                                      compact
+                                      contentStyle={styles.iconButtonContent}
+                                      accessibilityLabel={resourceUrl ? "Abrir recurso" : "Ver detalles del recurso"}
+                                    >
+                                      {""}
+                                    </Button>
+                                    {resourceUrl && (
                                       <Button
                                         mode="text"
-                                        onPress={() => handleResourceAction(resource)}
-                                        icon={resourceUrl ? "open-in-new" : "eye"}
+                                        onPress={() => handleResourceDownload(resource)}
+                                        icon="download"
                                         compact
                                         contentStyle={styles.iconButtonContent}
-                                        accessibilityLabel={resourceUrl ? "Abrir recurso" : "Ver detalles del recurso"}
+                                        accessibilityLabel="Descargar recurso"
                                       >
                                         {""}
                                       </Button>
-                                      {resourceUrl && (
-                                        <Button
-                                          mode="text"
-                                          onPress={() => handleResourceDownload(resource)}
-                                          icon="download"
-                                          compact
-                                          contentStyle={styles.iconButtonContent}
-                                          accessibilityLabel="Descargar recurso"
-                                        >
-                                          {""}
-                                        </Button>
-                                      )}
-                                    </View>
-                                  )}
-                                  style={styles.resourceItem}
-                                  onPress={() => handleResourceAction(resource)}
-                                />
-                              );
-                            })}
-                          </>
+                                    )}
+                                  </View>
+                                )}
+                                style={styles.resourceItem}
+                                onPress={() => handleResourceAction(resource)}
+                              />
+                            );
+                          })
                         )}
+                        
+                        <Button 
+                          mode="outlined" 
+                          icon="plus"
+                          onPress={() => {
+                            // TODO: Implementar adición de recurso
+                            Alert.alert("Próximamente", "Funcionalidad de adición de recursos en desarrollo");
+                          }}
+                          style={styles.addResourceButton}
+                        >
+                          Agregar recurso
+                        </Button>
                         
                         <Divider style={styles.resourceDivider} />
                           <View style={styles.moduleActions}>
@@ -737,17 +736,6 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
                             style={styles.actionButton}
                           >
                             Editar
-                          </Button>
-                          <Button
-                            mode="outlined" 
-                            icon="plus"
-                            onPress={() => {
-                              // TODO: Implementar adición de recurso
-                              Alert.alert("Próximamente", "Funcionalidad de adición de recursos en desarrollo");
-                            }}
-                            style={styles.actionButton}
-                          >
-                            Recurso
                           </Button>
                           <Button
                             mode="outlined" 
