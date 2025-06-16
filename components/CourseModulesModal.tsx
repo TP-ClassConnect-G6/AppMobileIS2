@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { StyleSheet, View, ScrollView, ActivityIndicator, Alert } from "react-native";
+import { StyleSheet, View, ScrollView, ActivityIndicator, Alert, Linking } from "react-native";
 import { Modal, Portal, Text, Title, Button, Divider, List, FAB, Card, TextInput, HelperText } from "react-native-paper";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
@@ -290,7 +290,42 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
       default:
         return 'file-outline';
     }
-  };// Función para manejar la acción de un recurso
+  };
+  
+  // Función para manejar la descarga de un recurso
+  const handleResourceDownload = async (resource: Resource) => {
+    const resourceUrl = resource.resource || resource.url;
+    const fileName = resource.original_name || resource.title;
+    
+    if (!resourceUrl) {
+      Alert.alert('Error', 'No se encontró la URL del recurso para descargar');
+      return;
+    }
+
+    try {
+      // En React Native, utilizamos Linking para abrir URLs
+      // Esto debería abrir el navegador y permitir la descarga
+      const canOpen = await Linking.canOpenURL(resourceUrl);
+      
+      if (canOpen) {
+        await Linking.openURL(resourceUrl);
+        Alert.alert(
+          'Descarga iniciada',
+          `Se ha abierto el enlace para descargar: ${fileName || 'el archivo'}`
+        );
+      } else {
+        Alert.alert('Error', 'No se puede abrir este tipo de enlace');
+      }
+    } catch (error) {
+      console.error('Error al intentar descargar el recurso:', error);
+      Alert.alert(
+        'Error de descarga',
+        'No se pudo iniciar la descarga. Verifica tu conexión a internet e inténtalo de nuevo.'
+      );
+    }
+  };
+
+// Función para manejar la acción de un recurso
   const handleResourceAction = (resource: Resource) => {
     const resourceUrl = resource.resource || resource.url;
     const fileName = resource.original_name || resource.title;
@@ -306,21 +341,33 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
     
     if (resourceUrl) {
       message += `URL: ${resourceUrl}`;
-    }
-
-    Alert.alert(
+    }    Alert.alert(
       "Detalles del Recurso",
       message,
       [
         { text: "Cancelar", style: "cancel" },
-        ...(resourceUrl ? [{ 
-          text: "Abrir", 
-          onPress: () => {
-            // Aquí se puede implementar la lógica para abrir el enlace
-            console.log('Abriendo recurso:', resourceUrl);
-            Alert.alert("Próximamente", "Funcionalidad para abrir recursos en desarrollo");
+        ...(resourceUrl ? [
+          { 
+            text: "Abrir", 
+            onPress: async () => {
+              try {
+                const canOpen = await Linking.canOpenURL(resourceUrl);
+                if (canOpen) {
+                  await Linking.openURL(resourceUrl);
+                } else {
+                  Alert.alert('Error', 'No se puede abrir este enlace');
+                }
+              } catch (error) {
+                console.error('Error al abrir recurso:', error);
+                Alert.alert('Error', 'No se pudo abrir el recurso');
+              }
+            }
+          },
+          { 
+            text: "Descargar", 
+            onPress: () => handleResourceDownload(resource)
           }
-        }] : []),
+        ] : []),
       ]
     );
   };
@@ -666,15 +713,27 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
                                       {...props} 
                                       icon={getResourceIcon(resourceType)} 
                                     />
-                                  )}
-                                  right={(props) => (
-                                    <Button
-                                      mode="text"
-                                      onPress={() => handleResourceAction(resource)}
-                                      icon={resourceUrl ? "open-in-new" : "eye"}
-                                    >
-                                      {resourceUrl ? "Abrir" : "Ver"}
-                                    </Button>
+                                  )}                                  right={(props) => (
+                                    <View style={styles.resourceActions}>
+                                      <Button
+                                        mode="text"
+                                        onPress={() => handleResourceAction(resource)}
+                                        icon={resourceUrl ? "open-in-new" : "eye"}
+                                        compact
+                                      >
+                                        {resourceUrl ? "Abrir" : "Ver"}
+                                      </Button>
+                                      {resourceUrl && (
+                                        <Button
+                                          mode="text"
+                                          onPress={() => handleResourceDownload(resource)}
+                                          icon="download"
+                                          compact
+                                        >
+                                          Descargar
+                                        </Button>
+                                      )}
+                                    </View>
                                   )}
                                   style={styles.resourceItem}
                                   onPress={() => handleResourceAction(resource)}
@@ -1069,6 +1128,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderLeftWidth: 3,
     borderLeftColor: '#2E7D32',
+  },
+  resourceActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   noResourcesContainer: {
     alignItems: 'center',
