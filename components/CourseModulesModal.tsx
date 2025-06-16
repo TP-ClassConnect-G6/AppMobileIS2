@@ -334,14 +334,11 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
     let message = `Título: ${resource.title || 'Sin título'}\n`;
     message += `Descripción: ${resource.description || 'Sin descripción'}\n`;
     message += `Tipo: ${resourceType || 'Desconocido'}\n`;
-    
-    if (fileName && fileName !== resource.title) {
+      if (fileName && fileName !== resource.title) {
       message += `Archivo: ${fileName}\n`;
     }
     
-    if (resourceUrl) {
-      message += `URL: ${resourceUrl}`;
-    }    Alert.alert(
+    Alert.alert(
       "Detalles del Recurso",
       message,
       [
