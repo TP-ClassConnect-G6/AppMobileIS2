@@ -569,7 +569,7 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                       {isTeacherAssigned && (
                         <Button 
                           mode="contained" 
-                          style={[styles.examButton, {backgroundColor: '#1976D2'}]} 
+                          style={[styles.examButton, {backgroundColor: '#FF6B35'}]} 
                           onPress={() => setModulesModalVisible(true)}
                           icon="book-open-page-variant"
                         >
@@ -625,6 +625,14 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                     loading={isLoadingForum}
                   >
                     Ir a Foro
+                  </Button>
+                  <Button 
+                    mode="contained" 
+                    style={[styles.examButton, {backgroundColor: '#FF6B35'}]} 
+                    onPress={() => setModulesModalVisible(true)}
+                    icon="book-open-page-variant"
+                  >
+                    Ver de Módulos y Recursos
                   </Button>
                 </>
               ) : (

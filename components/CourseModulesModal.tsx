@@ -267,11 +267,33 @@ type CourseModulesModalProps = {
   onDismiss: () => void;
   courseId: string | null;
   courseName: string | null;
+  readOnly?: boolean; // Nueva prop para modo solo lectura
 };
 
-const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: CourseModulesModalProps) => {
+const CourseModulesModal = ({ visible, onDismiss, courseId, courseName, readOnly = false }: CourseModulesModalProps) => {
   const { session } = useSession();
-  const queryClient = useQueryClient();  const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
+  const queryClient = useQueryClient();
+
+  // Detectar automáticamente el tipo de usuario
+  const [userType, setUserType] = useState<string>('');
+  const [isReadOnlyMode, setIsReadOnlyMode] = useState(readOnly);
+
+  useEffect(() => {
+    if (session?.token) {
+      try {
+        const decodedToken: any = jwtDecode(session.token);
+        const currentUserType = decodedToken.user_type || '';
+        setUserType(currentUserType);
+        
+        // Activar modo solo lectura para estudiantes o si readOnly está especificado
+        setIsReadOnlyMode(readOnly || currentUserType === 'student');
+      } catch (error) {
+        console.error('Error al decodificar token:', error);
+        setUserType('');
+        setIsReadOnlyMode(true); // Por seguridad, activar modo solo lectura si hay error
+      }
+    }
+  }, [session?.token, readOnly]);const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
     // Estados para el modal de creación de módulo
   const [createModuleVisible, setCreateModuleVisible] = useState(false);
   const [isCreating, setIsCreating] = useState(false);  // Estados para el modal de edición de módulo
@@ -832,7 +854,9 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
         contentContainerStyle={styles.modalContainer}
       >
         <ScrollView contentContainerStyle={styles.scrollContainer}>
-          <Title style={styles.title}>Organización de Módulos y Recursos</Title>
+          <Title style={styles.title}>
+            {isReadOnlyMode ? "Módulos y Recursos del Curso" : "Organización de Módulos y Recursos"}
+          </Title>
           {courseName && (
             <Text style={styles.courseName}>{courseName}</Text>
           )}
@@ -856,16 +880,21 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
           ) : modules.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyText}>
-                No hay módulos configurados para este curso
+                {isReadOnlyMode 
+                  ? "No hay módulos disponibles para este curso" 
+                  : "No hay módulos configurados para este curso"
+                }
               </Text>
-              <Button 
-                mode="contained" 
-                style={styles.createButton}
-                icon="plus"
-                onPress={openCreateModuleModal}
-              >
-                Crear primer módulo
-              </Button>
+              {!isReadOnlyMode && (
+                <Button 
+                  mode="contained" 
+                  style={styles.createButton}
+                  icon="plus"
+                  onPress={openCreateModuleModal}
+                >
+                  Crear primer módulo
+                </Button>
+              )}
             </View>
           ) : (
             <>
@@ -948,19 +977,21 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
                                         {""}
                                       </Button>
                                     )}
-                                    <Button
-                                      mode="text"
-                                      onPress={() => handleDeleteResource(
-                                        resource.resource_id, 
-                                        resource.original_name || resource.title || 'Recurso'
-                                      )}
-                                      icon="delete"
-                                      compact
-                                      contentStyle={styles.iconButtonContent}
-                                      accessibilityLabel="Eliminar recurso"
-                                    >
-                                      {""}
-                                    </Button>
+                                    {!isReadOnlyMode && (
+                                      <Button
+                                        mode="text"
+                                        onPress={() => handleDeleteResource(
+                                          resource.resource_id, 
+                                          resource.original_name || resource.title || 'Recurso'
+                                        )}
+                                        icon="delete"
+                                        compact
+                                        contentStyle={styles.iconButtonContent}
+                                        accessibilityLabel="Eliminar recurso"
+                                      >
+                                        {""}
+                                      </Button>
+                                    )}
                                   </View>
                                 )}
                                 style={styles.resourceItem}
@@ -968,48 +999,53 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
                               />
                             );
                           })
+                        )}                        
+                        {!isReadOnlyMode && (
+                          <Button 
+                            mode="outlined" 
+                            icon="plus"
+                            onPress={() => openAddResourceModal(module)}
+                            style={styles.addResourceButton}
+                          >
+                            Agregar recurso
+                          </Button>
                         )}
-                          <Button 
-                          mode="outlined" 
-                          icon="plus"
-                          onPress={() => openAddResourceModal(module)}
-                          style={styles.addResourceButton}
-                        >
-                          Agregar recurso
-                        </Button>
-                        
-                        <Divider style={styles.resourceDivider} />
+                          <Divider style={styles.resourceDivider} />
+                        {!isReadOnlyMode && (
                           <View style={styles.moduleActions}>
-                          <Button 
-                            mode="outlined" 
-                            icon="pencil"
-                            onPress={() => openEditModuleModal(module)}
-                            style={styles.actionButton}
-                          >
-                            Editar
-                          </Button>
-                          <Button
-                            mode="outlined" 
-                            icon="trash-can"
-                            onPress={() => handleDeleteModule(module.module_id)}
-                            style={styles.actionButton}
-                          >
-                            Eliminar
-                          </Button>
-                        </View>
+                            <Button 
+                              mode="outlined" 
+                              icon="pencil"
+                              onPress={() => openEditModuleModal(module)}
+                              style={styles.actionButton}
+                            >
+                              Editar
+                            </Button>
+                            <Button
+                              mode="outlined" 
+                              icon="trash-can"
+                              onPress={() => handleDeleteModule(module.module_id)}
+                              style={styles.actionButton}
+                            >
+                              Eliminar
+                            </Button>
+                          </View>
+                        )}
                       </View>
                     </List.Accordion>
                   </Card>
                 ))}
                 {/* Botón para crear nuevo módulo */}
-              <Button 
-                mode="contained" 
-                style={styles.createModuleButton}
-                icon="plus"
-                onPress={openCreateModuleModal}
-              >
-                Crear nuevo módulo
-              </Button>
+              {!isReadOnlyMode && (
+                <Button 
+                  mode="contained" 
+                  style={styles.createModuleButton}
+                  icon="plus"
+                  onPress={openCreateModuleModal}
+                >
+                  Crear nuevo módulo
+                </Button>
+              )}
             </>
           )}
 
