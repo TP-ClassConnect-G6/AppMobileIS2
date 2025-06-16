@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { StyleSheet, View, ScrollView, ActivityIndicator, Alert, Linking } from "react-native";
-import { Modal, Portal, Text, Title, Button, Divider, List, FAB, Card, TextInput, HelperText } from "react-native-paper";
+import { Modal, Portal, Text, Title, Button, Divider, List, FAB, Card, TextInput, HelperText, RadioButton } from "react-native-paper";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
@@ -8,6 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { courseClient } from "@/lib/http";
 import { useSession } from "@/contexts/session";
 import jwtDecode from "jwt-decode";
+import * as DocumentPicker from 'expo-document-picker';
 
 // Schema de validación para el formulario de módulo
 const moduleSchema = z.object({
@@ -24,7 +25,19 @@ const moduleSchema = z.object({
     .optional(),
 });
 
+// Schema de validación para el formulario de recurso
+const resourceSchema = z.object({
+  original_name: z.string()
+    .min(1, "El nombre del recurso es requerido")
+    .min(3, "El nombre debe tener al menos 3 caracteres")
+    .max(100, "El nombre no puede exceder 100 caracteres"),
+  type: z.enum(["document", "video", "imagen"], {
+    errorMap: () => ({ message: "Debes seleccionar un tipo de recurso válido" })
+  }),
+});
+
 type ModuleFormValues = z.infer<typeof moduleSchema>;
+type ResourceFormValues = z.infer<typeof resourceSchema>;
 
 // Tipos para los módulos y recursos
 type Resource = {
@@ -185,6 +198,49 @@ const deleteCourseModule = async (
   }
 };
 
+// Función para crear un recurso en un módulo
+const createModuleResource = async (
+  moduleId: string,
+  token: string,
+  resourceData: {
+    type: string;
+    original_name: string;
+    resource: any; // Archivo seleccionado
+  }
+): Promise<any> => {
+  try {
+    // Crear FormData para enviar el archivo
+    const formData = new FormData();
+    formData.append('type', resourceData.type);
+    formData.append('original_name', resourceData.original_name);
+    formData.append('resource', resourceData.resource);
+
+    const response = await courseClient.post(
+      `/courses/${moduleId}/resources`,
+      formData,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+
+    console.log("Create resource API response:", JSON.stringify(response.data, null, 2));
+    
+    if (response.data?.response) {
+      return response.data.response;
+    } else if (response.data) {
+      return response.data;
+    } else {
+      throw new Error('Formato de respuesta inesperado al crear recurso');
+    }
+  } catch (error) {
+    console.error('Error al crear recurso del módulo:', error);
+    throw error;
+  }
+};
+
 // Props para el componente modal
 type CourseModulesModalProps = {
   visible: boolean;
@@ -198,12 +254,16 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
   const queryClient = useQueryClient();  const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
     // Estados para el modal de creación de módulo
   const [createModuleVisible, setCreateModuleVisible] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
-  // Estados para el modal de edición de módulo
+  const [isCreating, setIsCreating] = useState(false);  // Estados para el modal de edición de módulo
   const [editModuleVisible, setEditModuleVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [moduleToEdit, setModuleToEdit] = useState<Module | null>(null);
-  // Configurar React Hook Form con validación Zod
+  
+  // Estados para el modal de agregar recurso
+  const [addResourceVisible, setAddResourceVisible] = useState(false);
+  const [isAddingResource, setIsAddingResource] = useState(false);
+  const [moduleToAddResource, setModuleToAddResource] = useState<Module | null>(null);
+  const [selectedFile, setSelectedFile] = useState<DocumentPicker.DocumentPickerResult | null>(null);  // Configurar React Hook Form con validación Zod para módulos
   const {
     control,
     handleSubmit,
@@ -216,6 +276,21 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
       title: "",
       description: "",
       order_idx: undefined,
+    },
+  });
+
+  // Configurar React Hook Form para recursos
+  const {
+    control: resourceControl,
+    handleSubmit: handleResourceSubmit,
+    formState: { errors: resourceErrors },
+    reset: resetResource,
+    clearErrors: clearResourceErrors,
+  } = useForm<ResourceFormValues>({
+    resolver: zodResolver(resourceSchema),
+    defaultValues: {
+      original_name: "",
+      type: "document" as const,
     },
   });
 
@@ -348,9 +423,107 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
             onPress: () => handleResourceDownload(resource)
           }
         ] : []),
-      ]
-    );
+      ]    );
   };
+
+  // Función para seleccionar archivo
+  const selectFile = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        copyToCacheDirectory: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setSelectedFile(result);
+      }
+    } catch (error) {
+      console.error('Error selecting file:', error);
+      Alert.alert('Error', 'No se pudo seleccionar el archivo');
+    }
+  };
+
+  // Función para abrir el modal de agregar recurso
+  const openAddResourceModal = (module: Module) => {
+    setModuleToAddResource(module);
+    resetResource({
+      original_name: "",
+      type: "document" as const,
+    });
+    setSelectedFile(null);
+    setAddResourceVisible(true);
+  };
+
+  // Función para cerrar el modal de agregar recurso
+  const closeAddResourceModal = () => {
+    setAddResourceVisible(false);
+    setModuleToAddResource(null);
+    setSelectedFile(null);
+    resetResource({
+      original_name: "",
+      type: "document" as const,
+    });
+  };
+
+  // Función para crear un nuevo recurso
+  const handleCreateResource = async (data: ResourceFormValues) => {
+    if (!moduleToAddResource || !session?.token || !selectedFile || selectedFile.canceled) {
+      Alert.alert('Error', 'Información incompleta. Asegúrate de seleccionar un archivo');
+      return;
+    }
+
+    setIsAddingResource(true);
+    try {
+      const fileAsset = selectedFile.assets[0];
+      
+      // Crear el objeto de archivo para enviar
+      const fileToSend = {
+        uri: fileAsset.uri,
+        type: fileAsset.mimeType || 'application/octet-stream',
+        name: fileAsset.name || 'archivo',
+      } as any;
+
+      await createModuleResource(
+        moduleToAddResource.module_id,
+        session.token,
+        {
+          type: data.type,
+          original_name: data.original_name,
+          resource: fileToSend,
+        }
+      );
+
+      // Refrescar la lista de módulos
+      queryClient.invalidateQueries({ queryKey: ['courseModules', courseId] });
+      refetch();
+
+      Alert.alert('Éxito', 'Recurso agregado correctamente');
+      closeAddResourceModal();
+    } catch (error: any) {
+      console.error('Error al crear recurso:', error);
+      
+      let errorMessage = 'No se pudo agregar el recurso. Inténtalo de nuevo.';
+      
+      if (error.response) {
+        if (error.response.status === 400) {
+          errorMessage = 'Datos del recurso incorrectos. Verifica los campos.';
+        } else if (error.response.status === 403) {
+          errorMessage = 'No tienes permisos para agregar recursos a este módulo.';
+        } else if (error.response.status === 404) {
+          errorMessage = 'Módulo no encontrado.';
+        } else if (error.response.status === 413) {
+          errorMessage = 'El archivo es demasiado grande.';
+        } else if (error.response.status >= 500) {
+          errorMessage = 'Error del servidor. Inténtalo más tarde.';
+        }
+      }
+      
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setIsAddingResource(false);
+    }
+  };
+
   // Función para abrir el modal de creación de módulo
   const openCreateModuleModal = () => {
     reset({
@@ -714,14 +887,10 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
                             );
                           })
                         )}
-                        
-                        <Button 
+                          <Button 
                           mode="outlined" 
                           icon="plus"
-                          onPress={() => {
-                            // TODO: Implementar adición de recurso
-                            Alert.alert("Próximamente", "Funcionalidad de adición de recursos en desarrollo");
-                          }}
+                          onPress={() => openAddResourceModal(module)}
                           style={styles.addResourceButton}
                         >
                           Agregar recurso
@@ -1001,6 +1170,108 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
           </View>
         </View>
       </Modal>
+
+      {/* Modal para agregar recurso */}
+      <Modal
+        visible={addResourceVisible}
+        onDismiss={closeAddResourceModal}
+        contentContainerStyle={styles.createModalContainer}
+      >
+        <View style={styles.createModalContent}>
+          <Title style={styles.createModalTitle}>
+            Agregar Recurso a "{moduleToAddResource?.title}"
+          </Title>
+          
+          <Controller
+            control={resourceControl}
+            name="original_name"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Nombre del recurso *"
+                mode="outlined"
+                style={styles.input}
+                onBlur={onBlur}
+                onChangeText={(text) => {
+                  onChange(text);
+                  if (resourceErrors.original_name && text.trim().length >= 3) {
+                    clearResourceErrors('original_name');
+                  }
+                }}
+                value={value}
+                error={!!resourceErrors.original_name}
+                maxLength={100}
+              />
+            )}
+          />
+          {resourceErrors.original_name && (
+            <HelperText type="error">{resourceErrors.original_name.message}</HelperText>
+          )}
+
+          <Text style={styles.radioGroupLabel}>Tipo de recurso *</Text>
+          <Controller
+            control={resourceControl}
+            name="type"
+            render={({ field: { onChange, value } }) => (
+              <RadioButton.Group onValueChange={onChange} value={value}>
+                <View style={styles.radioOption}>
+                  <RadioButton value="document" />
+                  <Text style={styles.radioLabel}>Documento</Text>
+                </View>
+                <View style={styles.radioOption}>
+                  <RadioButton value="video" />
+                  <Text style={styles.radioLabel}>Video</Text>
+                </View>
+                <View style={styles.radioOption}>
+                  <RadioButton value="imagen" />
+                  <Text style={styles.radioLabel}>Imagen</Text>
+                </View>
+              </RadioButton.Group>
+            )}
+          />
+          {resourceErrors.type && (
+            <HelperText type="error">{resourceErrors.type.message}</HelperText>
+          )}
+
+          <View style={styles.fileSection}>
+            <Text style={styles.fileSectionLabel}>Archivo *</Text>
+            <Button
+              mode="outlined"
+              icon="file-outline"
+              onPress={selectFile}
+              style={styles.selectFileButton}
+            >
+              {selectedFile && !selectedFile.canceled && selectedFile.assets?.[0] 
+                ? `Archivo: ${selectedFile.assets[0].name}` 
+                : "Seleccionar archivo"}
+            </Button>
+            {selectedFile && !selectedFile.canceled && selectedFile.assets?.[0] && (
+              <Text style={styles.fileInfo}>
+                Tamaño: {(selectedFile.assets[0].size || 0 / (1024 * 1024)).toFixed(2)} MB
+              </Text>
+            )}
+          </View>
+
+          <View style={styles.createModalButtons}>
+            <Button 
+              mode="outlined" 
+              onPress={closeAddResourceModal}
+              style={styles.createModalButton}
+              disabled={isAddingResource}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              mode="contained" 
+              onPress={handleResourceSubmit(handleCreateResource)}
+              style={[styles.createModalButton, styles.createButton]}
+              loading={isAddingResource}
+              disabled={isAddingResource || !selectedFile || selectedFile.canceled}
+            >
+              Agregar Recurso
+            </Button>
+          </View>
+        </View>
+      </Modal>
     </Portal>
   );
 };
@@ -1172,6 +1443,41 @@ const styles = StyleSheet.create({
   createModalButton: {
     flex: 1,
     marginHorizontal: 5,
+  },
+  radioGroupLabel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginTop: 15,
+    marginBottom: 10,
+    color: '#333',
+  },
+  radioOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  radioLabel: {
+    fontSize: 16,
+    marginLeft: 8,
+    color: '#333',
+  },
+  fileSection: {
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  fileSectionLabel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    color: '#333',
+  },
+  selectFileButton: {
+    marginBottom: 10,
+  },
+  fileInfo: {
+    fontSize: 12,
+    color: '#666',
+    fontStyle: 'italic',
   },
 });
 
