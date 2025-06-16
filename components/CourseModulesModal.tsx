@@ -337,29 +337,12 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
       if (fileName && fileName !== resource.title) {
       message += `Archivo: ${fileName}\n`;
     }
-    
-    Alert.alert(
+      Alert.alert(
       "Detalles del Recurso",
       message,
       [
         { text: "Cancelar", style: "cancel" },
         ...(resourceUrl ? [
-          { 
-            text: "Abrir", 
-            onPress: async () => {
-              try {
-                const canOpen = await Linking.canOpenURL(resourceUrl);
-                if (canOpen) {
-                  await Linking.openURL(resourceUrl);
-                } else {
-                  Alert.alert('Error', 'No se puede abrir este enlace');
-                }
-              } catch (error) {
-                console.error('Error al abrir recurso:', error);
-                Alert.alert('Error', 'No se pudo abrir el recurso');
-              }
-            }
-          },
           { 
             text: "Descargar", 
             onPress: () => handleResourceDownload(resource)
