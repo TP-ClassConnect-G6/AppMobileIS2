@@ -32,6 +32,9 @@ type Resource = {
   title: string;
   description: string;
   resource_type: string;
+  resource?: string; // URL del recurso
+  type?: string; // Tipo de archivo/recurso
+  original_name?: string; // Nombre original del archivo
   url?: string;
   content?: string;
 };
@@ -236,33 +239,92 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
     }
     setExpandedModules(newExpanded);
   };
-
   // Función para obtener el ícono según el tipo de recurso
   const getResourceIcon = (resourceType: string) => {
-    switch (resourceType.toLowerCase()) {
+    if (!resourceType) return 'file-outline';
+    
+    const type = resourceType.toLowerCase();
+    
+    // Tipos específicos de archivo
+    if (type.includes('video') || type.includes('mp4') || type.includes('avi') || type.includes('mov')) {
+      return 'play-circle-outline';
+    }
+    if (type.includes('pdf')) {
+      return 'file-pdf-box';
+    }
+    if (type.includes('document') || type.includes('doc') || type.includes('docx') || type.includes('txt')) {
+      return 'file-document-outline';
+    }
+    if (type.includes('image') || type.includes('jpg') || type.includes('jpeg') || type.includes('png') || type.includes('gif')) {
+      return 'image-outline';
+    }
+    if (type.includes('audio') || type.includes('mp3') || type.includes('wav')) {
+      return 'music-circle-outline';
+    }
+    if (type.includes('presentation') || type.includes('ppt') || type.includes('pptx')) {
+      return 'presentation';
+    }
+    if (type.includes('spreadsheet') || type.includes('xls') || type.includes('xlsx') || type.includes('csv')) {
+      return 'table';
+    }
+    if (type.includes('zip') || type.includes('rar') || type.includes('archive')) {
+      return 'folder-zip-outline';
+    }
+    if (type.includes('link') || type.includes('url') || type.includes('web')) {
+      return 'link';
+    }
+    
+    // Tipos genéricos
+    switch (type) {
       case 'video':
         return 'play-circle-outline';
       case 'document':
-      case 'pdf':
         return 'file-document-outline';
       case 'link':
       case 'url':
         return 'link';
       case 'image':
         return 'image-outline';
+      case 'audio':
+        return 'music-circle-outline';
       default:
         return 'file-outline';
     }
-  };
-  // Función para manejar la acción de un recurso
+  };// Función para manejar la acción de un recurso
   const handleResourceAction = (resource: Resource) => {
-    // Aquí se puede implementar la lógica para abrir/ver el recurso
+    const resourceUrl = resource.resource || resource.url;
+    const fileName = resource.original_name || resource.title;
+    const resourceType = resource.type || resource.resource_type;
+    
+    let message = `Título: ${resource.title || 'Sin título'}\n`;
+    message += `Descripción: ${resource.description || 'Sin descripción'}\n`;
+    message += `Tipo: ${resourceType || 'Desconocido'}\n`;
+    
+    if (fileName && fileName !== resource.title) {
+      message += `Archivo: ${fileName}\n`;
+    }
+    
+    if (resourceUrl) {
+      message += `URL: ${resourceUrl}`;
+    }
+
     Alert.alert(
-      "Recurso",
-      `Recurso: ${resource.title}\nTipo: ${resource.resource_type}\nDescripción: ${resource.description}`,
-      [{ text: "OK" }]
+      "Detalles del Recurso",
+      message,
+      [
+        { text: "Cancelar", style: "cancel" },
+        ...(resourceUrl ? [{ 
+          text: "Abrir", 
+          onPress: () => {
+            // Aquí se puede implementar la lógica para abrir el enlace
+            console.log('Abriendo recurso:', resourceUrl);
+            Alert.alert("Próximamente", "Funcionalidad para abrir recursos en desarrollo");
+          }
+        }] : []),
+      ]
     );
-  };  // Función para abrir el modal de creación de módulo
+  };
+  // Función para abrir el modal de creación de módulo
   const openCreateModuleModal = () => {
     reset({
       title: "",
@@ -270,15 +332,17 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
       order_idx: undefined,
     });
     setCreateModuleVisible(true);
-  };// Función para cerrar el modal de creación de módulo
+  };
+  // Función para cerrar el modal de creación de módulo
   const closeCreateModuleModal = () => {
     setCreateModuleVisible(false);
     reset({
       title: "",
       description: "",
       order_idx: undefined,
-    });  };
-    // Función para abrir el modal de edición de módulo
+    });
+  };
+  // Función para abrir el modal de edición de módulo
   const openEditModuleModal = (module: Module) => {
     setModuleToEdit(module);
     reset({
@@ -578,30 +642,45 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
                             <Text style={styles.resourcesTitle}>
                               Recursos ({module.resources.length}):
                             </Text>
-                            {module.resources.map((resource) => (
-                              <List.Item
-                                key={resource.resource_id}
-                                title={resource.title}
-                                description={resource.description}
-                                left={(props) => (
-                                  <List.Icon 
-                                    {...props} 
-                                    icon={getResourceIcon(resource.resource_type)} 
-                                  />
-                                )}
-                                right={(props) => (
-                                  <Button
-                                    mode="text"
-                                    onPress={() => handleResourceAction(resource)}
-                                    icon="eye"
-                                  >
-                                    Ver
-                                  </Button>
-                                )}
-                                style={styles.resourceItem}
-                                onPress={() => handleResourceAction(resource)}
-                              />
-                            ))}
+                            {module.resources.map((resource) => {
+                              const resourceUrl = resource.resource || resource.url;
+                              const fileName = resource.original_name || resource.title;
+                              const resourceType = resource.type || resource.resource_type;
+                              
+                              // Crear una descripción más informativa
+                              let displayDescription = resource.description || '';
+                              if (fileName && fileName !== resource.title) {
+                                displayDescription = `${fileName}${displayDescription ? ` • ${displayDescription}` : ''}`;
+                              }
+                              if (resourceType && !displayDescription.includes(resourceType)) {
+                                displayDescription = `${resourceType}${displayDescription ? ` • ${displayDescription}` : ''}`;
+                              }
+                              
+                              return (
+                                <List.Item
+                                  key={resource.resource_id}
+                                  title={resource.title || fileName || 'Recurso sin título'}
+                                  description={displayDescription || 'Sin descripción'}
+                                  left={(props) => (
+                                    <List.Icon 
+                                      {...props} 
+                                      icon={getResourceIcon(resourceType)} 
+                                    />
+                                  )}
+                                  right={(props) => (
+                                    <Button
+                                      mode="text"
+                                      onPress={() => handleResourceAction(resource)}
+                                      icon={resourceUrl ? "open-in-new" : "eye"}
+                                    >
+                                      {resourceUrl ? "Abrir" : "Ver"}
+                                    </Button>
+                                  )}
+                                  style={styles.resourceItem}
+                                  onPress={() => handleResourceAction(resource)}
+                                />
+                              );
+                            })}
                           </>
                         )}
                         
@@ -984,11 +1063,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 10,
     color: '#333',
-  },
-  resourceItem: {
+  },  resourceItem: {
     backgroundColor: '#F9F9F9',
-    marginBottom: 5,
-    borderRadius: 5,
+    marginBottom: 8,
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#2E7D32',
   },
   noResourcesContainer: {
     alignItems: 'center',
@@ -1044,7 +1124,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 20,
-  },  createModalButton: {
+  },
+  createModalButton: {
     flex: 1,
     marginHorizontal: 5,
   },
