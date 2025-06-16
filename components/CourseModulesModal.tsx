@@ -693,15 +693,18 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
                                       {...props} 
                                       icon={getResourceIcon(resourceType)} 
                                     />
-                                  )}                                  right={(props) => (
+                                  )}
+                                  right={(props) => (
                                     <View style={styles.resourceActions}>
                                       <Button
                                         mode="text"
                                         onPress={() => handleResourceAction(resource)}
                                         icon={resourceUrl ? "open-in-new" : "eye"}
                                         compact
+                                        contentStyle={styles.iconButtonContent}
+                                        accessibilityLabel={resourceUrl ? "Abrir recurso" : "Ver detalles del recurso"}
                                       >
-                                        {resourceUrl ? "Abrir" : "Ver"}
+                                        {""}
                                       </Button>
                                       {resourceUrl && (
                                         <Button
@@ -709,8 +712,10 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
                                           onPress={() => handleResourceDownload(resource)}
                                           icon="download"
                                           compact
+                                          contentStyle={styles.iconButtonContent}
+                                          accessibilityLabel="Descargar recurso"
                                         >
-                                          Descargar
+                                          {""}
                                         </Button>
                                       )}
                                     </View>
@@ -1112,6 +1117,14 @@ const styles = StyleSheet.create({
   resourceActions: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-end',
+    minWidth: 60,
+    maxWidth: 80,
+  },
+  iconButtonContent: {
+    width: 24,
+    height: 24,
+    margin: 0,
   },
   noResourcesContainer: {
     alignItems: 'center',
