@@ -249,7 +249,7 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
       };
       
       console.log("Error formatted:", JSON.stringify(formattedError, null, 2));
-      console.error("Error fetching auxiliar teachers:", error);
+      // console.error("Error fetching auxiliar teachers:", error);
         // Reset permissions if there's an error
       setIsAuxiliar(false);
       setCanCreateExam(false);
