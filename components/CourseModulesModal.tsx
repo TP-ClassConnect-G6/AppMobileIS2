@@ -448,9 +448,7 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName, readOnly
     const fileName = resource.original_name || resource.title;
     const resourceType = resource.type || resource.resource_type;
     
-    let message = `Título: ${resource.title || 'Sin título'}\n`;
-    message += `Descripción: ${resource.description || 'Sin descripción'}\n`;
-    message += `Tipo: ${resourceType || 'Desconocido'}\n`;
+    let message = `Tipo: ${resourceType || 'Desconocido'}\n`;
       if (fileName && fileName !== resource.title) {
       message += `Archivo: ${fileName}\n`;
     }

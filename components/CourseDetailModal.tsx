@@ -632,7 +632,7 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                     onPress={() => setModulesModalVisible(true)}
                     icon="book-open-page-variant"
                   >
-                    Ver de Módulos y Recursos
+                    Ver Módulos y Recursos
                   </Button>
                 </>
               ) : (
