@@ -241,6 +241,26 @@ const createModuleResource = async (
   }
 };
 
+// Función para eliminar un recurso de un módulo
+const deleteModuleResource = async (
+  resourceId: string,
+  token: string
+): Promise<void> => {
+  try {
+    const response = await courseClient.delete(`/courses/modules/resources/${resourceId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    console.log("Delete resource API response:", JSON.stringify(response.data, null, 2));
+  } catch (error) {
+    console.error('Error al eliminar recurso del módulo:', error);
+    throw error;
+  }
+};
+
 // Props para el componente modal
 type CourseModulesModalProps = {
   visible: boolean;
@@ -518,10 +538,59 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
         }
       }
       
-      Alert.alert('Error', errorMessage);
-    } finally {
+      Alert.alert('Error', errorMessage);    } finally {
       setIsAddingResource(false);
     }
+  };
+
+  // Función para eliminar un recurso
+  const handleDeleteResource = async (resourceId: string, resourceName: string) => {
+    if (!session?.token) {
+      Alert.alert('Error', 'No hay token de sesión válido');
+      return;
+    }
+
+    Alert.alert(
+      'Confirmar eliminación',
+      `¿Estás seguro de que deseas eliminar el recurso "${resourceName}"? Esta acción no se puede deshacer.`,
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel'
+        },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteModuleResource(resourceId, session.token);
+
+              // Refrescar la lista de módulos
+              queryClient.invalidateQueries({ queryKey: ['courseModules', courseId] });
+              refetch();
+
+              Alert.alert('Éxito', 'Recurso eliminado correctamente');
+            } catch (error: any) {
+              console.error('Error al eliminar recurso:', error);
+              
+              let errorMessage = 'No se pudo eliminar el recurso. Inténtalo de nuevo.';
+              
+              if (error.response) {
+                if (error.response.status === 403) {
+                  errorMessage = 'No tienes permisos para eliminar este recurso.';
+                } else if (error.response.status === 404) {
+                  errorMessage = 'Recurso no encontrado.';
+                } else if (error.response.status >= 500) {
+                  errorMessage = 'Error del servidor. Inténtalo más tarde.';
+                }
+              }
+              
+              Alert.alert('Error', errorMessage);
+            }
+          }
+        }
+      ]
+    );
   };
 
   // Función para abrir el modal de creación de módulo
@@ -879,6 +948,19 @@ const CourseModulesModal = ({ visible, onDismiss, courseId, courseName }: Course
                                         {""}
                                       </Button>
                                     )}
+                                    <Button
+                                      mode="text"
+                                      onPress={() => handleDeleteResource(
+                                        resource.resource_id, 
+                                        resource.original_name || resource.title || 'Recurso'
+                                      )}
+                                      icon="delete"
+                                      compact
+                                      contentStyle={styles.iconButtonContent}
+                                      accessibilityLabel="Eliminar recurso"
+                                    >
+                                      {""}
+                                    </Button>
                                   </View>
                                 )}
                                 style={styles.resourceItem}
@@ -1366,7 +1448,8 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 10,
     color: '#333',
-  },  resourceItem: {
+  },
+  resourceItem: {
     backgroundColor: '#F9F9F9',
     marginBottom: 8,
     borderRadius: 8,
@@ -1377,8 +1460,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    minWidth: 60,
-    maxWidth: 80,
+    minWidth: 90,
+    maxWidth: 120,
   },
   iconButtonContent: {
     width: 24,
