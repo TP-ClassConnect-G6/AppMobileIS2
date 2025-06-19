@@ -4,6 +4,9 @@ import { Redirect, router } from "expo-router";
 import { View, Text, ActivityIndicator } from "react-native";
 import { getFCMPushToken } from "@/lib/notifications";
 
+import * as Linking from 'expo-linking';
+import * as Notifications from 'expo-notifications';
+
 export default function App() {
   const { session } = useSession();
 
@@ -18,6 +21,8 @@ export default function App() {
       }
     });
 
+    let subscription: Notifications.Subscription | undefined;
+
     // Pequeño delay para asegurar que el Root Layout está montado
     const timer = setTimeout(() => {
       if (session) {
@@ -25,6 +30,16 @@ export default function App() {
       } else {
         router.replace("/(login)");
       }
+
+      subscription = Notifications.addNotificationResponseReceivedListener(response => {
+        console.log("Notificación recibida:", response);
+        const data = response.notification.request.content.data;
+
+        if (data.url) {
+          Linking.openURL(data.url); // This will trigger deep link navigation
+        }
+      });
+
     }, 100);
     
     return () => clearTimeout(timer);
