@@ -11,6 +11,7 @@ import TeacherExamsModal from "./TeacherExamsModal";
 import TeacherTasksModal from "./TeacherTasksModal";
 import AuxiliarTeachersModal from "./AuxiliarTeachersModal";
 import CourseForumModal from "./CourseForumModal";
+import CourseModulesModal from "./CourseModulesModal";
 import { useSession } from "@/contexts/session";
 import jwtDecode from "jwt-decode";
 
@@ -104,6 +105,7 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
   const [teacherTaskModalVisible, setTeacherTaskModalVisible] = useState(false);
   const [auxiliarTeachersModalVisible, setAuxiliarTeachersModalVisible] = useState(false);
   const [forumModalVisible, setForumModalVisible] = useState(false);
+  const [modulesModalVisible, setModulesModalVisible] = useState(false);
   const [isEnrolled, setIsEnrolled] = useState(false);
   const [isTeacherAssigned, setIsTeacherAssigned] = useState(false);  const [isAuxiliar, setIsAuxiliar] = useState(false);
   const [canCreateExam, setCanCreateExam] = useState(false);
@@ -247,7 +249,7 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
       };
       
       console.log("Error formatted:", JSON.stringify(formattedError, null, 2));
-      console.error("Error fetching auxiliar teachers:", error);
+      // console.error("Error fetching auxiliar teachers:", error);
         // Reset permissions if there's an error
       setIsAuxiliar(false);
       setCanCreateExam(false);
@@ -394,7 +396,8 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                 Error al cargar los detalles del curso
               </Text>
               <Button mode="contained" onPress={() => refetch()}>
-                Intentar nuevamente              </Button>
+                Intentar nuevamente
+              </Button>
             </View>
           ) : courseDetail ? (
             <>
@@ -550,8 +553,7 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                           Ir a Foro
                         </Button>
                       )}
-                      
-                      {/* Botón para gestionar docentes auxiliares, solo para profesor asignado */}
+                        {/* Botón para gestionar docentes auxiliares, solo para profesor asignado */}
                       {isTeacherAssigned && (
                         <Button 
                           mode="contained" 
@@ -560,6 +562,18 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                           icon="account-plus"
                         >
                           Gestionar Docente Auxiliar
+                        </Button>
+                      )}
+
+                      {/* Botón para organización de módulos y recursos, solo para profesor asignado */}
+                      {isTeacherAssigned && (
+                        <Button 
+                          mode="contained" 
+                          style={[styles.examButton, {backgroundColor: '#FF6B35'}]} 
+                          onPress={() => setModulesModalVisible(true)}
+                          icon="book-open-page-variant"
+                        >
+                          Organización de Módulos y Recursos
                         </Button>
                       )}
                     </>
@@ -611,6 +625,14 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                     loading={isLoadingForum}
                   >
                     Ir a Foro
+                  </Button>
+                  <Button 
+                    mode="contained" 
+                    style={[styles.examButton, {backgroundColor: '#FF6B35'}]} 
+                    onPress={() => setModulesModalVisible(true)}
+                    icon="book-open-page-variant"
+                  >
+                    Ver Módulos y Recursos
                   </Button>
                 </>
               ) : (
@@ -665,6 +687,12 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
       <CourseForumModal
         visible={forumModalVisible}
         onDismiss={() => setForumModalVisible(false)}
+        courseId={courseId}
+        courseName={courseDetail?.course_name || null}
+      />
+      <CourseModulesModal
+        visible={modulesModalVisible}
+        onDismiss={() => setModulesModalVisible(false)}
         courseId={courseId}
         courseName={courseDetail?.course_name || null}
       />

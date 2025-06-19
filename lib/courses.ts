@@ -59,3 +59,40 @@ export async function fetchCourseHistory(activePage = 1, endedPage = 1, activeLi
 
   return response.data.response;
 }
+
+export async function createModuleResource(
+  moduleId: string,
+  token: string,
+  resourceData: {
+    type: string;
+    original_name: string;
+    resource: File | any; // Para manejar diferentes tipos de archivos
+  }
+): Promise<any> {
+  if (!token) {
+    throw new Error('No authentication token provided');
+  }
+
+  // Crear FormData para enviar el archivo
+  const formData = new FormData();
+  formData.append('type', resourceData.type);
+  formData.append('original_name', resourceData.original_name);
+  formData.append('resource', resourceData.resource);
+
+  const response = await courseClient.post(
+    `/courses/${moduleId}/resources`,
+    formData,
+    {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'multipart/form-data',
+      },
+    }
+  );
+
+  if (response.status !== 200 && response.status !== 201) {
+    throw new Error(`Failed to create resource: ${response.status}`);
+  }
+
+  return response.data;
+}

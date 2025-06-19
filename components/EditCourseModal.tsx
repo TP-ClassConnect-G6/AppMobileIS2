@@ -30,6 +30,7 @@ type EditCourseRequest = {
   instructor_profile: string;
   modality: string;
   schedule: ScheduleItem[];
+  user_id: string;
 };
 
 // Esquema de validación con Zod
@@ -303,18 +304,23 @@ export default function EditCourseModal({ visible, onDismiss, course, onSuccess 
             day: "Monday",
             time: "18:00"
           }
-        ]
+        ],
+        user_id: session.userId,
       };
 
       // Solo incluir el course_name si ha cambiado respecto al original
       if (data.course_name !== course.course_name) {
         request.course_name = data.course_name;
       }
-
       console.log("Enviando solicitud de edición:", request);
 
       // Enviar la solicitud al servidor
-      const response = await courseClient.patch(`/courses/${course.course_id}`, request);
+      const response = await courseClient.patch(`/courses/${course.course_id}`, request, {
+        headers: {
+          'Authorization': `Bearer ${session.token}`,
+          'Content-Type': 'application/json',
+        },
+      });
       console.log("Respuesta:", response.data);
 
       // Extraer la información del curso actualizado de la nueva estructura de respuesta
