@@ -9,6 +9,8 @@ import { es } from "date-fns/locale";
 import { useSession } from "@/contexts/session";
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import TeacherTaskDetailModal from '@/components/TeacherTaskDetailModal';
+import TeacherExamDetailModal from '@/components/TeacherExamDetailModal';
 
 // Tipo para la respuesta de cursos
 type Course = {
@@ -159,6 +161,12 @@ export default function TeacherAssignmentsScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [filtersVisible, setFiltersVisible] = useState(false);
 
+  // Estados para los modales de detalle
+  const [taskDetailVisible, setTaskDetailVisible] = useState(false);
+  const [examDetailVisible, setExamDetailVisible] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState<string>('');
+  const [selectedExamId, setSelectedExamId] = useState<string>('');
+
   // Verificar que el usuario sea docente
   const isTeacher = session?.userType === "teacher" || session?.userType === "administrator";
 
@@ -299,6 +307,20 @@ export default function TeacherAssignmentsScreen() {
           </View>
         </View>
       </Card.Content>
+
+      <Card.Actions style={styles.cardActions}>
+        <Button 
+          mode="outlined"
+          onPress={() => {
+            setSelectedTaskId(item.task_id);
+            setTaskDetailVisible(true);
+          }}
+          style={styles.detailButton}
+          icon="eye"
+        >
+          Ver detalles
+        </Button>
+      </Card.Actions>
     </Card>
   );
 
@@ -335,6 +357,20 @@ export default function TeacherAssignmentsScreen() {
           </View>
         </View>
       </Card.Content>
+
+      <Card.Actions style={styles.cardActions}>
+        <Button 
+          mode="outlined"
+          onPress={() => {
+            setSelectedExamId(item.exam_id);
+            setExamDetailVisible(true);
+          }}
+          style={styles.detailButton}
+          icon="eye"
+        >
+          Ver detalles
+        </Button>
+      </Card.Actions>
     </Card>
   );
 
@@ -580,6 +616,19 @@ export default function TeacherAssignmentsScreen() {
           />
         )}
       </View>
+
+      {/* Modales de detalle */}
+      <TeacherTaskDetailModal
+        visible={taskDetailVisible}
+        onDismiss={() => setTaskDetailVisible(false)}
+        taskId={selectedTaskId}
+      />
+
+      <TeacherExamDetailModal
+        visible={examDetailVisible}
+        onDismiss={() => setExamDetailVisible(false)}
+        examId={selectedExamId}
+      />
     </Provider>
   );
 }
@@ -753,5 +802,14 @@ const styles = StyleSheet.create({
   filterButton: {
     marginTop: 8,
     marginBottom: 8,
+  },
+  cardActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  detailButton: {
+    minWidth: 120,
   },
 });
