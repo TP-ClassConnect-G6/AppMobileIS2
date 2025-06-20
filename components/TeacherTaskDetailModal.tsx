@@ -62,9 +62,10 @@ type TeacherTaskDetailModalProps = {
   visible: boolean;
   onDismiss: () => void;
   taskId: string;
+  onTaskDeleted?: () => void; // Callback para actualizar la lista cuando se elimine
 };
 
-const TeacherTaskDetailModal = ({ visible, onDismiss, taskId }: TeacherTaskDetailModalProps) => {
+const TeacherTaskDetailModal = ({ visible, onDismiss, taskId, onTaskDeleted }: TeacherTaskDetailModalProps) => {
   const { session } = useSession();
   const [taskData, setTaskData] = useState<TaskDetailResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -135,6 +136,45 @@ const TeacherTaskDetailModal = ({ visible, onDismiss, taskId }: TeacherTaskDetai
     } finally {
       setLoading(false);
     }
+  };
+
+  // Función para eliminar la tarea
+  const handleDeleteTask = async () => {
+    if (!taskData?.taskWithSubmission?.task) return;
+
+    const taskTitle = taskData.taskWithSubmission.task.title;
+
+    Alert.alert(
+      "Confirmar eliminación",
+      `¿Estás seguro de que deseas eliminar la tarea "${taskTitle}"?`,
+      [
+        {
+          text: "Cancelar",
+          style: "cancel"
+        },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await courseClient.delete(`/tasks/${taskId}`, {
+                headers: {
+                  'Authorization': `Bearer ${session?.token}`
+                }
+              });
+              Alert.alert("Éxito", "Tarea eliminada correctamente");
+              onDismiss();
+              if (onTaskDeleted) {
+                onTaskDeleted(); // Callback para actualizar la lista
+              }
+            } catch (error) {
+              console.error("Error al eliminar tarea:", error);
+              Alert.alert("Error", "No se pudo eliminar la tarea");
+            }
+          }
+        }
+      ]
+    );
   };
 
   // Función para formatear fechas
@@ -358,8 +398,18 @@ const TeacherTaskDetailModal = ({ visible, onDismiss, taskId }: TeacherTaskDetai
           </View>
         </ScrollView>
 
-        {/* Botón de cerrar */}
+        {/* Botones de acción */}
         <View style={styles.buttonContainer}>
+          <Button 
+            mode="outlined" 
+            onPress={handleDeleteTask} 
+            style={styles.deleteButton}
+            icon="delete"
+            buttonColor="#f44336"
+            textColor="white"
+          >
+            Eliminar Tarea
+          </Button>
           <Button mode="contained" onPress={onDismiss} style={styles.closeButton}>
             Cerrar
           </Button>
@@ -526,11 +576,18 @@ const styles = StyleSheet.create({
     textDecorationLine: "underline",
   },
   buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     padding: 20,
     paddingTop: 10,
+    gap: 10,
   },
   closeButton: {
-    marginTop: 10,
+    flex: 1,
+  },
+  deleteButton: {
+    flex: 1,
+    backgroundColor: '#f44336',
   },
 });
 

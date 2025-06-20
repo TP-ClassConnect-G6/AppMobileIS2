@@ -92,7 +92,6 @@ const fetchTeacherAssignments = async (
     due_date?: Date | null;
     date?: Date | null;
     published?: boolean | null;
-    is_active?: boolean | null;
   }
 ): Promise<TeacherAssignmentsResponse> => {
   // Parámetros base
@@ -108,7 +107,6 @@ const fetchTeacherAssignments = async (
     if (filters.course_id) params.course_id = filters.course_id;
     if (filters.title) params.title = filters.title;
     if (filters.published !== null && filters.published !== undefined) params.published = filters.published;
-    if (filters.is_active !== null && filters.is_active !== undefined) params.is_active = filters.is_active;
     
     // Formatear fechas si existen
     if (filters.due_date) {
@@ -119,6 +117,9 @@ const fetchTeacherAssignments = async (
     }
   }
 
+  // Siempre filtrar por elementos activos únicamente
+  params.is_active = true;
+
   const response = await courseClient.get('/tasks/gateway', {
     params,
     headers: {
@@ -127,6 +128,24 @@ const fetchTeacherAssignments = async (
   });
   
   return response.data;
+};
+
+// Función para eliminar una tarea
+const deleteTask = async (token: string, taskId: string): Promise<void> => {
+  await courseClient.delete(`/tasks/${taskId}`, {
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+};
+
+// Función para eliminar un examen
+const deleteExam = async (token: string, examId: string): Promise<void> => {
+  await courseClient.delete(`/exams/${examId}`, {
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
 };
 
 export default function TeacherAssignmentsScreen() {
@@ -143,7 +162,6 @@ export default function TeacherAssignmentsScreen() {
     due_date: null as Date | null,
     date: null as Date | null,
     published: null as boolean | null,
-    is_active: null as boolean | null,
   });
 
   // Estados para los filtros actuales de búsqueda
@@ -153,7 +171,6 @@ export default function TeacherAssignmentsScreen() {
     due_date: null as Date | null,
     date: null as Date | null,
     published: null as boolean | null,
-    is_active: null as boolean | null,
   });
 
   // Estados para UI de los filtros
@@ -184,9 +201,10 @@ export default function TeacherAssignmentsScreen() {
     queryKey: ['teacher-assignments', taskPage, examPage, searchFilters],
     queryFn: () => fetchTeacherAssignments(session?.token || '', 5, taskPage, 5, examPage, searchFilters),
     enabled: !!session?.token && isTeacher,
-    staleTime: 0,
-    gcTime: 0,
+    staleTime: 0, // Los datos siempre se consideran obsoletos
+    gcTime: 0, // No mantener cache
     refetchOnWindowFocus: true,
+    refetchOnMount: true, // Siempre refetch al montar
   });
 
   // Funciones para manejar la paginación
@@ -213,12 +231,79 @@ export default function TeacherAssignmentsScreen() {
       due_date: null,
       date: null,
       published: null,
-      is_active: null,
     };
     setFilters(resetFilters);
     setSearchFilters(resetFilters);
     setTaskPage(1);
     setExamPage(1);
+  };
+
+  // Función para eliminar una tarea
+  const handleDeleteTask = async (taskId: string, taskTitle: string) => {
+    Alert.alert(
+      "Confirmar eliminación",
+      `¿Estás seguro de que deseas eliminar la tarea "${taskTitle}"?`,
+      [
+        {
+          text: "Cancelar",
+          style: "cancel"
+        },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              console.log('Eliminando tarea con ID:', taskId);
+              await deleteTask(session?.token || '', taskId);
+              console.log('Tarea eliminada exitosamente');
+              
+              // Invalidar todas las queries relacionadas
+              console.log('Invalidando queries...');
+              await queryClient.invalidateQueries({ queryKey: ['teacher-assignments'] });
+              await queryClient.refetchQueries({ queryKey: ['teacher-assignments'] });
+              console.log('Queries invalidadas y refetch completado');
+              
+              Alert.alert("Éxito", "Tarea eliminada correctamente");
+            } catch (error) {
+              console.error("Error al eliminar tarea:", error);
+              Alert.alert("Error", "No se pudo eliminar la tarea");
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // Función para eliminar un examen
+  const handleDeleteExam = async (examId: string, examTitle: string) => {
+    Alert.alert(
+      "Confirmar eliminación",
+      `¿Estás seguro de que deseas eliminar el examen "${examTitle}"?`,
+      [
+        {
+          text: "Cancelar",
+          style: "cancel"
+        },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteExam(session?.token || '', examId);
+              
+              // Invalidar todas las queries relacionadas
+              await queryClient.invalidateQueries({ queryKey: ['teacher-assignments'] });
+              await queryClient.refetchQueries({ queryKey: ['teacher-assignments'] });
+              
+              Alert.alert("Éxito", "Examen eliminado correctamente");
+            } catch (error) {
+              console.error("Error al eliminar examen:", error);
+              Alert.alert("Error", "No se pudo eliminar el examen");
+            }
+          }
+        }
+      ]
+    );
   };
 
   // Función para renderizar los controles de paginación
@@ -320,6 +405,16 @@ export default function TeacherAssignmentsScreen() {
         >
           Ver detalles
         </Button>
+        <Button 
+          mode="outlined"
+          onPress={() => handleDeleteTask(item.task_id, item.title)}
+          style={[styles.detailButton, styles.deleteButton]}
+          icon="delete"
+          buttonColor="#f44336"
+          textColor="white"
+        >
+          Eliminar
+        </Button>
       </Card.Actions>
     </Card>
   );
@@ -369,6 +464,16 @@ export default function TeacherAssignmentsScreen() {
           icon="eye"
         >
           Ver detalles
+        </Button>
+        <Button 
+          mode="outlined"
+          onPress={() => handleDeleteExam(item.exam_id, item.title)}
+          style={[styles.detailButton, styles.deleteButton]}
+          icon="delete"
+          buttonColor="#f44336"
+          textColor="white"
+        >
+          Eliminar
         </Button>
       </Card.Actions>
     </Card>
@@ -496,19 +601,6 @@ export default function TeacherAssignmentsScreen() {
               </Picker>
             </View>
 
-            <View style={styles.dropdownContainer}>
-              <Text style={styles.dropdownLabel}>Estado activo:</Text>
-              <Picker
-                selectedValue={filters.is_active}
-                onValueChange={(value) => setFilters((prev) => ({ ...prev, is_active: value }))}
-                style={styles.picker}
-              >
-                <Picker.Item label="Todos los estados" value={null} />
-                <Picker.Item label="Activo" value={true} />
-                <Picker.Item label="Inactivo" value={false} />
-              </Picker>
-            </View>
-
             <View style={styles.dateFilterContainer}>
               <Button mode="outlined" onPress={() => setShowDueDatePicker(true)}>
                 {filters.due_date ? `Fecha límite: ${format(filters.due_date, 'dd/MM/yyyy')}` : "Fecha límite"}
@@ -622,12 +714,20 @@ export default function TeacherAssignmentsScreen() {
         visible={taskDetailVisible}
         onDismiss={() => setTaskDetailVisible(false)}
         taskId={selectedTaskId}
+        onTaskDeleted={async () => {
+          await queryClient.invalidateQueries({ queryKey: ['teacher-assignments'] });
+          await queryClient.refetchQueries({ queryKey: ['teacher-assignments'] });
+        }}
       />
 
       <TeacherExamDetailModal
         visible={examDetailVisible}
         onDismiss={() => setExamDetailVisible(false)}
         examId={selectedExamId}
+        onExamDeleted={async () => {
+          await queryClient.invalidateQueries({ queryKey: ['teacher-assignments'] });
+          await queryClient.refetchQueries({ queryKey: ['teacher-assignments'] });
+        }}
       />
     </Provider>
   );
@@ -808,8 +908,13 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     paddingHorizontal: 16,
     paddingBottom: 16,
+    gap: 8,
   },
   detailButton: {
     minWidth: 120,
+  },
+  deleteButton: {
+    minWidth: 120,
+    backgroundColor: '#f44336',
   },
 });

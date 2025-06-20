@@ -62,9 +62,10 @@ type TeacherExamDetailModalProps = {
   visible: boolean;
   onDismiss: () => void;
   examId: string;
+  onExamDeleted?: () => void; // Callback para actualizar la lista cuando se elimine
 };
 
-const TeacherExamDetailModal = ({ visible, onDismiss, examId }: TeacherExamDetailModalProps) => {
+const TeacherExamDetailModal = ({ visible, onDismiss, examId, onExamDeleted }: TeacherExamDetailModalProps) => {
   const { session } = useSession();
   const [examData, setExamData] = useState<ExamDetailResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -136,6 +137,45 @@ const TeacherExamDetailModal = ({ visible, onDismiss, examId }: TeacherExamDetai
     } finally {
       setLoading(false);
     }
+  };
+
+  // Función para eliminar el examen
+  const handleDeleteExam = async () => {
+    if (!examData?.examWithSubmission?.exam) return;
+
+    const examTitle = examData.examWithSubmission.exam.title;
+
+    Alert.alert(
+      "Confirmar eliminación",
+      `¿Estás seguro de que deseas eliminar el examen "${examTitle}"?`,
+      [
+        {
+          text: "Cancelar",
+          style: "cancel"
+        },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await courseClient.delete(`/exams/${examId}`, {
+                headers: {
+                  'Authorization': `Bearer ${session?.token}`
+                }
+              });
+              Alert.alert("Éxito", "Examen eliminado correctamente");
+              onDismiss();
+              if (onExamDeleted) {
+                onExamDeleted(); // Callback para actualizar la lista
+              }
+            } catch (error) {
+              console.error("Error al eliminar examen:", error);
+              Alert.alert("Error", "No se pudo eliminar el examen");
+            }
+          }
+        }
+      ]
+    );
   };
 
   // Función para formatear fechas
@@ -359,8 +399,18 @@ const TeacherExamDetailModal = ({ visible, onDismiss, examId }: TeacherExamDetai
           </View>
         </ScrollView>
 
-        {/* Botón de cerrar */}
+        {/* Botones de acción */}
         <View style={styles.buttonContainer}>
+          <Button 
+            mode="outlined" 
+            onPress={handleDeleteExam} 
+            style={styles.deleteButton}
+            icon="delete"
+            buttonColor="#f44336"
+            textColor="white"
+          >
+            Eliminar Examen
+          </Button>
           <Button mode="contained" onPress={onDismiss} style={styles.closeButton}>
             Cerrar
           </Button>
@@ -527,11 +577,18 @@ const styles = StyleSheet.create({
     textDecorationLine: "underline",
   },
   buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     padding: 20,
     paddingTop: 10,
+    gap: 10,
   },
   closeButton: {
-    marginTop: 10,
+    flex: 1,
+  },
+  deleteButton: {
+    flex: 1,
+    backgroundColor: '#f44336',
   },
 });
 
