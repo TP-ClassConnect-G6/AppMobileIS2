@@ -47,9 +47,9 @@ type TeacherAssignmentsResponse = {
 // Función para obtener las tareas y exámenes del docente
 const fetchTeacherAssignments = async (
   token: string, 
-  taskLimit: number = 3, 
+  taskLimit: number = 4, 
   taskPage: number = 1, 
-  examLimit: number = 3, 
+  examLimit: number = 4, 
   examPage: number = 1
 ): Promise<TeacherAssignmentsResponse> => {
   const response = await courseClient.get('/tasks/gateway', {
@@ -79,7 +79,7 @@ export default function TeacherAssignmentsScreen() {
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['teacher-assignments', taskPage, examPage],
-    queryFn: () => fetchTeacherAssignments(session?.token || '', 3, taskPage, 3, examPage),
+    queryFn: () => fetchTeacherAssignments(session?.token || '', 4, taskPage, 4, examPage),
     enabled: !!session?.token && isTeacher,
     staleTime: 0,
     gcTime: 0,
@@ -99,43 +99,27 @@ export default function TeacherAssignmentsScreen() {
   const renderPagination = (currentPage: number, totalPages: number, onPageChange: (page: number) => void) => {
     if (totalPages <= 1) return null;
 
-    const pages = [];
-    for (let i = 1; i <= totalPages; i++) {
-      pages.push(i);
-    }
-
     return (
       <View style={styles.paginationContainer}>
         <Button
           mode="outlined"
+          disabled={currentPage <= 1}
           onPress={() => onPageChange(currentPage - 1)}
-          disabled={currentPage === 1}
           style={styles.paginationButton}
           icon="chevron-left"
         >
           Anterior
         </Button>
-        
-        <View style={styles.pageNumbers}>
-          {pages.map((page) => (
-            <Button
-              key={page}
-              mode={currentPage === page ? "contained" : "outlined"}
-              onPress={() => onPageChange(page)}
-              style={styles.pageButton}
-              labelStyle={styles.pageButtonLabel}
-            >
-              {page}
-            </Button>
-          ))}
-        </View>
-
+        <Text style={styles.paginationText}>
+          Página {currentPage} de {totalPages}
+        </Text>
         <Button
           mode="outlined"
+          disabled={currentPage >= totalPages}
           onPress={() => onPageChange(currentPage + 1)}
-          disabled={currentPage === totalPages}
           style={styles.paginationButton}
           icon="chevron-right"
+          contentStyle={{ flexDirection: 'row-reverse' }}
         >
           Siguiente
         </Button>
@@ -196,32 +180,6 @@ export default function TeacherAssignmentsScreen() {
             <Text style={styles.infoValue}>{item.submissions_count}</Text>
           </View>
         </View>
-
-        <Divider style={styles.divider} />
-
-        <View style={styles.actionsContainer}>
-          <Button 
-            mode="outlined" 
-            icon="eye"
-            style={styles.actionButton}
-            onPress={() => {
-              Alert.alert("Ver detalles", `Detalles de la tarea: ${item.title}`);
-            }}
-          >
-            Ver detalles
-          </Button>
-          
-          <Button 
-            mode="outlined" 
-            icon="pencil"
-            style={styles.actionButton}
-            onPress={() => {
-              Alert.alert("Editar", `Editar tarea: ${item.title}`);
-            }}
-          >
-            Editar
-          </Button>
-        </View>
       </Card.Content>
     </Card>
   );
@@ -257,32 +215,6 @@ export default function TeacherAssignmentsScreen() {
             <Text style={styles.infoLabel}>Entregas:</Text>
             <Text style={styles.infoValue}>{item.submissions_count}</Text>
           </View>
-        </View>
-
-        <Divider style={styles.divider} />
-
-        <View style={styles.actionsContainer}>
-          <Button 
-            mode="outlined" 
-            icon="eye"
-            style={styles.actionButton}
-            onPress={() => {
-              Alert.alert("Ver detalles", `Detalles del examen: ${item.title}`);
-            }}
-          >
-            Ver detalles
-          </Button>
-          
-          <Button 
-            mode="outlined" 
-            icon="pencil"
-            style={styles.actionButton}
-            onPress={() => {
-              Alert.alert("Editar", `Editar examen: ${item.title}`);
-            }}
-          >
-            Editar
-          </Button>
         </View>
       </Card.Content>
     </Card>
@@ -331,7 +263,14 @@ export default function TeacherAssignmentsScreen() {
   return (
     <Provider>
       <View style={styles.container}>
-        <Text style={styles.header}>Mis Tareas y Exámenes</Text>
+        <View style={styles.headerContainer}>
+          <Text style={styles.header}>Mis Tareas y Exámenes</Text>
+          <MaterialCommunityIcons 
+            name={activeTab === 'tasks' ? 'clipboard-list' : 'file-document'} 
+            size={28} 
+            color="#2196f3" 
+          />
+        </View>
 
         {/* Botones de navegación entre pestañas */}
         <SegmentedButtons
@@ -354,56 +293,54 @@ export default function TeacherAssignmentsScreen() {
 
         {/* Lista de tareas */}
         {activeTab === 'tasks' && (
-          <>
-            <FlatList
-              data={tasks}
-              keyExtractor={(item) => item.task_id}
-              renderItem={renderTaskCard}
-              contentContainerStyle={styles.listContent}
-              refreshControl={
-                <RefreshControl refreshing={isLoading} onRefresh={() => refetch()} />
-              }
-              ListEmptyComponent={
-                <View style={styles.emptyContainer}>
-                  <MaterialCommunityIcons name="clipboard-list" size={64} color="#999" />
-                  <Text style={styles.emptyText}>No hay tareas disponibles</Text>
-                </View>
-              }
-            />
-            {/* Paginación para tareas */}
-            {renderPagination(
-              data?.courses_tasks?.tasks?.currentPage || 1,
-              data?.courses_tasks?.tasks?.totalPages || 1,
-              handleTaskPageChange
-            )}
-          </>
+          <FlatList
+            data={tasks}
+            keyExtractor={(item) => item.task_id}
+            renderItem={renderTaskCard}
+            contentContainerStyle={styles.listContent}
+            refreshControl={
+              <RefreshControl refreshing={isLoading} onRefresh={() => refetch()} />
+            }
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <MaterialCommunityIcons name="clipboard-list" size={64} color="#999" />
+                <Text style={styles.emptyText}>No hay tareas disponibles</Text>
+              </View>
+            }
+            ListFooterComponent={
+              tasks.length > 0 ? renderPagination(
+                data?.courses_tasks?.tasks?.currentPage || 1,
+                data?.courses_tasks?.tasks?.totalPages || 1,
+                handleTaskPageChange
+              ) : null
+            }
+          />
         )}
 
         {/* Lista de exámenes */}
         {activeTab === 'exams' && (
-          <>
-            <FlatList
-              data={exams}
-              keyExtractor={(item) => item.exam_id}
-              renderItem={renderExamCard}
-              contentContainerStyle={styles.listContent}
-              refreshControl={
-                <RefreshControl refreshing={isLoading} onRefresh={() => refetch()} />
-              }
-              ListEmptyComponent={
-                <View style={styles.emptyContainer}>
-                  <MaterialCommunityIcons name="file-document" size={64} color="#999" />
-                  <Text style={styles.emptyText}>No hay exámenes disponibles</Text>
-                </View>
-              }
-            />
-            {/* Paginación para exámenes */}
-            {renderPagination(
-              data?.courses_tasks?.exams?.currentPage || 1,
-              data?.courses_tasks?.exams?.totalPages || 1,
-              handleExamPageChange
-            )}
-          </>
+          <FlatList
+            data={exams}
+            keyExtractor={(item) => item.exam_id}
+            renderItem={renderExamCard}
+            contentContainerStyle={styles.listContent}
+            refreshControl={
+              <RefreshControl refreshing={isLoading} onRefresh={() => refetch()} />
+            }
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <MaterialCommunityIcons name="file-document" size={64} color="#999" />
+                <Text style={styles.emptyText}>No hay exámenes disponibles</Text>
+              </View>
+            }
+            ListFooterComponent={
+              exams.length > 0 ? renderPagination(
+                data?.courses_tasks?.exams?.currentPage || 1,
+                data?.courses_tasks?.exams?.totalPages || 1,
+                handleExamPageChange
+              ) : null
+            }
+          />
         )}
       </View>
     </Provider>
@@ -416,11 +353,17 @@ const styles = StyleSheet.create({
     backgroundColor: "#f5f5f5",
     padding: 10,
   },
+  headerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 40,
+    marginBottom: 20,
+    gap: 8,
+  },
   header: {
     fontSize: 24,
     fontWeight: "bold",
-    marginTop: 40,
-    marginBottom: 20,
     textAlign: "center",
   },
   segmentedButtons: {
@@ -447,12 +390,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     marginTop: 10,
     flexWrap: "wrap",
-    justifyContent: "space-between",
   },
   infoItem: {
-    marginBottom: 8,
-    flex: 1,
-    minWidth: '45%',
+    marginRight: 20,
+    marginBottom: 5,
   },
   infoLabel: {
     fontSize: 12,
@@ -464,7 +405,16 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   divider: {
-    marginVertical: 12,
+    marginVertical: 10,
+  },
+  footerContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+  categoryChip: {
+    marginVertical: 5,
   },
   actionsContainer: {
     flexDirection: 'row',
@@ -511,28 +461,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingVertical: 8,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: 'white',
-    marginHorizontal: 10,
-    marginBottom: 10,
-    borderRadius: 8,
-    elevation: 2,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+    backgroundColor: '#f9f9f9',
   },
   paginationButton: {
-    minWidth: 80,
+    marginHorizontal: 8,
   },
-  pageNumbers: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  pageButton: {
-    minWidth: 40,
-    height: 40,
-  },
-  pageButtonLabel: {
+  paginationText: {
     fontSize: 14,
-    margin: 0,
+    color: '#666',
+    fontWeight: '500',
   },
 });
