@@ -101,7 +101,18 @@ export default function TabLayout() {
           ),
           href: isTeacher ? "/create-task" : null,
         }}
-      />      <Tabs.Screen
+      />
+      <Tabs.Screen
+        name="teacher-assignments"
+        options={{
+          title: "Mis Asignaciones",
+          tabBarIcon: ({ color }: { color: string }) => (
+            <IconSymbol size={28} name="clipboard.fill" color={color} />
+          ),
+          href: isTeacher ? "/teacher-assignments" : null, // Solo mostrar para docentes
+        }}
+      />
+      <Tabs.Screen
         name="mis-cursos"
         options={{
           title: "Mis Cursos",
