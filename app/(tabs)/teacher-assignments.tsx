@@ -10,6 +10,22 @@ import { useSession } from "@/contexts/session";
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
+// Tipo para la respuesta de cursos
+type Course = {
+  course_id: string;
+  course_name: string;
+  description: string;
+  date_init: string;
+  date_end: string;
+  quota: number;
+  category: string | null;
+  message?: string;
+};
+
+type CoursesResponse = {
+  response: Course[];
+};
+
 // Tipos para las tareas y exámenes
 type Task = {
   task_id: string;
@@ -44,6 +60,21 @@ type TeacherAssignmentsResponse = {
       currentPage: number;
     };
   };
+};
+
+// Función para obtener la lista de cursos
+const fetchCourses = async (token: string): Promise<Course[]> => {
+  try {
+    const response = await courseClient.get('/courses/', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    return response.data.response || [];
+  } catch (error) {
+    console.error('Error al obtener cursos:', error);
+    return [];
+  }
 };
 
 // Función para obtener las tareas y exámenes del docente
@@ -130,6 +161,16 @@ export default function TeacherAssignmentsScreen() {
 
   // Verificar que el usuario sea docente
   const isTeacher = session?.userType === "teacher" || session?.userType === "administrator";
+
+  // Consulta para obtener la lista de cursos
+  const { data: coursesData } = useQuery({
+    queryKey: ['courses-list'],
+    queryFn: () => fetchCourses(session?.token || ''),
+    enabled: !!session?.token && isTeacher,
+    staleTime: 5 * 60 * 1000, // 5 minutos
+  });
+
+  const courses = coursesData || [];
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['teacher-assignments', taskPage, examPage, searchFilters],
@@ -380,13 +421,23 @@ export default function TeacherAssignmentsScreen() {
         {/* Filtros */}
         {filtersVisible && (
           <>
-            <TextInput
-              label="ID del curso"
-              value={filters.course_id}
-              onChangeText={(text) => setFilters((prev) => ({ ...prev, course_id: text }))}
-              mode="outlined"
-              style={styles.filterInput}
-            />
+            <View style={styles.dropdownContainer}>
+              <Text style={styles.dropdownLabel}>Seleccionar curso:</Text>
+              <Picker
+                selectedValue={filters.course_id}
+                onValueChange={(value) => setFilters((prev) => ({ ...prev, course_id: value }))}
+                style={styles.picker}
+              >
+                <Picker.Item label="Todos los cursos" value="" />
+                {courses.map((course) => (
+                  <Picker.Item 
+                    key={course.course_id} 
+                    label={course.course_name} 
+                    value={course.course_id} 
+                  />
+                ))}
+              </Picker>
+            </View>
 
             <TextInput
               label="Buscar por título"
