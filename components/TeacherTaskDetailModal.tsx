@@ -6,6 +6,7 @@ import { useSession } from "@/contexts/session";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import axios from 'axios';
 
 // Tipos para la respuesta de detalles de tarea
 type TaskSubmission = {
@@ -17,6 +18,14 @@ type TaskSubmission = {
   is_late: boolean;
   file_urls: string[];
   is_active: boolean;
+};
+
+// Tipo para información del estudiante
+type StudentInfo = {
+  user_id: string;
+  user_type: string;
+  name: string;
+  bio: string;
 };
 
 type TaskDetail = {
@@ -59,6 +68,7 @@ const TeacherTaskDetailModal = ({ visible, onDismiss, taskId }: TeacherTaskDetai
   const { session } = useSession();
   const [taskData, setTaskData] = useState<TaskDetailResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [studentsInfo, setStudentsInfo] = useState<{ [key: string]: StudentInfo }>({});
 
   // Fetch task details when modal opens
   useEffect(() => {
@@ -66,6 +76,39 @@ const TeacherTaskDetailModal = ({ visible, onDismiss, taskId }: TeacherTaskDetai
       fetchTaskDetails();
     }
   }, [visible, taskId]);
+
+  // Función para obtener información del estudiante
+  const fetchStudentInfo = async (studentId: string): Promise<StudentInfo | null> => {
+    if (!session?.token) return null;
+    
+    try {
+      const response = await axios.get(`https://usuariosis2-production.up.railway.app/profile/${studentId}`, {
+        headers: {
+          'Authorization': `Bearer ${session.token}`
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching student info for ${studentId}:`, error);
+      return null;
+    }
+  };
+
+  // Función para obtener información de múltiples estudiantes
+  const fetchStudentsInfo = async (studentIds: string[]) => {
+    const studentsData: { [key: string]: StudentInfo } = {};
+    
+    await Promise.all(
+      studentIds.map(async (studentId) => {
+        const studentInfo = await fetchStudentInfo(studentId);
+        if (studentInfo) {
+          studentsData[studentId] = studentInfo;
+        }
+      })
+    );
+    
+    setStudentsInfo(studentsData);
+  };
 
   // Función para obtener los detalles de la tarea
   const fetchTaskDetails = async () => {
@@ -79,6 +122,13 @@ const TeacherTaskDetailModal = ({ visible, onDismiss, taskId }: TeacherTaskDetai
         }
       });
       setTaskData(response.data);
+      
+      // Obtener información de los estudiantes
+      const submissions = response.data?.taskWithSubmission?.submissions || [];
+      const studentIds = submissions.map((submission: TaskSubmission) => submission.student_id);
+      if (studentIds.length > 0) {
+        await fetchStudentsInfo(studentIds);
+      }
     } catch (error) {
       console.error("Error fetching task details:", error);
       Alert.alert("Error", "No se pudieron cargar los detalles de la tarea");
@@ -255,7 +305,11 @@ const TeacherTaskDetailModal = ({ visible, onDismiss, taskId }: TeacherTaskDetai
                   <Card key={submission.id} style={styles.submissionCard}>
                     <Card.Content>
                       <View style={styles.submissionHeader}>
-                        <Text style={styles.submissionTitle}>Entrega #{index + 1}</Text>
+                        <View>
+                          <Text style={styles.submissionTitle}>
+                            {studentsInfo[submission.student_id]?.name || `Estudiante #${index + 1}`}
+                          </Text>
+                        </View>
                         <View style={styles.submissionStatus}>
                           {submission.is_late && (
                             <Chip mode="flat" style={styles.lateChip} textStyle={{ color: 'white', fontSize: 10 }}>
@@ -412,6 +466,11 @@ const styles = StyleSheet.create({
   submissionTitle: {
     fontSize: 16,
     fontWeight: "bold",
+  },
+  studentId: {
+    fontSize: 12,
+    color: "#666",
+    marginTop: 2,
   },
   submissionStatus: {
     flexDirection: "row",
