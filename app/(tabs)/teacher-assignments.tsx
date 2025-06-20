@@ -47,9 +47,9 @@ type TeacherAssignmentsResponse = {
 // Función para obtener las tareas y exámenes del docente
 const fetchTeacherAssignments = async (
   token: string, 
-  taskLimit: number = 10, 
+  taskLimit: number = 3, 
   taskPage: number = 1, 
-  examLimit: number = 10, 
+  examLimit: number = 3, 
   examPage: number = 1
 ): Promise<TeacherAssignmentsResponse> => {
   const response = await courseClient.get('/tasks/gateway', {
@@ -79,12 +79,69 @@ export default function TeacherAssignmentsScreen() {
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['teacher-assignments', taskPage, examPage],
-    queryFn: () => fetchTeacherAssignments(session?.token || '', 10, taskPage, 10, examPage),
+    queryFn: () => fetchTeacherAssignments(session?.token || '', 3, taskPage, 3, examPage),
     enabled: !!session?.token && isTeacher,
     staleTime: 0,
     gcTime: 0,
     refetchOnWindowFocus: true,
   });
+
+  // Funciones para manejar la paginación
+  const handleTaskPageChange = (newPage: number) => {
+    setTaskPage(newPage);
+  };
+
+  const handleExamPageChange = (newPage: number) => {
+    setExamPage(newPage);
+  };
+
+  // Función para renderizar los controles de paginación
+  const renderPagination = (currentPage: number, totalPages: number, onPageChange: (page: number) => void) => {
+    if (totalPages <= 1) return null;
+
+    const pages = [];
+    for (let i = 1; i <= totalPages; i++) {
+      pages.push(i);
+    }
+
+    return (
+      <View style={styles.paginationContainer}>
+        <Button
+          mode="outlined"
+          onPress={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          style={styles.paginationButton}
+          icon="chevron-left"
+        >
+          Anterior
+        </Button>
+        
+        <View style={styles.pageNumbers}>
+          {pages.map((page) => (
+            <Button
+              key={page}
+              mode={currentPage === page ? "contained" : "outlined"}
+              onPress={() => onPageChange(page)}
+              style={styles.pageButton}
+              labelStyle={styles.pageButtonLabel}
+            >
+              {page}
+            </Button>
+          ))}
+        </View>
+
+        <Button
+          mode="outlined"
+          onPress={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          style={styles.paginationButton}
+          icon="chevron-right"
+        >
+          Siguiente
+        </Button>
+      </View>
+    );
+  };
 
   // Función para formatear fechas
   const formatDate = (dateString: string) => {
@@ -297,40 +354,56 @@ export default function TeacherAssignmentsScreen() {
 
         {/* Lista de tareas */}
         {activeTab === 'tasks' && (
-          <FlatList
-            data={tasks}
-            keyExtractor={(item) => item.task_id}
-            renderItem={renderTaskCard}
-            contentContainerStyle={styles.listContent}
-            refreshControl={
-              <RefreshControl refreshing={isLoading} onRefresh={() => refetch()} />
-            }
-            ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <MaterialCommunityIcons name="clipboard-list" size={64} color="#999" />
-                <Text style={styles.emptyText}>No hay tareas disponibles</Text>
-              </View>
-            }
-          />
+          <>
+            <FlatList
+              data={tasks}
+              keyExtractor={(item) => item.task_id}
+              renderItem={renderTaskCard}
+              contentContainerStyle={styles.listContent}
+              refreshControl={
+                <RefreshControl refreshing={isLoading} onRefresh={() => refetch()} />
+              }
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  <MaterialCommunityIcons name="clipboard-list" size={64} color="#999" />
+                  <Text style={styles.emptyText}>No hay tareas disponibles</Text>
+                </View>
+              }
+            />
+            {/* Paginación para tareas */}
+            {renderPagination(
+              data?.courses_tasks?.tasks?.currentPage || 1,
+              data?.courses_tasks?.tasks?.totalPages || 1,
+              handleTaskPageChange
+            )}
+          </>
         )}
 
         {/* Lista de exámenes */}
         {activeTab === 'exams' && (
-          <FlatList
-            data={exams}
-            keyExtractor={(item) => item.exam_id}
-            renderItem={renderExamCard}
-            contentContainerStyle={styles.listContent}
-            refreshControl={
-              <RefreshControl refreshing={isLoading} onRefresh={() => refetch()} />
-            }
-            ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <MaterialCommunityIcons name="file-document" size={64} color="#999" />
-                <Text style={styles.emptyText}>No hay exámenes disponibles</Text>
-              </View>
-            }
-          />
+          <>
+            <FlatList
+              data={exams}
+              keyExtractor={(item) => item.exam_id}
+              renderItem={renderExamCard}
+              contentContainerStyle={styles.listContent}
+              refreshControl={
+                <RefreshControl refreshing={isLoading} onRefresh={() => refetch()} />
+              }
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  <MaterialCommunityIcons name="file-document" size={64} color="#999" />
+                  <Text style={styles.emptyText}>No hay exámenes disponibles</Text>
+                </View>
+              }
+            />
+            {/* Paginación para exámenes */}
+            {renderPagination(
+              data?.courses_tasks?.exams?.currentPage || 1,
+              data?.courses_tasks?.exams?.totalPages || 1,
+              handleExamPageChange
+            )}
+          </>
         )}
       </View>
     </Provider>
@@ -433,5 +506,33 @@ const styles = StyleSheet.create({
     color: "#666",
     fontStyle: "italic",
     marginTop: 16,
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: 'white',
+    marginHorizontal: 10,
+    marginBottom: 10,
+    borderRadius: 8,
+    elevation: 2,
+  },
+  paginationButton: {
+    minWidth: 80,
+  },
+  pageNumbers: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  pageButton: {
+    minWidth: 40,
+    height: 40,
+  },
+  pageButtonLabel: {
+    fontSize: 14,
+    margin: 0,
   },
 });
