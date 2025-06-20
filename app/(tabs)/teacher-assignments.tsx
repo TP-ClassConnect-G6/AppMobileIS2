@@ -11,6 +11,7 @@ import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import TeacherTaskDetailModal from '@/components/TeacherTaskDetailModal';
 import TeacherExamDetailModal from '@/components/TeacherExamDetailModal';
+import EditExamModal from '@/components/EditExamModal';
 
 // Tipo para la respuesta de cursos
 type Course = {
@@ -45,6 +46,28 @@ type Exam = {
   published: boolean;
   course_id: string;
   submissions_count: number;
+};
+
+// Tipo detallado para EditExamModal
+type DetailedExam = {
+  id: string;
+  course_id: string;
+  title: string;
+  description: string;
+  date: string;
+  duration: number;
+  location: string;
+  owner: string;
+  additional_info: {
+    open_book: boolean;
+    grace_period?: string;
+    submission_rules?: string;
+    questions?: string;
+  };
+  published: boolean;
+  created_at: string;
+  updated_at: string;
+  is_active: boolean;
 };
 
 type TeacherAssignmentsResponse = {
@@ -181,8 +204,10 @@ export default function TeacherAssignmentsScreen() {
   // Estados para los modales de detalle
   const [taskDetailVisible, setTaskDetailVisible] = useState(false);
   const [examDetailVisible, setExamDetailVisible] = useState(false);
+  const [editExamVisible, setEditExamVisible] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string>('');
   const [selectedExamId, setSelectedExamId] = useState<string>('');
+  const [selectedExamForEdit, setSelectedExamForEdit] = useState<DetailedExam | null>(null);
 
   // Verificar que el usuario sea docente
   const isTeacher = session?.userType === "teacher" || session?.userType === "administrator";
@@ -304,6 +329,33 @@ export default function TeacherAssignmentsScreen() {
         }
       ]
     );
+  };
+
+  // Función para obtener los detalles del examen para editar
+  const fetchExamDetailsForEdit = async (examId: string): Promise<DetailedExam | null> => {
+    if (!session?.token) return null;
+    
+    try {
+      const response = await courseClient.get(`/exams/${examId}`, {
+        headers: {
+          'Authorization': `Bearer ${session.token}`
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching exam details for edit:", error);
+      Alert.alert("Error", "No se pudieron cargar los detalles del examen");
+      return null;
+    }
+  };
+
+  // Función para manejar la edición de un examen
+  const handleEditExam = async (examId: string) => {
+    const examDetails = await fetchExamDetailsForEdit(examId);
+    if (examDetails) {
+      setSelectedExamForEdit(examDetails);
+      setEditExamVisible(true);
+    }
   };
 
   // Función para renderizar los controles de paginación
@@ -464,6 +516,14 @@ export default function TeacherAssignmentsScreen() {
           icon="eye"
         >
           Ver detalles
+        </Button>
+        <Button 
+          mode="outlined"
+          onPress={() => handleEditExam(item.exam_id)}
+          style={styles.detailButton}
+          icon="pencil"
+        >
+          Editar
         </Button>
         <Button 
           mode="outlined"
@@ -728,6 +788,16 @@ export default function TeacherAssignmentsScreen() {
           await queryClient.invalidateQueries({ queryKey: ['teacher-assignments'] });
           await queryClient.refetchQueries({ queryKey: ['teacher-assignments'] });
         }}
+      />
+
+      <EditExamModal
+        visible={editExamVisible}
+        onDismiss={() => {
+          setEditExamVisible(false);
+          setSelectedExamForEdit(null);
+        }}
+        exam={selectedExamForEdit}
+        courseId={selectedExamForEdit?.course_id || null}
       />
     </Provider>
   );

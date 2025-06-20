@@ -112,6 +112,7 @@ const EditExamModal = ({ visible, onDismiss, exam, courseId }: EditExamModalProp
       // Invalidar consultas para refrescar los datos
       queryClient.invalidateQueries({ queryKey: ['teacherCourseExams', courseId] });
       queryClient.invalidateQueries({ queryKey: ['courseExams', courseId] });
+      queryClient.invalidateQueries({ queryKey: ['teacher-assignments'] });
       
       setIsSaving(false);
       Alert.alert("Éxito", "El examen ha sido actualizado exitosamente.");
