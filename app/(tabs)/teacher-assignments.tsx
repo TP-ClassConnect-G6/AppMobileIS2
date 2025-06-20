@@ -47,9 +47,9 @@ type TeacherAssignmentsResponse = {
 // Función para obtener las tareas y exámenes del docente
 const fetchTeacherAssignments = async (
   token: string, 
-  taskLimit: number = 4, 
+  taskLimit: number = 5, 
   taskPage: number = 1, 
-  examLimit: number = 4, 
+  examLimit: number = 5, 
   examPage: number = 1
 ): Promise<TeacherAssignmentsResponse> => {
   const response = await courseClient.get('/tasks/gateway', {
@@ -79,7 +79,7 @@ export default function TeacherAssignmentsScreen() {
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['teacher-assignments', taskPage, examPage],
-    queryFn: () => fetchTeacherAssignments(session?.token || '', 4, taskPage, 4, examPage),
+    queryFn: () => fetchTeacherAssignments(session?.token || '', 5, taskPage, 5, examPage),
     enabled: !!session?.token && isTeacher,
     staleTime: 0,
     gcTime: 0,
