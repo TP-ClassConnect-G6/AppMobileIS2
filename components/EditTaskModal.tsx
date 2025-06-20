@@ -156,6 +156,7 @@ const EditTaskModal = ({ visible, onDismiss, task, courseId }: EditTaskModalProp
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['teacherCourseTasks', courseId] });
       queryClient.invalidateQueries({ queryKey: ['courseTasks', courseId] });
+      queryClient.invalidateQueries({ queryKey: ['teacher-assignments'] });
       onDismiss();
     },
     onError: (error) => {
