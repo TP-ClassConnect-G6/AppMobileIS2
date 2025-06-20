@@ -1,12 +1,14 @@
 import React, { useState } from "react";
-import { StyleSheet, View, Text, FlatList, ActivityIndicator, RefreshControl, TouchableOpacity, Alert } from "react-native";
-import { Card, Title, Paragraph, Chip, Divider, Button, Provider, SegmentedButtons } from "react-native-paper";
+import { StyleSheet, View, Text, FlatList, ActivityIndicator, RefreshControl, TouchableOpacity, Alert, Platform } from "react-native";
+import { Card, Title, Paragraph, Chip, Divider, Button, Provider, SegmentedButtons, TextInput } from "react-native-paper";
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { courseClient } from "@/lib/http";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useSession } from "@/contexts/session";
+import { Picker } from '@react-native-picker/picker';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 // Tipos para las tareas y exámenes
 type Task = {
@@ -50,15 +52,42 @@ const fetchTeacherAssignments = async (
   taskLimit: number = 5, 
   taskPage: number = 1, 
   examLimit: number = 5, 
-  examPage: number = 1
+  examPage: number = 1,
+  filters?: {
+    course_id?: string;
+    title?: string;
+    due_date?: Date | null;
+    date?: Date | null;
+    published?: boolean | null;
+    is_active?: boolean | null;
+  }
 ): Promise<TeacherAssignmentsResponse> => {
+  // Parámetros base
+  const params: Record<string, string | number | boolean> = {
+    taskLimit,
+    taskPage,
+    examLimit,
+    examPage
+  };
+
+  // Añadir filtros si existen
+  if (filters) {
+    if (filters.course_id) params.course_id = filters.course_id;
+    if (filters.title) params.title = filters.title;
+    if (filters.published !== null && filters.published !== undefined) params.published = filters.published;
+    if (filters.is_active !== null && filters.is_active !== undefined) params.is_active = filters.is_active;
+    
+    // Formatear fechas si existen
+    if (filters.due_date) {
+      params.due_date = format(filters.due_date, 'yyyy-MM-dd');
+    }
+    if (filters.date) {
+      params.date = format(filters.date, 'yyyy-MM-dd');
+    }
+  }
+
   const response = await courseClient.get('/tasks/gateway', {
-    params: {
-      taskLimit,
-      taskPage,
-      examLimit,
-      examPage
-    },
+    params,
     headers: {
       'Authorization': `Bearer ${token}`
     }
@@ -74,12 +103,37 @@ export default function TeacherAssignmentsScreen() {
   const [taskPage, setTaskPage] = useState(1);
   const [examPage, setExamPage] = useState(1);
 
+  // Estados para filtros
+  const [filters, setFilters] = useState({
+    course_id: '',
+    title: '',
+    due_date: null as Date | null,
+    date: null as Date | null,
+    published: null as boolean | null,
+    is_active: null as boolean | null,
+  });
+
+  // Estados para los filtros actuales de búsqueda
+  const [searchFilters, setSearchFilters] = useState({
+    course_id: '',
+    title: '',
+    due_date: null as Date | null,
+    date: null as Date | null,
+    published: null as boolean | null,
+    is_active: null as boolean | null,
+  });
+
+  // Estados para UI de los filtros
+  const [showDueDatePicker, setShowDueDatePicker] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [filtersVisible, setFiltersVisible] = useState(false);
+
   // Verificar que el usuario sea docente
   const isTeacher = session?.userType === "teacher" || session?.userType === "administrator";
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['teacher-assignments', taskPage, examPage],
-    queryFn: () => fetchTeacherAssignments(session?.token || '', 5, taskPage, 5, examPage),
+    queryKey: ['teacher-assignments', taskPage, examPage, searchFilters],
+    queryFn: () => fetchTeacherAssignments(session?.token || '', 5, taskPage, 5, examPage, searchFilters),
     enabled: !!session?.token && isTeacher,
     staleTime: 0,
     gcTime: 0,
@@ -93,6 +147,29 @@ export default function TeacherAssignmentsScreen() {
 
   const handleExamPageChange = (newPage: number) => {
     setExamPage(newPage);
+  };
+
+  // Función para aplicar filtros
+  const applyFilters = () => {
+    setSearchFilters(filters);
+    setTaskPage(1);
+    setExamPage(1);
+  };
+
+  // Función para limpiar filtros
+  const clearFilters = () => {
+    const resetFilters = {
+      course_id: '',
+      title: '',
+      due_date: null,
+      date: null,
+      published: null,
+      is_active: null,
+    };
+    setFilters(resetFilters);
+    setSearchFilters(resetFilters);
+    setTaskPage(1);
+    setExamPage(1);
   };
 
   // Función para renderizar los controles de paginación
@@ -291,6 +368,115 @@ export default function TeacherAssignmentsScreen() {
           style={styles.segmentedButtons}
         />
 
+        {/* Control para mostrar/ocultar filtros */}
+        <View style={styles.headerControls}>
+          <TouchableOpacity onPress={() => setFiltersVisible(!filtersVisible)} style={{ marginBottom: 16 }}>
+            <Text style={styles.filterToggleText}>
+              {filtersVisible ? "Ocultar filtros ▲" : "Mostrar filtros ▼"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Filtros */}
+        {filtersVisible && (
+          <>
+            <TextInput
+              label="ID del curso"
+              value={filters.course_id}
+              onChangeText={(text) => setFilters((prev) => ({ ...prev, course_id: text }))}
+              mode="outlined"
+              style={styles.filterInput}
+            />
+
+            <TextInput
+              label="Buscar por título"
+              value={filters.title}
+              onChangeText={(text) => setFilters((prev) => ({ ...prev, title: text }))}
+              mode="outlined"
+              style={styles.filterInput}
+            />
+
+            <View style={styles.dropdownContainer}>
+              <Text style={styles.dropdownLabel}>Estado de publicación:</Text>
+              <Picker
+                selectedValue={filters.published}
+                onValueChange={(value) => setFilters((prev) => ({ ...prev, published: value }))}
+                style={styles.picker}
+              >
+                <Picker.Item label="Todos los estados" value={null} />
+                <Picker.Item label="Publicado" value={true} />
+                <Picker.Item label="Borrador" value={false} />
+              </Picker>
+            </View>
+
+            <View style={styles.dropdownContainer}>
+              <Text style={styles.dropdownLabel}>Estado activo:</Text>
+              <Picker
+                selectedValue={filters.is_active}
+                onValueChange={(value) => setFilters((prev) => ({ ...prev, is_active: value }))}
+                style={styles.picker}
+              >
+                <Picker.Item label="Todos los estados" value={null} />
+                <Picker.Item label="Activo" value={true} />
+                <Picker.Item label="Inactivo" value={false} />
+              </Picker>
+            </View>
+
+            <View style={styles.dateFilterContainer}>
+              <Button mode="outlined" onPress={() => setShowDueDatePicker(true)}>
+                {filters.due_date ? `Fecha límite: ${format(filters.due_date, 'dd/MM/yyyy')}` : "Fecha límite"}
+              </Button>
+              <Button mode="outlined" onPress={() => setShowDatePicker(true)}>
+                {filters.date ? `Fecha examen: ${format(filters.date, 'dd/MM/yyyy')}` : "Fecha examen"}
+              </Button>
+            </View>
+
+            {showDueDatePicker && (
+              <DateTimePicker
+                value={filters.due_date || new Date()}
+                mode="date"
+                display="default"
+                onChange={(event, selectedDate) => {
+                  setShowDueDatePicker(false);
+                  if (selectedDate) {
+                    setFilters((prev) => ({ ...prev, due_date: selectedDate }));
+                  }
+                }}
+              />
+            )}
+
+            {showDatePicker && (
+              <DateTimePicker
+                value={filters.date || new Date()}
+                mode="date"
+                display="default"
+                onChange={(event, selectedDate) => {
+                  setShowDatePicker(false);
+                  if (selectedDate) {
+                    setFilters((prev) => ({ ...prev, date: selectedDate }));
+                  }
+                }}
+              />
+            )}
+
+            <Button
+              mode="contained"
+              onPress={applyFilters}
+              style={styles.filterButton}
+            >
+              Aplicar filtros
+            </Button>
+
+            <Button
+              mode="outlined"
+              onPress={clearFilters}
+              style={styles.filterButton}
+            >
+              Limpiar filtros
+            </Button>
+          </>
+        )}
+
         {/* Lista de tareas */}
         {activeTab === 'tasks' && (
           <FlatList
@@ -474,5 +660,47 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     fontWeight: '500',
+  },
+  headerControls: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  filterToggleText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  filterInput: {
+    marginBottom: 16,
+  },
+  dropdownContainer: {
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  dropdownLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 4,
+    backgroundColor: '#f5f5f5',
+  },
+  picker: {
+    height: 50,
+    width: '100%',
+  },
+  dateFilterContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 16,
+    gap: 8,
+  },
+  filterButton: {
+    marginTop: 8,
+    marginBottom: 8,
   },
 });
