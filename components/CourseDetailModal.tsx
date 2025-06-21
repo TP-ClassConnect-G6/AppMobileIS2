@@ -107,7 +107,8 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
   const [forumModalVisible, setForumModalVisible] = useState(false);
   const [modulesModalVisible, setModulesModalVisible] = useState(false);
   const [isEnrolled, setIsEnrolled] = useState(false);
-  const [isTeacherAssigned, setIsTeacherAssigned] = useState(false);  const [isAuxiliar, setIsAuxiliar] = useState(false);
+  const [isTeacherAssigned, setIsTeacherAssigned] = useState(false);
+  const [isAuxiliar, setIsAuxiliar] = useState(false);
   const [canCreateExam, setCanCreateExam] = useState(false);
   const [canCreateTask, setCanCreateTask] = useState(false);
   const [canCommunicate, setCanCommunicate] = useState(false);
