@@ -22,6 +22,7 @@ type Session = {
   expirationTime: string;
   userId: string; // Ejemplo de otro parámetro
   userType: string; // Ejemplo de otro parámetro
+  email?: string; // Email del usuario
 };
 
 // Funciones que va a consumir el contexto
@@ -151,7 +152,6 @@ export function useInitializeSessionService() {
       .then((session) => session && setSession(session)) // si hay sesion guardada, la guardo en el estado
       .finally(() => setIsLoading(false));// cuando termine la carga, seteo isLoading en false
   }, []);
-
   //se tiene q llamar a la funcion de signInWithPassword para iniciar sesion
   const signInWithPassword = async (email: string, password: string) => {
     const { data } = await client.post("/login", {
@@ -159,11 +159,23 @@ export function useInitializeSessionService() {
       password,
     });
 
+    // Decodificar el token para extraer el email
+    let userEmail = email; // fallback al email usado en login
+    try {
+      const decodedToken: any = jwtDecode(data.token);
+      if (decodedToken.email) {
+        userEmail = decodedToken.email;
+      }
+    } catch (error) {
+      console.error('Error decodificando token:', error);
+    }
+
     const session: Session = {
       token: data.token,
       expirationTime: data.expires_in,
       userId: data.user_id,
       userType: data.user_type,
+      email: userEmail,
     };
 
     //Me guardo la session para el login biométrico

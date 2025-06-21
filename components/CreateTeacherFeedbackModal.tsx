@@ -53,25 +53,54 @@ const CreateTeacherFeedbackModal = ({ visible, onDismiss, onFeedbackCreated }: C
   // Estados adicionales
   const [selectedCourseId, setSelectedCourseId] = useState('');
   const [selectedStudentId, setSelectedStudentId] = useState('');
-  
-  // Obtener lista de cursos del teacher
+    // Obtener lista de cursos del teacher
   const { data: courses = [], isLoading: coursesLoading } = useQuery({
     queryKey: ['teacher-courses', session?.userId],
     queryFn: async () => {
       try {
-        const response = await courseClient.get(`/courses?user_login=${session?.userId}`, {
+        // Primero obtenemos la lista básica de cursos
+        const response = await courseClient.get(`/courses`, {
           headers: {
             'Authorization': `Bearer ${session?.token}`,
           }
         });
-        console.log('Cursos del teacher:', response.data);
-        return response.data?.response || [];
+        console.log('Cursos básicos del teacher:', response.data);
+        
+        const allCourses = response.data?.response || [];
+        
+        // Ahora filtraremos los cursos donde el teacher actual es el instructor
+        const teacherCourses = [];
+        
+        for (const course of allCourses) {
+          try {
+            console.log(course.course_id);
+            // Hacer GET para obtener detalles del curso
+            const courseDetailResponse = await courseClient.get(`/courses/${course.course_id}`, {
+              headers: {
+                'Authorization': `Bearer ${session?.token}`,
+              }
+            });
+            
+            const courseDetail = courseDetailResponse.data?.response;
+            console.log(`Detalles del curso ${course.course_id}:`, courseDetail);
+              // Verificar si el teacher actual es el instructor de este curso
+              
+            if (courseDetail && courseDetail.teacher === session?.email) {
+              teacherCourses.push(course);
+            }
+          } catch (error) {
+            console.error(`Error obteniendo detalles del curso ${course.course_id}:`, error);
+          }
+        }
+        
+        console.log('Cursos donde soy instructor:', teacherCourses);
+        return teacherCourses;
       } catch (error) {
         console.error('Error fetching teacher courses:', error);
         return [];
       }
     },
-    enabled: visible && session?.userType === 'teacher' && !!session?.userId,
+    enabled: visible && session?.userType === 'teacher' && !!session?.userId && !!session?.email,
   });
     // Obtener lista de estudiantes del curso seleccionado
   const { data: students = [], isLoading: studentsLoading } = useQuery({
