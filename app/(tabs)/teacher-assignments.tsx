@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { StyleSheet, View, Text, FlatList, ActivityIndicator, RefreshControl, TouchableOpacity, Alert, Platform } from "react-native";
+import React, { useState, useEffect } from "react";
+import { StyleSheet, View, Text, FlatList, ActivityIndicator, RefreshControl, TouchableOpacity, Alert, Platform, Dimensions } from "react-native";
 import { Card, Title, Paragraph, Chip, Divider, Button, Provider, SegmentedButtons, TextInput } from "react-native-paper";
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -207,6 +207,21 @@ export default function TeacherAssignmentsScreen() {
     date: null as Date | null,
     published: null as boolean | null,
   });
+
+  // Hook para detectar pantallas pequeñas
+  const [isSmallScreen, setIsSmallScreen] = useState(false);
+
+  useEffect(() => {
+    const updateLayout = () => {
+      const { width } = Dimensions.get('window');
+      setIsSmallScreen(width < 400); // Considerar pantallas menores a 400px como pequeñas
+    };
+
+    updateLayout();
+    const subscription = Dimensions.addEventListener('change', updateLayout);
+    
+    return () => subscription?.remove();
+  }, []);
 
   // Estados para los filtros actuales de búsqueda
   const [searchFilters, setSearchFilters] = useState({
@@ -494,37 +509,46 @@ export default function TeacherAssignmentsScreen() {
           </View>
         </View>
       </Card.Content>
-
       <Card.Actions style={styles.cardActions}>
-        <Button 
-          mode="outlined"
-          onPress={() => {
-            setSelectedTaskId(item.task_id);
-            setTaskDetailVisible(true);
-          }}
-          style={styles.detailButton}
-          icon="eye"
-        >
-          Ver detalles
-        </Button>
-        <Button 
-          mode="outlined"
-          onPress={() => handleEditTask(item.task_id)}
-          style={styles.detailButton}
-          icon="pencil"
-        >
-          Editar
-        </Button>
-        <Button 
-          mode="outlined"
-          onPress={() => handleDeleteTask(item.task_id, item.title)}
-          style={[styles.detailButton, styles.deleteButton]}
-          icon="delete"
-          buttonColor="#f44336"
-          textColor="white"
-        >
-          Eliminar
-        </Button>
+        <View style={styles.buttonContainer}>
+          {/* Botón "Ver detalles" arriba */}
+          <Button 
+            mode="outlined"
+            onPress={() => {
+              setSelectedTaskId(item.task_id);
+              setTaskDetailVisible(true);
+            }}
+            style={styles.fullWidthButton}
+            icon="eye"
+            compact={isSmallScreen}
+          >
+            {isSmallScreen ? '' : 'Ver detalles'}
+          </Button>
+          
+          {/* Botones "Editar" y "Eliminar" abajo, uno al lado del otro */}
+          <View style={styles.bottomButtonsRow}>
+            <Button 
+              mode="outlined"
+              onPress={() => handleEditTask(item.task_id)}
+              style={[styles.halfWidthButton, isSmallScreen && styles.compactButton]}
+              icon="pencil"
+              compact={isSmallScreen}
+            >
+              {isSmallScreen ? '' : 'Editar'}
+            </Button>
+            <Button 
+              mode="outlined"
+              onPress={() => handleDeleteTask(item.task_id, item.title)}
+              style={[styles.halfWidthButton, styles.deleteButton, isSmallScreen && styles.compactButton]}
+              icon="delete"
+              buttonColor="#f44336"
+              textColor="white"
+              compact={isSmallScreen}
+            >
+              {isSmallScreen ? '' : 'Eliminar'}
+            </Button>
+          </View>
+        </View>
       </Card.Actions>
     </Card>
   );
@@ -562,37 +586,46 @@ export default function TeacherAssignmentsScreen() {
           </View>
         </View>
       </Card.Content>
-
       <Card.Actions style={styles.cardActions}>
-        <Button 
-          mode="outlined"
-          onPress={() => {
-            setSelectedExamId(item.exam_id);
-            setExamDetailVisible(true);
-          }}
-          style={styles.detailButton}
-          icon="eye"
-        >
-          Ver detalles
-        </Button>
-        <Button 
-          mode="outlined"
-          onPress={() => handleEditExam(item.exam_id)}
-          style={styles.detailButton}
-          icon="pencil"
-        >
-          Editar
-        </Button>
-        <Button 
-          mode="outlined"
-          onPress={() => handleDeleteExam(item.exam_id, item.title)}
-          style={[styles.detailButton, styles.deleteButton]}
-          icon="delete"
-          buttonColor="#f44336"
-          textColor="white"
-        >
-          Eliminar
-        </Button>
+        <View style={styles.buttonContainer}>
+          {/* Botón "Ver detalles" arriba */}
+          <Button 
+            mode="outlined"
+            onPress={() => {
+              setSelectedExamId(item.exam_id);
+              setExamDetailVisible(true);
+            }}
+            style={styles.fullWidthButton}
+            icon="eye"
+            compact={isSmallScreen}
+          >
+            {isSmallScreen ? '' : 'Ver detalles'}
+          </Button>
+          
+          {/* Botones "Editar" y "Eliminar" abajo, uno al lado del otro */}
+          <View style={styles.bottomButtonsRow}>
+            <Button 
+              mode="outlined"
+              onPress={() => handleEditExam(item.exam_id)}
+              style={[styles.halfWidthButton, isSmallScreen && styles.compactButton]}
+              icon="pencil"
+              compact={isSmallScreen}
+            >
+              {isSmallScreen ? '' : 'Editar'}
+            </Button>
+            <Button 
+              mode="outlined"
+              onPress={() => handleDeleteExam(item.exam_id, item.title)}
+              style={[styles.halfWidthButton, styles.deleteButton, isSmallScreen && styles.compactButton]}
+              icon="delete"
+              buttonColor="#f44336"
+              textColor="white"
+              compact={isSmallScreen}
+            >
+              {isSmallScreen ? '' : 'Eliminar'}
+            </Button>
+          </View>
+        </View>
       </Card.Actions>
     </Card>
   );
@@ -1042,17 +1075,38 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   cardActions: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     justifyContent: 'flex-end',
     paddingHorizontal: 16,
     paddingBottom: 16,
     gap: 8,
   },
+  buttonContainer: {
+    width: '100%',
+    gap: 8,
+  },
+  fullWidthButton: {
+    width: '100%',
+  },
+  bottomButtonsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },  halfWidthButton: {
+    flex: 1,
+    minWidth: 0, // Permitir que flex maneje el ancho
+  },
   detailButton: {
-    minWidth: 120,
+    flex: 1,
+    minWidth: 60,
+    maxWidth: 110,
+  },
+  compactButton: {
+    minWidth: 48,
+    maxWidth: 48,
+    paddingHorizontal: 0,
   },
   deleteButton: {
-    minWidth: 120,
+    // No agregar flex aquí para evitar conflictos con halfWidthButton
     backgroundColor: '#f44336',
   },
 });
