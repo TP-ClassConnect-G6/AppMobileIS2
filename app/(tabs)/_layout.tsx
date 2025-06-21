@@ -43,6 +43,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color }: { color: string }) => (
             <IconSymbol size={28} name="paperplane.fill" color={color} />
           ),
+          href: null, // Ocultar la tab de Explore
         }}
       />
       <Tabs.Screen
