@@ -20,6 +20,7 @@ const MAPPING = {
   'book-plus.fill': 'post-add',
   'doc.text.fill': 'article',
   'checklist.fill': 'checklist',
+  'briefcase.fill': 'work',
   'bell.fill': 'notifications',
   'bell.badge.fill': 'notifications-active',
   'gear.fill': 'settings',

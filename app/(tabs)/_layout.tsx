@@ -107,7 +107,7 @@ export default function TabLayout() {
         options={{
           title: "Mis Asignaciones",
           tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="clipboard.fill" color={color} />
+            <IconSymbol size={28} name="briefcase.fill" color={color} />
           ),
           href: isTeacher ? "/teacher-assignments" : null, // Solo mostrar para docentes
         }}
