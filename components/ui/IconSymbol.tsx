@@ -25,8 +25,9 @@ const MAPPING = {
   'bell.badge.fill': 'notifications-active',
   'gear.fill': 'settings',
   'graduationcap.fill': 'school',
-  'backpack.circle.fill': 'backpack',
-  'star.circle.fill': 'star',
+  'backpack.circle.fill': 'backpack',  'star.circle.fill': 'star',
+  'message.circle.fill': 'feedback',
+  'chat.bubble.fill': 'comment',
 } as const;
 
 // Tipo personalizado que incluye tanto los nombres de SF Symbols como nuestros nombres personalizados

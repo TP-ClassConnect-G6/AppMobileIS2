@@ -121,13 +121,12 @@ export default function TabLayout() {
             <IconSymbol size={28} name="backpack.circle.fill" color={color} />
           ),          href: session?.userType === 'student' ? "/mis-cursos" : null, // Solo mostrar para estudiantes
         }}
-      />
-      <Tabs.Screen
+      />      <Tabs.Screen
         name="mis-feedbacks"
         options={{
           title: "Mis Feedbacks",
           tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="message.fill" color={color} />
+            <IconSymbol size={28} name="chat.bubble.fill" color={color} />
           ),
           href: session?.userType === 'student' ? "/mis-feedbacks" as any : null, // Solo mostrar para estudiantes
         }}
