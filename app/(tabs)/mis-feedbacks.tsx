@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { StyleSheet, View, ScrollView, Alert } from 'react-native';
-import { Text, Card, FAB, Portal } from 'react-native-paper';
+import { Text, Card, FAB, Portal, Button } from 'react-native-paper';
 import { useSession } from '@/contexts/session';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import CreateFeedbackModal from '../../components/CreateFeedbackModal';
@@ -32,10 +32,22 @@ export default function MisFeedbacksScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Mis Feedbacks</Text>
-        <Text style={styles.subtitle}>
-          Aquí podrás ver todos los feedbacks que has enviado
-        </Text>
+        <View style={styles.headerContent}>
+          <View style={styles.titleContainer}>
+            <Text style={styles.title}>Mis Feedbacks</Text>
+            <Text style={styles.subtitle}>
+              Aquí podrás ver todos los feedbacks que has enviado
+            </Text>
+          </View>
+          <Button
+            mode="contained"
+            onPress={handleCreateFeedback}
+            style={styles.headerButton}
+            icon="plus"
+          >
+            Nuevo Feedback
+          </Button>
+        </View>
       </View>
 
       <ScrollView style={styles.content}>
@@ -60,16 +72,7 @@ export default function MisFeedbacksScreen() {
             </Card>
           ))
         )}
-      </ScrollView>
-
-      <Portal>
-        <FAB
-          icon="plus"
-          style={styles.fab}
-          onPress={handleCreateFeedback}
-          label="Nuevo Feedback"
-        />
-      </Portal>
+        </ScrollView>
 
       <CreateFeedbackModal
         visible={showCreateModal}
@@ -91,6 +94,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  titleContainer: {
+    flex: 1,
+    marginRight: 15,
+  },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
@@ -99,6 +111,10 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: '#666',
+  },
+  headerButton: {
+    backgroundColor: '#6200ea',
+    marginTop: 5,
   },
   content: {
     flex: 1,
@@ -122,12 +138,5 @@ const styles = StyleSheet.create({
   feedbackCard: {
     marginBottom: 15,
     backgroundColor: '#fff',
-  },
-  fab: {
-    position: 'absolute',
-    margin: 16,
-    right: 0,
-    bottom: 0,
-    backgroundColor: '#6200ea',
   },
 });

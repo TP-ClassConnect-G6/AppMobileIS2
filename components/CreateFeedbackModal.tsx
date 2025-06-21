@@ -19,9 +19,14 @@ type Feedback = {
 
 // Tipo para un curso
 type Course = {
-  id: string;
-  name: string;
+  course_id: string;
+  course_name: string;
   description: string;
+  date_init: string;
+  date_end: string;
+  quota: number;
+  category: string | null;
+  message?: string;
 };
 
 // Props para el modal
@@ -51,20 +56,27 @@ const CreateFeedbackModal = ({ visible, onDismiss, onFeedbackCreated }: CreateFe
   
   // Estados adicionales
   const [selectedCourseId, setSelectedCourseId] = useState('');
-  
-  // Obtener lista de cursos del estudiante
+    // Obtener lista de cursos del estudiante
   const { data: courses = [], isLoading: coursesLoading } = useQuery({
-    queryKey: ['student-courses', session?.userId],
+    queryKey: ['student-enrolled-courses', session?.userId],
     queryFn: async () => {
       try {
-        const response = await courseClient.get('/courses/student');
-        return response.data?.courses || [];
+        const response = await courseClient.get(`/courses?user_login=${session?.userId}`);
+        console.log('Cursos obtenidos:', response.data);
+        
+        // Filtrar solo los cursos donde el estudiante está inscrito
+        const enrolledCourses = response.data?.response?.filter((course: Course) => 
+          course.message === "Enrolled in course"
+        ) || [];
+        
+        console.log('Cursos donde está inscrito:', enrolledCourses);
+        return enrolledCourses;
       } catch (error) {
         console.error('Error fetching student courses:', error);
         return [];
       }
     },
-    enabled: visible && session?.userType === 'student',
+    enabled: visible && session?.userType === 'student' && !!session?.userId,
   });
   
   // Función para crear feedback
@@ -150,9 +162,9 @@ const CreateFeedbackModal = ({ visible, onDismiss, onFeedbackCreated }: CreateFe
                   <Picker.Item label="Selecciona un curso" value="" />
                   {courses.map((course: Course) => (
                     <Picker.Item 
-                      key={course.id} 
-                      label={course.name} 
-                      value={course.id} 
+                      key={course.course_id} 
+                      label={course.course_name} 
+                      value={course.course_id} 
                     />
                   ))}
                 </Picker>
