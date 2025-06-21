@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { StyleSheet, View, ScrollView, Alert } from "react-native";
-import { Modal, Portal, Text, Title, Button, TextInput, Divider, Switch } from "react-native-paper";
+import { Modal, Portal, Text, Title, Button, TextInput, Divider, Switch, HelperText } from "react-native-paper";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useForm, Controller } from 'react-hook-form';
 import { courseClient } from "@/lib/http";
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { format } from "date-fns";
@@ -34,6 +35,17 @@ type EditExamModalProps = {
   courseId: string | null;
 };
 
+// Tipo para el formulario
+type ExamFormData = {
+  title: string;
+  description: string;
+  duration: string;
+  location: string;
+  gracePeriod: string;
+  submissionRules: string;
+  newQuestion: string;
+};
+
 // Función para actualizar un examen
 const updateExam = async (exam: Exam): Promise<any> => {
   try {
@@ -59,32 +71,41 @@ const updateExam = async (exam: Exam): Promise<any> => {
 
 const EditExamModal = ({ visible, onDismiss, exam, courseId }: EditExamModalProps) => {
   const queryClient = useQueryClient();
-    // Estados para los campos del formulario
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
+  
+  // React Hook Form
+  const { control, handleSubmit, formState: { errors }, setValue, getValues, reset, setError, clearErrors, watch } = useForm<ExamFormData>({
+    defaultValues: {
+      title: '',
+      description: '',
+      duration: '',
+      location: '',
+      gracePeriod: '',
+      submissionRules: '',
+      newQuestion: '',
+    }
+  });
+  
+  // Watch the newQuestion field for real-time updates
+  const newQuestionValue = watch('newQuestion');
+  
+  // Estados que no van en el formulario
   const [examDate, setExamDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [duration, setDuration] = useState("");
-  const [location, setLocation] = useState("");
   const [openBook, setOpenBook] = useState(false);
-  const [gracePeriod, setGracePeriod] = useState("");
-  const [submissionRules, setSubmissionRules] = useState("");
   const [questions, setQuestions] = useState<string[]>([]);
-  const [newQuestion, setNewQuestion] = useState("");
   
   // Estado para manejar el botón de guardar
-  const [isSaving, setIsSaving] = useState(false);
-  // Actualizar los estados cuando el examen cambia
+  const [isSaving, setIsSaving] = useState(false);  // Actualizar los estados cuando el examen cambia
   useEffect(() => {
     if (exam) {
-      setTitle(exam.title);
-      setDescription(exam.description);
+      setValue('title', exam.title);
+      setValue('description', exam.description);
       setExamDate(new Date(exam.date));
-      setDuration(exam.duration.toString());
-      setLocation(exam.location);
+      setValue('duration', exam.duration.toString());
+      setValue('location', exam.location);
       setOpenBook(exam.additional_info?.open_book || false);
-      setGracePeriod(exam.additional_info?.grace_period || "");
-      setSubmissionRules(exam.additional_info?.submission_rules || "");
+      setValue('gracePeriod', exam.additional_info?.grace_period || "");
+      setValue('submissionRules', exam.additional_info?.submission_rules || "");
       
       // Cargar preguntas si existen
       if (exam.additional_info?.questions) {
@@ -96,7 +117,7 @@ const EditExamModal = ({ visible, onDismiss, exam, courseId }: EditExamModalProp
         setQuestions([]);
       }
       
-      setNewQuestion("");
+      setValue('newQuestion', "");
     }
   }, [exam]);
 
@@ -146,12 +167,11 @@ const EditExamModal = ({ visible, onDismiss, exam, courseId }: EditExamModalProp
     setShowDatePicker(false);
     setExamDate(currentDate);
   };
-
   // Añadir una nueva pregunta
   const addQuestion = () => {
-    if (newQuestion.trim()) {
-      setQuestions([...questions, newQuestion.trim()]);
-      setNewQuestion("");
+    if (newQuestionValue?.trim()) {
+      setQuestions([...questions, newQuestionValue.trim()]);
+      setValue('newQuestion', "");
     }
   };
 
@@ -159,13 +179,12 @@ const EditExamModal = ({ visible, onDismiss, exam, courseId }: EditExamModalProp
   const removeQuestion = (index: number) => {
     setQuestions(questions.filter((_, i) => i !== index));
   };
-
-  // Manejar el guardado del examen
-  const handleSaveExam = () => {
+  // Función para manejar el envío del formulario
+  const onSubmit = (formData: ExamFormData) => {
     if (!exam) return;
     
     // Validar campos obligatorios
-    if (!title.trim() || !description.trim() || !duration || !location.trim()) {
+    if (!formData.title.trim() || !formData.description.trim() || !formData.duration || !formData.location.trim()) {
       Alert.alert("Error", "Por favor complete todos los campos obligatorios.");
       return;
     }
@@ -173,16 +192,16 @@ const EditExamModal = ({ visible, onDismiss, exam, courseId }: EditExamModalProp
     // Crear el objeto de examen actualizado
     const updatedExam: Exam = {
       ...exam,
-      title: title.trim(),
-      description: description.trim(),
+      title: formData.title.trim(),
+      description: formData.description.trim(),
       date: examDate.toISOString(),
-      duration: parseInt(duration, 10),
-      location: location.trim(),
+      duration: parseInt(formData.duration, 10),
+      location: formData.location.trim(),
       additional_info: {
         open_book: openBook,
         // Solo incluimos estos campos si tienen valor
-        ...(gracePeriod.trim() ? { grace_period: gracePeriod.trim() } : {}),
-        ...(submissionRules.trim() ? { submission_rules: submissionRules.trim() } : {}),
+        ...(formData.gracePeriod.trim() ? { grace_period: formData.gracePeriod.trim() } : {}),
+        ...(formData.submissionRules.trim() ? { submission_rules: formData.submissionRules.trim() } : {}),
         // Incluir preguntas si hay
         ...(questions.length > 0 ? { questions: questions.join("\n---\n") } : {})
       }
@@ -192,6 +211,9 @@ const EditExamModal = ({ visible, onDismiss, exam, courseId }: EditExamModalProp
     // Ejecutar la mutación
     updateMutation.mutate(updatedExam);
   };
+
+  // Manejar el guardado del examen
+  const handleSaveExam = handleSubmit(onSubmit);
 
   return (
     <Portal>
@@ -203,24 +225,88 @@ const EditExamModal = ({ visible, onDismiss, exam, courseId }: EditExamModalProp
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <Title style={styles.title}>Editar Examen</Title>
           <Divider style={styles.divider} />
-
-          <TextInput
-            label="Título *"
-            value={title}
-            onChangeText={setTitle}
-            mode="outlined"
-            style={styles.input}
+          <Controller
+            control={control}
+            name="title"
+            rules={{
+              required: "El título es requerido",
+              minLength: {
+                value: 3,
+                message: "El título debe tener al menos 3 caracteres"
+              }
+            }}
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Título *"
+                value={value}
+                onChangeText={(text) => {
+                  onChange(text);
+                  if (text.trim().length >= 3) {
+                    clearErrors("title");
+                  }
+                }}
+                onBlur={() => {
+                  onBlur();
+                  if (!value || value.trim().length < 3) {
+                    setError("title", {
+                      type: "manual",
+                      message: !value ? "El título es requerido" : "El título debe tener al menos 3 caracteres"
+                    });
+                  }
+                }}
+                style={[styles.input, !!errors.title && styles.inputError]}
+                mode="outlined"
+                error={!!errors.title}
+                right={
+                  value && value.trim().length >= 3 ? 
+                  <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                }
+              />
+            )}
           />
-
-          <TextInput
-            label="Descripción *"
-            value={description}
-            onChangeText={setDescription}
-            mode="outlined"
-            multiline
-            numberOfLines={3}
-            style={styles.input}
+          {errors.title && <HelperText type="error">{errors.title.message}</HelperText>}
+          <Controller
+            control={control}
+            name="description"
+            rules={{
+              required: "La descripción es requerida",
+              minLength: {
+                value: 10,
+                message: "La descripción debe tener al menos 10 caracteres"
+              }
+            }}
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Descripción *"
+                value={value}
+                onChangeText={(text) => {
+                  onChange(text);
+                  if (text.trim().length >= 10) {
+                    clearErrors("description");
+                  }
+                }}
+                onBlur={() => {
+                  onBlur();
+                  if (!value || value.trim().length < 10) {
+                    setError("description", {
+                      type: "manual",
+                      message: !value ? "La descripción es requerida" : "La descripción debe tener al menos 10 caracteres"
+                    });
+                  }
+                }}
+                style={[styles.input, !!errors.description && styles.inputError]}
+                mode="outlined"
+                multiline
+                numberOfLines={3}
+                error={!!errors.description}
+                right={
+                  value && value.trim().length >= 10 ? 
+                  <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                }
+              />
+            )}
           />
+          {errors.description && <HelperText type="error">{errors.description.message}</HelperText>}
 
           <View style={styles.datePickerContainer}>
             <Text style={styles.inputLabel}>Fecha del examen *</Text>
@@ -237,57 +323,192 @@ const EditExamModal = ({ visible, onDismiss, exam, courseId }: EditExamModalProp
               onChange={handleDateChange}
             />
           )}
-
-          <TextInput
-            label="Duración en minutos *"
-            value={duration}
-            onChangeText={text => {
-              // Solo permitir números
-              if (/^\d*$/.test(text)) {
-                setDuration(text);
+          <Controller
+            control={control}
+            name="duration"
+            rules={{
+              required: "La duración es requerida",
+              pattern: {
+                value: /^\d+$/,
+                message: "La duración debe ser un número válido"
+              },
+              validate: (value) => {
+                const num = parseInt(value, 10);
+                if (num <= 0) return "La duración debe ser mayor a 0";
+                if (num > 600) return "La duración no puede ser mayor a 600 minutos";
+                return true;
               }
             }}
-            mode="outlined"
-            keyboardType="numeric"
-            style={styles.input}
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Duración en minutos *"
+                value={value}
+                onChangeText={(text) => {
+                  // Solo permitir números
+                  if (/^\d*$/.test(text)) {
+                    onChange(text);
+                    if (text && parseInt(text, 10) > 0 && parseInt(text, 10) <= 600) {
+                      clearErrors("duration");
+                    }
+                  }
+                }}
+                onBlur={() => {
+                  onBlur();
+                  if (!value || !value.trim()) {
+                    setError("duration", {
+                      type: "manual",
+                      message: "La duración es requerida"
+                    });
+                  } else {
+                    const num = parseInt(value, 10);
+                    if (num <= 0) {
+                      setError("duration", {
+                        type: "manual",
+                        message: "La duración debe ser mayor a 0"
+                      });
+                    } else if (num > 600) {
+                      setError("duration", {
+                        type: "manual",
+                        message: "La duración no puede ser mayor a 600 minutos"
+                      });
+                    }
+                  }
+                }}
+                style={[styles.input, !!errors.duration && styles.inputError]}
+                mode="outlined"
+                keyboardType="numeric"
+                error={!!errors.duration}
+                right={
+                  value && /^\d+$/.test(value) && parseInt(value, 10) > 0 && parseInt(value, 10) <= 600 ? 
+                  <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                }
+              />
+            )}
           />
-
-          <TextInput
-            label="Ubicación *"
-            value={location}
-            onChangeText={setLocation}
-            mode="outlined"
-            style={styles.input}
+          {errors.duration && <HelperText type="error">{errors.duration.message}</HelperText>}
+          <Controller
+            control={control}
+            name="location"
+            rules={{
+              required: "La ubicación es requerida",
+              minLength: {
+                value: 3,
+                message: "La ubicación debe tener al menos 3 caracteres"
+              }
+            }}
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Ubicación *"
+                value={value}
+                onChangeText={(text) => {
+                  onChange(text);
+                  if (text.trim().length >= 3) {
+                    clearErrors("location");
+                  }
+                }}
+                onBlur={() => {
+                  onBlur();
+                  if (!value || value.trim().length < 3) {
+                    setError("location", {
+                      type: "manual",
+                      message: !value ? "La ubicación es requerida" : "La ubicación debe tener al menos 3 caracteres"
+                    });
+                  }
+                }}
+                style={[styles.input, !!errors.location && styles.inputError]}
+                mode="outlined"
+                error={!!errors.location}
+                right={
+                  value && value.trim().length >= 3 ? 
+                  <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                }
+              />
+            )}
           />
+          {errors.location && <HelperText type="error">{errors.location.message}</HelperText>}
 
           <View style={styles.switchContainer}>
             <Text>Libro abierto</Text>
             <Switch value={openBook} onValueChange={setOpenBook} />
           </View>
-
-          <TextInput
-            label="Tiempo de tolerancia (minutos)"
-            value={gracePeriod}
-            onChangeText={text => {
-              // Solo permitir números
-              if (/^\d*$/.test(text)) {
-                setGracePeriod(text);
+          <Controller
+            control={control}
+            name="gracePeriod"
+            rules={{
+              pattern: {
+                value: /^\d*$/,
+                message: "El tiempo de tolerancia debe ser un número válido"
               }
             }}
-            mode="outlined"
-            keyboardType="numeric"
-            style={styles.input}
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Tiempo de tolerancia (minutos)"
+                value={value}
+                onChangeText={(text) => {
+                  // Solo permitir números
+                  if (/^\d*$/.test(text)) {
+                    onChange(text);
+                    if (!text || /^\d+$/.test(text)) {
+                      clearErrors("gracePeriod");
+                    }
+                  }
+                }}
+                onBlur={() => {
+                  onBlur();
+                  if (value && !/^\d+$/.test(value)) {
+                    setError("gracePeriod", {
+                      type: "manual",
+                      message: "El tiempo de tolerancia debe ser un número válido"
+                    });
+                  }
+                }}
+                style={[styles.input, !!errors.gracePeriod && styles.inputError]}
+                mode="outlined"
+                keyboardType="numeric"
+                error={!!errors.gracePeriod}
+                right={
+                  value && /^\d+$/.test(value) ? 
+                  <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                }
+              />
+            )}
           />
-          
-          <TextInput
-            label="Reglas de entrega"
-            value={submissionRules}
-            onChangeText={setSubmissionRules}
-            mode="outlined"
-            multiline
-            numberOfLines={3}
-            style={styles.input}
+          {errors.gracePeriod && <HelperText type="error">{errors.gracePeriod.message}</HelperText>}
+            <Controller
+            control={control}
+            name="submissionRules"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Reglas de entrega"
+                value={value}
+                onChangeText={(text) => {
+                  onChange(text);
+                  if (text && text.trim().length >= 5) {
+                    clearErrors("submissionRules");
+                  }
+                }}
+                onBlur={() => {
+                  onBlur();
+                  if (value && value.trim().length > 0 && value.trim().length < 5) {
+                    setError("submissionRules", {
+                      type: "manual",
+                      message: "Las reglas de entrega deben tener al menos 5 caracteres"
+                    });
+                  }
+                }}
+                style={[styles.input, !!errors.submissionRules && styles.inputError]}
+                mode="outlined"
+                multiline
+                numberOfLines={3}
+                error={!!errors.submissionRules}
+                right={
+                  value && value.trim().length >= 5 ? 
+                  <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                }
+              />
+            )}
           />
+          {errors.submissionRules && <HelperText type="error">{errors.submissionRules.message}</HelperText>}
 
           {/* Sección de preguntas dinámicas */}
           <Text style={styles.sectionTitle}>Preguntas</Text>
@@ -309,21 +530,42 @@ const EditExamModal = ({ visible, onDismiss, exam, courseId }: EditExamModalProp
               ))}
             </View>
           )}
-          
-          <View style={styles.addQuestionContainer}>
-            <TextInput
-              label="Nueva pregunta"
-              value={newQuestion}
-              onChangeText={setNewQuestion}
-              mode="outlined"
-              multiline
-              numberOfLines={2}
-              style={styles.input}
+            <View style={styles.addQuestionContainer}>
+            <Controller
+              name="newQuestion"
+              control={control}
+              rules={{
+                minLength: {
+                  value: 5,
+                  message: 'La pregunta debe tener al menos 5 caracteres'
+                }
+              }}
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Nueva pregunta"
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  mode="outlined"
+                  multiline
+                  numberOfLines={2}
+                  style={[styles.input, errors.newQuestion && styles.inputError]}
+                  error={!!errors.newQuestion}
+                  right={value && value.trim().length >= 5 ? 
+                    <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                  }
+                />
+              )}
             />
+            {errors.newQuestion && (
+              <HelperText type="error" visible={!!errors.newQuestion}>
+                {errors.newQuestion.message}
+              </HelperText>
+            )}
             <Button 
               mode="contained"
               onPress={addQuestion}
-              disabled={!newQuestion.trim()}
+              disabled={!newQuestionValue?.trim()}
               style={[styles.button, { marginBottom: 20 }]}
             >
               Añadir Pregunta
@@ -375,6 +617,9 @@ const styles = StyleSheet.create({
   },
   input: {
     marginBottom: 15,
+  },
+  inputError: {
+    borderColor: '#cf6679',
   },
   datePickerContainer: {
     marginBottom: 15,
