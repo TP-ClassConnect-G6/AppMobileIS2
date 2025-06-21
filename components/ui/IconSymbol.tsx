@@ -28,6 +28,7 @@ const MAPPING = {
   'backpack.circle.fill': 'backpack',  'star.circle.fill': 'star',
   'message.circle.fill': 'feedback',
   'chat.bubble.fill': 'comment',
+  'teacher.feedback.fill': 'rate-review',
 } as const;
 
 // Tipo personalizado que incluye tanto los nombres de SF Symbols como nuestros nombres personalizados
