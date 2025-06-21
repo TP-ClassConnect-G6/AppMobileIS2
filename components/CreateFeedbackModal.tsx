@@ -78,11 +78,15 @@ const CreateFeedbackModal = ({ visible, onDismiss, onFeedbackCreated }: CreateFe
     },
     enabled: visible && session?.userType === 'student' && !!session?.userId,
   });
-  
-  // Función para crear feedback
+    // Función para crear feedback
   const createFeedback = async (feedbackData: any) => {
     try {
-      const response = await courseClient.post('/feedback/course', feedbackData);
+      const response = await courseClient.post('/feedback/course', feedbackData, {
+        headers: {
+          'Authorization': `Bearer ${session?.token}`,
+          'Content-Type': 'application/json',
+        }
+      });
       console.log('Feedback creado:', response.data);
       return response.data;
     } catch (error) {
@@ -112,8 +116,7 @@ const CreateFeedbackModal = ({ visible, onDismiss, onFeedbackCreated }: CreateFe
       Alert.alert('Error', errorMessage);
     }
   });
-  
-  // Función para manejar el envío del formulario
+    // Función para manejar el envío del formulario
   const onSubmit = (formData: FeedbackFormData) => {
     if (!selectedCourseId) {
       Alert.alert('Error', 'Por favor selecciona un curso.');
@@ -122,8 +125,8 @@ const CreateFeedbackModal = ({ visible, onDismiss, onFeedbackCreated }: CreateFe
     
     const feedbackData = {
       course_id: selectedCourseId,
-      content: formData.content.trim(),
-      score: parseInt(formData.score, 10),
+      rating: parseInt(formData.score, 10),
+      comment: formData.content.trim(),
     };
     
     console.log('Enviando feedback:', feedbackData);
@@ -175,17 +178,15 @@ const CreateFeedbackModal = ({ visible, onDismiss, onFeedbackCreated }: CreateFe
           {/* Campo de contenido */}
           <Controller
             control={control}
-            name="content"
-            rules={{
-              required: "El contenido del feedback es requerido",
+            name="content"            rules={{
+              required: "El comentario es requerido",
               minLength: {
                 value: 10,
-                message: "El feedback debe tener al menos 10 caracteres"
+                message: "El comentario debe tener al menos 10 caracteres"
               }
             }}
-            render={({ field: { onChange, onBlur, value } }) => (
-              <TextInput
-                label="Contenido del Feedback *"
+            render={({ field: { onChange, onBlur, value } }) => (              <TextInput
+                label="Comentario *"
                 value={value}
                 onChangeText={(text) => {
                   onChange(text);
@@ -198,7 +199,7 @@ const CreateFeedbackModal = ({ visible, onDismiss, onFeedbackCreated }: CreateFe
                   if (!value || value.trim().length < 10) {
                     setError("content", {
                       type: "manual",
-                      message: !value ? "El contenido del feedback es requerido" : "El feedback debe tener al menos 10 caracteres"
+                      message: !value ? "El comentario es requerido" : "El comentario debe tener al menos 10 caracteres"
                     });
                   }
                 }}
@@ -220,18 +221,16 @@ const CreateFeedbackModal = ({ visible, onDismiss, onFeedbackCreated }: CreateFe
           {/* Campo de puntuación */}
           <Controller
             control={control}
-            name="score"
-            rules={{
-              required: "La puntuación es requerida",
+            name="score"            rules={{
+              required: "La calificación es requerida",
               validate: (value) => {
                 const num = parseInt(value, 10);
-                if (num < 1 || num > 5) return "La puntuación debe ser entre 1 y 5";
+                if (num < 1 || num > 5) return "La calificación debe ser entre 1 y 5";
                 return true;
               }
             }}
-            render={({ field: { onChange, onBlur, value } }) => (
-              <TextInput
-                label="Puntuación (1-5) *"
+            render={({ field: { onChange, onBlur, value } }) => (              <TextInput
+                label="Calificación (1-5) *"
                 value={value}
                 onChangeText={(text) => {
                   // Solo permitir números del 1 al 5
@@ -247,14 +246,14 @@ const CreateFeedbackModal = ({ visible, onDismiss, onFeedbackCreated }: CreateFe
                   if (!value || !value.trim()) {
                     setError("score", {
                       type: "manual",
-                      message: "La puntuación es requerida"
+                      message: "La calificación es requerida"
                     });
                   } else {
                     const num = parseInt(value, 10);
                     if (num < 1 || num > 5) {
                       setError("score", {
                         type: "manual",
-                        message: "La puntuación debe ser entre 1 y 5"
+                        message: "La calificación debe ser entre 1 y 5"
                       });
                     }
                   }
@@ -263,7 +262,7 @@ const CreateFeedbackModal = ({ visible, onDismiss, onFeedbackCreated }: CreateFe
                 mode="outlined"
                 keyboardType="numeric"
                 error={!!errors.score}
-                placeholder="Puntuación del 1 al 5"
+                placeholder="Calificación del 1 al 5"
                 right={
                   value && /^[1-5]$/.test(value) ? 
                   <TextInput.Icon icon="check-circle" color="green" /> : undefined
