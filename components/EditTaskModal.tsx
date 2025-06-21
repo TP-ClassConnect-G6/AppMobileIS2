@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { Modal, Portal, Text, Button, TextInput, Checkbox, Divider, HelperText } from 'react-native-paper';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
+import { useForm, Controller } from 'react-hook-form';
 import { courseClient } from '@/lib/http';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
@@ -32,29 +33,39 @@ interface EditTaskModalProps {
   courseId: string | null;
 }
 
+// Tipo para el formulario
+type TaskFormData = {
+  title: string;
+  description: string;
+  instructions: string;
+  newQuestion: string;
+};
+
 const EditTaskModal = ({ visible, onDismiss, task, courseId }: EditTaskModalProps) => {
   const queryClient = useQueryClient();
-    // Estado del formulario
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [instructions, setInstructions] = useState('');
+    // React Hook Form
+  const { control, handleSubmit, formState: { errors }, setValue, getValues, reset, setError, clearErrors, watch } = useForm<TaskFormData>({
+    defaultValues: {
+      title: '',
+      description: '',
+      instructions: '',
+      newQuestion: '',
+    }
+  });
+  
+  // Watch the newQuestion field for real-time updates
+  const newQuestionValue = watch('newQuestion');
+  
+  // Estados que no van en el formulario
   const [dueDate, setDueDate] = useState(new Date());
   const [type, setType] = useState('individual'); // individual o grupal
   const [questions, setQuestions] = useState<string[]>([]);
-  const [newQuestion, setNewQuestion] = useState('');
-  
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  
-  // Estado para errores
-  const [titleError, setTitleError] = useState('');
-  const [descriptionError, setDescriptionError] = useState('');
-  const [dueDateError, setDueDateError] = useState('');
-    // Inicializar el formulario cuando se abre el modal con una tarea
+  const [showDatePicker, setShowDatePicker] = useState(false);  // Inicializar el formulario cuando se abre el modal con una tarea
   useEffect(() => {
     if (task) {
-      setTitle(task.title || '');
-      setDescription(task.description || '');
-      setInstructions(task.instructions || '');
+      setValue('title', task.title || '');
+      setValue('description', task.description || '');
+      setValue('instructions', task.instructions || '');
       setType(task.extra_conditions?.type || 'individual');
       
       // Cargar preguntas si existen
@@ -77,26 +88,22 @@ const EditTaskModal = ({ visible, onDismiss, task, courseId }: EditTaskModalProp
       resetForm();
     }
   }, [task, visible]);
-  
-  // Reset form state
+    // Reset form state
   const resetForm = () => {
-    setTitle('');
-    setDescription('');
-    setInstructions('');
+    reset({
+      title: '',
+      description: '',
+      instructions: '',
+      newQuestion: '',
+    });
     setDueDate(new Date());
     setType('individual');
     setQuestions([]);
-    setNewQuestion('');
-    setTitleError('');
-    setDescriptionError('');
-    setDueDateError('');
-  };
-  
-  // Add a new question to the list
+  };    // Add a new question to the list
   const addQuestion = () => {
-    if (newQuestion.trim()) {
-      setQuestions([...questions, newQuestion.trim()]);
-      setNewQuestion('');
+    if (newQuestionValue?.trim()) {
+      setQuestions([...questions, newQuestionValue.trim()]);
+      setValue('newQuestion', '');
     }
   };
   
@@ -104,26 +111,9 @@ const EditTaskModal = ({ visible, onDismiss, task, courseId }: EditTaskModalProp
   const removeQuestion = (index: number) => {
     setQuestions(questions.filter((_, i) => i !== index));
   };
-  
-  // Validar el formulario
+    // Validar el formulario (no necesario con react-hook-form, pero se mantiene por compatibilidad)
   const validateForm = () => {
-    let isValid = true;
-    
-    if (!title.trim()) {
-      setTitleError('El título es obligatorio');
-      isValid = false;
-    } else {
-      setTitleError('');
-    }
-    
-    if (!description.trim()) {
-      setDescriptionError('La descripción es obligatoria');
-      isValid = false;
-    } else {
-      setDescriptionError('');
-    }
-    
-    return isValid;
+    return true; // React Hook Form maneja la validación automáticamente
   };
   
   // Función para actualizar una tarea existente
@@ -164,13 +154,13 @@ const EditTaskModal = ({ visible, onDismiss, task, courseId }: EditTaskModalProp
       // Aquí se puede manejar el error de manera más específica
     }
   });
-    const handleSave = () => {
-    if (!validateForm()) return;
-    
+
+  // Función para manejar el envío del formulario
+  const onSubmit = (formData: TaskFormData) => {
     const taskData = {
-      title,
-      description,
-      instructions,
+      title: formData.title,
+      description: formData.description,
+      instructions: formData.instructions,
       due_date: dueDate.toISOString(),
       course_id: courseId,
       extra_conditions: {
@@ -182,6 +172,8 @@ const EditTaskModal = ({ visible, onDismiss, task, courseId }: EditTaskModalProp
     
     saveMutation.mutate(taskData);
   };
+
+  const handleSave = handleSubmit(onSubmit);
   
   // Manejar cambios en el selector de fecha
   const onChangeDate = (event: any, selectedDate?: Date) => {
@@ -200,38 +192,111 @@ const EditTaskModal = ({ visible, onDismiss, task, courseId }: EditTaskModalProp
         <ScrollView>
           <Text style={styles.title}>{task ? 'Editar Tarea' : 'Nueva Tarea'}</Text>
           <Divider style={styles.divider} />
-          
-          <TextInput
-            label="Título"
-            value={title}
-            onChangeText={setTitle}
-            mode="outlined"
-            style={styles.input}
-            error={!!titleError}
+          <Controller
+            control={control}
+            name="title"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Título *"
+                value={value}
+                onChangeText={(text) => {
+                  onChange(text);
+                  if (text.trim().length >= 3) {
+                    clearErrors("title");
+                  }
+                }}
+                onBlur={() => {
+                  onBlur();
+                  if (!value || value.trim().length < 3) {
+                    setError("title", {
+                      type: "manual",
+                      message: !value ? "El título es requerido" : "El título debe tener al menos 3 caracteres"
+                    });
+                  }
+                }}
+                style={[styles.input, !!errors.title && styles.inputError]}
+                mode="outlined"
+                error={!!errors.title}
+                right={
+                  value && value.trim().length >= 3 ? 
+                  <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                }
+              />
+            )}
           />
-          {titleError ? <HelperText type="error">{titleError}</HelperText> : null}
+          {errors.title && <HelperText type="error">{errors.title.message}</HelperText>}
           
-          <TextInput
-            label="Descripción"
-            value={description}
-            onChangeText={setDescription}
-            mode="outlined"
-            multiline
-            numberOfLines={3}
-            style={styles.input}
-            error={!!descriptionError}
+          <Controller
+            control={control}
+            name="description"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Descripción *"
+                value={value}
+                onChangeText={(text) => {
+                  onChange(text);
+                  if (text.trim().length >= 10) {
+                    clearErrors("description");
+                  }
+                }}
+                onBlur={() => {
+                  onBlur();
+                  if (!value || value.trim().length < 10) {
+                    setError("description", {
+                      type: "manual",
+                      message: !value ? "La descripción es requerida" : "La descripción debe tener al menos 10 caracteres"
+                    });
+                  }
+                }}
+                style={[styles.input, !!errors.description && styles.inputError]}
+                mode="outlined"
+                multiline
+                numberOfLines={3}
+                error={!!errors.description}
+                right={
+                  value && value.trim().length >= 10 ? 
+                  <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                }
+              />
+            )}
           />
-          {descriptionError ? <HelperText type="error">{descriptionError}</HelperText> : null}
+          {errors.description && <HelperText type="error">{errors.description.message}</HelperText>}
           
-          <TextInput
-            label="Instrucciones"
-            value={instructions}
-            onChangeText={setInstructions}
-            mode="outlined"
-            multiline
-            numberOfLines={4}
-            style={styles.input}
+          <Controller
+            control={control}
+            name="instructions"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Instrucciones"
+                value={value}
+                onChangeText={(text) => {
+                  onChange(text);
+                  if (text.trim().length >= 5) {
+                    clearErrors("instructions");
+                  }
+                }}
+                onBlur={() => {
+                  onBlur();
+                  if (value && value.trim().length > 0 && value.trim().length < 5) {
+                    setError("instructions", {
+                      type: "manual",
+                      message: "Las instrucciones deben tener al menos 5 caracteres"
+                    });
+                  }
+                }}
+                style={[styles.input, !!errors.instructions && styles.inputError]}
+                mode="outlined"
+                multiline
+                numberOfLines={4}
+                error={!!errors.instructions}
+                right={
+                  value && value.trim().length >= 5 ? 
+                  <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                }
+              />
+            )}
           />
+          {errors.instructions && <HelperText type="error">{errors.instructions.message}</HelperText>}
           
           <View style={styles.datePickerContainer}>
             <Text style={styles.label}>Fecha de entrega:</Text>
@@ -291,21 +356,42 @@ const EditTaskModal = ({ visible, onDismiss, task, courseId }: EditTaskModalProp
               ))}
             </View>
           )}
-          
-          <View style={styles.addQuestionContainer}>
-            <TextInput
-              label="Nueva pregunta"
-              value={newQuestion}
-              onChangeText={setNewQuestion}
-              mode="outlined"
-              multiline
-              numberOfLines={2}
-              style={styles.input}
+            <View style={styles.addQuestionContainer}>
+            <Controller
+              name="newQuestion"
+              control={control}
+              rules={{
+                minLength: {
+                  value: 5,
+                  message: 'La pregunta debe tener al menos 5 caracteres'
+                }
+              }}
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  label="Nueva pregunta"
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  mode="outlined"
+                  multiline
+                  numberOfLines={2}
+                  style={[styles.input, errors.newQuestion && styles.inputError]}
+                  error={!!errors.newQuestion}
+                  right={value && value.trim().length >= 5 ? 
+                    <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                  }
+                />
+              )}
             />
+            {errors.newQuestion && (
+              <HelperText type="error" visible={!!errors.newQuestion}>
+                {errors.newQuestion.message}
+              </HelperText>
+            )}
             <Button 
               mode="contained"
               onPress={addQuestion}
-              disabled={!newQuestion.trim()}
+              disabled={!newQuestionValue?.trim()}
               style={[styles.button, { marginBottom: 20 }]}
             >
               Añadir Pregunta
@@ -355,6 +441,9 @@ const styles = StyleSheet.create({
   },
   input: {
     marginBottom: 15,
+  },
+  inputError: {
+    borderColor: '#cf6679',
   },
   label: {
     marginBottom: 5,
