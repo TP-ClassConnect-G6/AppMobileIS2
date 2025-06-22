@@ -60,12 +60,26 @@ type TaskDetail = {
   instructions: string;
   extra_conditions: {
     type: string;
+    questions?: string;
   };
   published: boolean;
   created_at: string;
   updated_at: string;
   is_active: boolean;
   module_id: string | null;
+};
+
+type UserProfile = {
+  user_id: string;
+  email: string;
+  user_type: string;
+  name: string;
+  bio: string;
+  location: string;
+  phone_number: string;
+  date_of_birth: string | null;
+  created_at: string;
+  is_blocked: boolean;
 };
 
 type StudentAssignmentsResponse = {
@@ -137,7 +151,6 @@ const fetchStudentAssignments = async (
       params.date = format(filters.date, 'yyyy-MM-dd');
     }
   }
-
   const response = await courseClient.get('/tasks/students/gateway', {
     params,
     headers: {
@@ -146,6 +159,21 @@ const fetchStudentAssignments = async (
   });
   
   return response.data;
+};
+
+// Función para obtener el perfil de usuario
+const fetchUserProfile = async (token: string, userId: string): Promise<UserProfile> => {
+  const response = await fetch(`https://usuariosis2-production.up.railway.app/profile/${userId}`, {
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch user profile');
+  }
+  
+  return response.json();
 };
 
 export default function StudentAssignmentsScreen() {
@@ -293,9 +321,11 @@ export default function StudentAssignmentsScreen() {
   const handleExamSubmissionCompleted = async () => {
     setExamModalVisible(false);
     setSelectedExamForSubmission(null);
-    // Invalidar y refrescar los datos para mostrar el estado actualizado
-    await queryClient.invalidateQueries({ queryKey: ['student-assignments'] });
-    refetch();  };  // Función para generar PDF de tarea
+    // Invalidar y refrescar los datos para mostrar el estado actualizado    await queryClient.invalidateQueries({ queryKey: ['student-assignments'] });
+    refetch();
+  };
+
+  // Función para generar PDF de tarea
   const handleDownloadTaskPDF = async (taskId: string, taskTitle: string) => {
     try {
       if (!session?.token) {
@@ -312,8 +342,38 @@ export default function StudentAssignmentsScreen() {
           'Authorization': `Bearer ${session.token}`
         }
       });
-
       const taskDetail: TaskDetail = taskResponse.data;
+      
+      // Obtener información del propietario
+      let ownerName = taskDetail.owner; // Fallback al ID si no se puede obtener el nombre
+      try {
+        const userProfile = await fetchUserProfile(session.token, taskDetail.owner);
+        ownerName = userProfile.name || userProfile.email || taskDetail.owner;
+      } catch (profileError) {
+        console.warn('No se pudo obtener el perfil del propietario:', profileError);
+        // Mantener el ID como fallback
+      }
+      // Procesar las preguntas de extra_conditions
+      let questionsHtml = '';
+      if (taskDetail.extra_conditions?.questions) {
+        const questions = taskDetail.extra_conditions.questions.split('\n---\n').filter((q: string) => q.trim());
+        if (questions.length > 0) {
+          questionsHtml = `
+            <div class="section">
+              <h2 class="section-title">❓ Preguntas</h2>
+              <div class="questions-container">
+                ${questions.map((question: string, index: number) => `
+                  <div class="question-item">
+                    <div class="question-number">${index + 1}.</div>
+                    <div class="question-text">${question.trim()}</div>
+                    <div class="answer-space"></div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `;
+        }
+      }
 
       // Generar HTML para el PDF
       const htmlContent = `
@@ -385,6 +445,45 @@ export default function StudentAssignmentsScreen() {
               color: #333;
               font-size: 14px;
             }
+            .questions-container {
+              margin-top: 15px;
+            }
+            .question-item {
+              margin-bottom: 25px;
+              padding: 15px;
+              background-color: white;
+              border: 1px solid #e0e0e0;
+              border-radius: 8px;
+              page-break-inside: avoid;
+            }
+            .question-number {
+              font-weight: bold;
+              color: #2196f3;
+              font-size: 16px;
+              margin-bottom: 8px;
+            }
+            .question-text {
+              font-size: 14px;
+              margin-bottom: 15px;
+              color: #333;
+            }
+            .answer-space {
+              height: 80px;
+              border: 1px dashed #ccc;
+              background-color: #fafafa;
+              margin-top: 10px;
+              position: relative;
+            }
+            .answer-space::after {
+              content: "Espacio para respuesta";
+              position: absolute;
+              top: 50%;
+              left: 50%;
+              transform: translate(-50%, -50%);
+              color: #999;
+              font-size: 12px;
+              font-style: italic;
+            }
             .status-pending { color: #ff9800; }
             .status-submitted { color: #2196f3; }
             .status-evaluated { color: #4caf50; }
@@ -408,10 +507,9 @@ export default function StudentAssignmentsScreen() {
             <div class="info-item">
               <div class="info-label">Fecha de Vencimiento:</div>
               <div class="info-value">${format(new Date(taskDetail.due_date), 'dd MMMM yyyy', { locale: es })}</div>
-            </div>
-            <div class="info-item">
+            </div>            <div class="info-item">
               <div class="info-label">Propietario:</div>
-              <div class="info-value">${taskDetail.owner}</div>
+              <div class="info-value">${ownerName}</div>
             </div>
             <div class="info-item">
               <div class="info-label">Tipo:</div>
@@ -432,6 +530,8 @@ export default function StudentAssignmentsScreen() {
             <h2 class="section-title">📝 Instrucciones</h2>
             <p class="section-content">${taskDetail.instructions || 'No hay instrucciones específicas.'}</p>
           </div>
+
+          ${questionsHtml}
 
           <div class="info-grid">
             <div class="info-item">
