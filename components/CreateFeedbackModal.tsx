@@ -178,14 +178,16 @@ const CreateFeedbackModal = ({ visible, onDismiss, onFeedbackCreated }: CreateFe
           {/* Campo de contenido */}
           <Controller
             control={control}
-            name="content"            rules={{
+            name="content"
+            rules={{
               required: "El comentario es requerido",
               minLength: {
                 value: 10,
                 message: "El comentario debe tener al menos 10 caracteres"
               }
             }}
-            render={({ field: { onChange, onBlur, value } }) => (              <TextInput
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
                 label="Comentario *"
                 value={value}
                 onChangeText={(text) => {
@@ -221,7 +223,8 @@ const CreateFeedbackModal = ({ visible, onDismiss, onFeedbackCreated }: CreateFe
           {/* Campo de puntuación */}
           <Controller
             control={control}
-            name="score"            rules={{
+            name="score"
+            rules={{
               required: "La calificación es requerida",
               validate: (value) => {
                 const num = parseInt(value, 10);
@@ -229,7 +232,8 @@ const CreateFeedbackModal = ({ visible, onDismiss, onFeedbackCreated }: CreateFe
                 return true;
               }
             }}
-            render={({ field: { onChange, onBlur, value } }) => (              <TextInput
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
                 label="Calificación (1-5) *"
                 value={value}
                 onChangeText={(text) => {
