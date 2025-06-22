@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { StyleSheet, View, Text, FlatList, ActivityIndicator, RefreshControl, TouchableOpacity, Alert, Platform, Dimensions } from "react-native";
+import { StyleSheet, View, Text, FlatList, ActivityIndicator, RefreshControl, TouchableOpacity, Alert, Platform, Dimensions, Linking } from "react-native";
 import { Card, Title, Paragraph, Chip, Divider, Button, Provider, SegmentedButtons, TextInput } from "react-native-paper";
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -11,6 +11,9 @@ import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import TaskSubmissionModal from '@/components/TaskSubmissionModal';
 import ExamSubmissionModal from '@/components/ExamSubmissionModal';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import * as Print from 'expo-print';
 
 // Tipo para la respuesta de cursos
 type Course = {
@@ -45,6 +48,24 @@ type StudentExam = {
   published: boolean;
   course_id: string;
   status: 'Pending' | 'Submitted' | 'Evaluated';
+};
+
+type TaskDetail = {
+  id: string;
+  course_id: string;
+  title: string;
+  description: string;
+  due_date: string;
+  owner: string;
+  instructions: string;
+  extra_conditions: {
+    type: string;
+  };
+  published: boolean;
+  created_at: string;
+  updated_at: string;
+  is_active: boolean;
+  module_id: string | null;
 };
 
 type StudentAssignmentsResponse = {
@@ -173,10 +194,12 @@ export default function StudentAssignmentsScreen() {
   // Estados para el modal de entrega de tareas
   const [submissionModalVisible, setSubmissionModalVisible] = useState(false);
   const [selectedTaskForSubmission, setSelectedTaskForSubmission] = useState<StudentTask | null>(null);
-
   // Estados para el modal de exámenes
   const [examModalVisible, setExamModalVisible] = useState(false);
   const [selectedExamForSubmission, setSelectedExamForSubmission] = useState<StudentExam | null>(null);
+
+  // Estado para indicar si se está descargando un PDF
+  const [downloadingTaskId, setDownloadingTaskId] = useState<string | null>(null);
 
   // Verificar que el usuario sea estudiante
   const isStudent = session?.userType === "student";
@@ -272,7 +295,208 @@ export default function StudentAssignmentsScreen() {
     setSelectedExamForSubmission(null);
     // Invalidar y refrescar los datos para mostrar el estado actualizado
     await queryClient.invalidateQueries({ queryKey: ['student-assignments'] });
-    refetch();
+    refetch();  };  // Función para generar PDF de tarea
+  const handleDownloadTaskPDF = async (taskId: string, taskTitle: string) => {
+    try {
+      if (!session?.token) {
+        Alert.alert('Error', 'No hay sesión activa');
+        return;
+      }
+
+      // Establecer estado de carga
+      setDownloadingTaskId(taskId);
+
+      // Obtener detalles de la tarea
+      const taskResponse = await courseClient.get(`/tasks/${taskId}`, {
+        headers: {
+          'Authorization': `Bearer ${session.token}`
+        }
+      });
+
+      const taskDetail: TaskDetail = taskResponse.data;
+
+      // Generar HTML para el PDF
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>${taskDetail.title}</title>
+          <style>
+            body {
+              font-family: 'Arial', sans-serif;
+              margin: 40px;
+              line-height: 1.6;
+              color: #333;
+            }
+            .header {
+              text-align: center;
+              border-bottom: 3px solid #2196f3;
+              padding-bottom: 20px;
+              margin-bottom: 30px;
+            }
+            .title {
+              color: #2196f3;
+              font-size: 28px;
+              font-weight: bold;
+              margin: 0;
+            }
+            .subtitle {
+              color: #666;
+              font-size: 14px;
+              margin-top: 5px;
+            }
+            .section {
+              margin-bottom: 25px;
+              padding: 15px;
+              background-color: #f9f9f9;
+              border-left: 4px solid #2196f3;
+              border-radius: 5px;
+            }
+            .section-title {
+              color: #2196f3;
+              font-size: 18px;
+              font-weight: bold;
+              margin: 0 0 10px 0;
+            }
+            .section-content {
+              font-size: 14px;
+              margin: 0;
+            }
+            .info-grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 20px;
+              margin-bottom: 25px;
+            }
+            .info-item {
+              background-color: #f5f5f5;
+              padding: 15px;
+              border-radius: 8px;
+              border: 1px solid #e0e0e0;
+            }
+            .info-label {
+              font-weight: bold;
+              color: #2196f3;
+              margin-bottom: 5px;
+              font-size: 14px;
+            }
+            .info-value {
+              color: #333;
+              font-size: 14px;
+            }
+            .status-pending { color: #ff9800; }
+            .status-submitted { color: #2196f3; }
+            .status-evaluated { color: #4caf50; }
+            .footer {
+              margin-top: 40px;
+              padding-top: 20px;
+              border-top: 1px solid #e0e0e0;
+              text-align: center;
+              font-size: 12px;
+              color: #666;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1 class="title">${taskDetail.title}</h1>
+            <p class="subtitle">Detalles de la Tarea</p>
+          </div>
+
+          <div class="info-grid">
+            <div class="info-item">
+              <div class="info-label">Fecha de Vencimiento:</div>
+              <div class="info-value">${format(new Date(taskDetail.due_date), 'dd MMMM yyyy', { locale: es })}</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">Propietario:</div>
+              <div class="info-value">${taskDetail.owner}</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">Tipo:</div>
+              <div class="info-value">${taskDetail.extra_conditions?.type || 'No especificado'}</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">Estado:</div>
+              <div class="info-value">${taskDetail.published ? 'Publicada' : 'No publicada'}</div>
+            </div>
+          </div>
+
+          <div class="section">
+            <h2 class="section-title">📋 Descripción</h2>
+            <p class="section-content">${taskDetail.description || 'No hay descripción disponible.'}</p>
+          </div>
+
+          <div class="section">
+            <h2 class="section-title">📝 Instrucciones</h2>
+            <p class="section-content">${taskDetail.instructions || 'No hay instrucciones específicas.'}</p>
+          </div>
+
+          <div class="info-grid">
+            <div class="info-item">
+              <div class="info-label">Fecha de Creación:</div>
+              <div class="info-value">${format(new Date(taskDetail.created_at), 'dd MMMM yyyy - HH:mm', { locale: es })}</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">Última Actualización:</div>
+              <div class="info-value">${format(new Date(taskDetail.updated_at), 'dd MMMM yyyy - HH:mm', { locale: es })}</div>
+            </div>
+          </div>
+
+          <div class="footer">
+            <p>Documento generado el ${format(new Date(), 'dd MMMM yyyy - HH:mm', { locale: es })}</p>
+            <p>ClassConnect - Sistema de Gestión Académica</p>
+          </div>
+        </body>
+        </html>
+      `;
+
+      // Generar PDF usando expo-print
+      const { uri } = await Print.printToFileAsync({
+        html: htmlContent,
+        base64: false
+      });
+
+      // Verificar si se puede compartir archivos
+      const canShare = await Sharing.isAvailableAsync();
+      
+      if (canShare) {
+        // Usar expo-sharing para abrir el archivo con otras aplicaciones
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: `${taskDetail.title} - Detalles de la Tarea`,
+          UTI: 'com.adobe.pdf'
+        });
+      } else {
+        // Fallback para plataformas que no soportan sharing
+        if (Platform.OS === 'android') {
+          try {
+            const contentUri = await FileSystem.getContentUriAsync(uri);
+            await Linking.openURL(contentUri);
+          } catch (linkError) {
+            Alert.alert(
+              'PDF Generado', 
+              `El PDF se ha generado exitosamente.\nUbicación: ${uri}`
+            );
+          }
+        } else {
+          Alert.alert(
+            'PDF Generado', 
+            `El PDF se ha generado exitosamente para la tarea: ${taskDetail.title}`
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Error al generar PDF:', error);
+      Alert.alert(
+        'Error', 
+        `No se pudo generar el PDF: ${error instanceof Error ? error.message : 'Error desconocido'}`
+      );
+    } finally {
+      // Limpiar estado de carga
+      setDownloadingTaskId(null);
+    }
   };
 
   // Función para renderizar los controles de paginación
@@ -388,6 +612,21 @@ export default function StudentAssignmentsScreen() {
       </Card.Content>
       <Card.Actions style={styles.cardActions}>
         <View style={styles.buttonContainer}>
+            {/* Botón de descarga - disponible para todas las tareas publicadas */}
+          {item.published && (
+            <Button
+              mode="outlined"
+              onPress={() => handleDownloadTaskPDF(item.task_id, item.title)}
+              style={styles.fullWidthButton}
+              icon={downloadingTaskId === item.task_id ? "loading" : "download"}
+              loading={downloadingTaskId === item.task_id}
+              disabled={downloadingTaskId === item.task_id}
+            >
+              {downloadingTaskId === item.task_id ? "Generando..." : "Generar PDF"}
+            </Button>
+          )}
+          
+          {/* Botón de entrega - solo para tareas pendientes */}
           {item.status === 'Pending' && item.published && (
             <Button 
               mode="contained"
