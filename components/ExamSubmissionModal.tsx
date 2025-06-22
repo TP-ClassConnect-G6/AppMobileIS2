@@ -38,9 +38,10 @@ type ExamSubmissionModalProps = {
   onDismiss: () => void;
   examId: string;
   examTitle: string;
+  onSubmissionSuccess?: () => void;
 };
 
-const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle }: ExamSubmissionModalProps) => {
+const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle, onSubmissionSuccess }: ExamSubmissionModalProps) => {
   const { session } = useSession();
   const [answers, setAnswers] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<DocumentPicker.DocumentPickerAsset[]>([]);
@@ -258,11 +259,17 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle }: ExamSubm
       // Mostrar mensaje de confirmación antes de cambiar a la vista de éxito
       const lateMessage = submissionResponse.is_late ? 
         "\n\n⚠️ Nota: Esta entrega fue realizada fuera del tiempo establecido." : "";
-        
-      Alert.alert(
+          Alert.alert(
         "Entrega Exitosa",
         `Tu examen ha sido enviado correctamente.${lateMessage}`,
-        [{ text: "Ver detalles", style: "default" }]
+        [{ 
+          text: "Ver detalles", 
+          style: "default",
+          onPress: () => {
+            // Llamar el callback si existe
+            onSubmissionSuccess?.();
+          }
+        }]
       );
     } catch (error: any) {
       console.error("Error al enviar el examen:", error);

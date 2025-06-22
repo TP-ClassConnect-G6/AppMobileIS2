@@ -10,6 +10,7 @@ import { useSession } from "@/contexts/session";
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import TaskSubmissionModal from '@/components/TaskSubmissionModal';
+import ExamSubmissionModal from '@/components/ExamSubmissionModal';
 
 // Tipo para la respuesta de cursos
 type Course = {
@@ -169,10 +170,13 @@ export default function StudentAssignmentsScreen() {
   const [showDueDatePicker, setShowDueDatePicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [filtersVisible, setFiltersVisible] = useState(false);
-
   // Estados para el modal de entrega de tareas
   const [submissionModalVisible, setSubmissionModalVisible] = useState(false);
   const [selectedTaskForSubmission, setSelectedTaskForSubmission] = useState<StudentTask | null>(null);
+
+  // Estados para el modal de exámenes
+  const [examModalVisible, setExamModalVisible] = useState(false);
+  const [selectedExamForSubmission, setSelectedExamForSubmission] = useState<StudentExam | null>(null);
 
   // Verificar que el usuario sea estudiante
   const isStudent = session?.userType === "student";
@@ -226,16 +230,31 @@ export default function StudentAssignmentsScreen() {
     setTaskPage(1);
     setExamPage(1);
   };
-
   // Función para manejar la entrega de tarea
   const handleSubmitTask = (task: StudentTask) => {
     setSelectedTaskForSubmission(task);
     setSubmissionModalVisible(true);
   };
+
+  // Función para manejar la realización de examen
+  const handleSubmitExam = (exam: StudentExam) => {
+    setSelectedExamForSubmission(exam);
+    setExamModalVisible(true);
+  };
+
   // Función para manejar cuando se completa la entrega
   const handleSubmissionCompleted = async () => {
     setSubmissionModalVisible(false);
     setSelectedTaskForSubmission(null);
+    // Invalidar y refrescar los datos para mostrar el estado actualizado
+    await queryClient.invalidateQueries({ queryKey: ['student-assignments'] });
+    refetch();
+  };
+
+  // Función para manejar cuando se completa la entrega del examen
+  const handleExamSubmissionCompleted = async () => {
+    setExamModalVisible(false);
+    setSelectedExamForSubmission(null);
     // Invalidar y refrescar los datos para mostrar el estado actualizado
     await queryClient.invalidateQueries({ queryKey: ['student-assignments'] });
     refetch();
@@ -430,14 +449,10 @@ export default function StudentAssignmentsScreen() {
           >
             Ver Detalle
           </Button>
-          
-          {item.status === 'Pending' && item.published && (
+            {item.status === 'Pending' && item.published && (
             <Button 
               mode="outlined"
-              onPress={() => {
-                // TODO: Implementar realizar examen
-                Alert.alert('Información', 'Funcionalidad de realizar examen próximamente');
-              }}
+              onPress={() => handleSubmitExam(item)}
               style={styles.fullWidthButton}
               icon="pencil"
             >
@@ -689,6 +704,20 @@ export default function StudentAssignmentsScreen() {
           taskTitle={selectedTaskForSubmission.title}
           dueDate={selectedTaskForSubmission.due_date}
           onSubmissionSuccess={handleSubmissionCompleted}
+        />
+      )}
+
+      {/* Modal de realización de examen */}
+      {selectedExamForSubmission && (
+        <ExamSubmissionModal
+          visible={examModalVisible}
+          onDismiss={() => {
+            setExamModalVisible(false);
+            setSelectedExamForSubmission(null);
+          }}
+          examId={selectedExamForSubmission.exam_id}
+          examTitle={selectedExamForSubmission.title}
+          onSubmissionSuccess={handleExamSubmissionCompleted}
         />
       )}
     </Provider>
