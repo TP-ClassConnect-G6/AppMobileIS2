@@ -3,7 +3,7 @@ import { StyleSheet, View, ScrollView, Alert } from 'react-native';
 import { Modal, Portal, Text, Button, TextInput, Divider, HelperText } from 'react-native-paper';
 import { useQueryClient, useMutation, useQuery } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
-import { courseClient } from '@/lib/http';
+import { courseClient, client } from '@/lib/http';
 import { useSession } from '@/contexts/session';
 import { Picker } from '@react-native-picker/picker';
 
@@ -92,26 +92,27 @@ const CreateTeacherFeedbackModal = ({ visible, onDismiss, onFeedbackCreated }: C
         return [];
       }
     },    enabled: visible && session?.userType === 'teacher' && !!session?.userId && !!session?.email,  });
-  
-  // Función para buscar usuario por email
+    // Función para buscar usuario por email
   const getUserByEmail = async (email: string) => {
     try {
-      const response = await fetch(`https://usuariosis2-production.up.railway.app/profile/from_email/${email}`, {
+      const response = await client.get(`/profile/from_email/${email}`, {
         headers: {
           'Authorization': `Bearer ${session?.token}`,
         }
       });
       
-      if (!response.ok) {
-        throw new Error(`Error ${response.status}: Usuario no encontrado`);
+      console.log('Usuario encontrado:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error buscando usuario por email:', error);
+      
+      if (error.response && error.response.status === 404) {
+        throw new Error('Usuario no encontrado');
+      } else if (error.response && error.response.status) {
+        throw new Error(`Error ${error.response.status}: Usuario no encontrado`);
       }
       
-      const userData = await response.json();
-      console.log('Usuario encontrado:', userData);
-      return userData;
-    } catch (error) {
-      console.error('Error buscando usuario por email:', error);
-      throw error;
+      throw new Error('Error al buscar usuario');
     }
   };
   
@@ -134,7 +135,7 @@ const CreateTeacherFeedbackModal = ({ visible, onDismiss, onFeedbackCreated }: C
   
   // Mutación para crear feedback
   const createMutation = useMutation({
-    mutationFn: createFeedback,    onSuccess: (data) => {
+    mutationFn: createFeedback, onSuccess: (data) => {
       console.log('Feedback creado exitosamente:', data);
       queryClient.invalidateQueries({ queryKey: ['teacher-feedbacks'] });
       reset();
@@ -227,7 +228,8 @@ const CreateTeacherFeedbackModal = ({ visible, onDismiss, onFeedbackCreated }: C
                 </Picker>
               </View>
             )}
-          </View>            {/* Campo de email de estudiante */}
+          </View>
+          {/* Campo de email de estudiante */}
           <Controller
             control={control}
             name="studentEmail"
@@ -386,7 +388,8 @@ const CreateTeacherFeedbackModal = ({ visible, onDismiss, onFeedbackCreated }: C
               style={[styles.button, styles.cancelButton]}
             >
               Cancelar
-            </Button>            <Button
+            </Button>
+            <Button
               mode="contained"
               onPress={handleSave}
               style={styles.button}
