@@ -41,9 +41,10 @@ type TaskSubmissionModalProps = {
   taskId: string;
   taskTitle: string;
   dueDate?: string;
+  onSubmissionSuccess?: () => void;
 };
 
-const TaskSubmissionModal = ({ visible, onDismiss, taskId, taskTitle, dueDate }: TaskSubmissionModalProps) => {
+const TaskSubmissionModal = ({ visible, onDismiss, taskId, taskTitle, dueDate, onSubmissionSuccess }: TaskSubmissionModalProps) => {
   const { session } = useSession();
   const [content, setContent] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<DocumentPicker.DocumentPickerAsset[]>([]);
@@ -268,11 +269,17 @@ const TaskSubmissionModal = ({ visible, onDismiss, taskId, taskTitle, dueDate }:
       // Mostrar mensaje de confirmación antes de cambiar a la vista de éxito
       const lateMessage = submissionResponse.is_late ? 
         "\n\n⚠️ Nota: Esta entrega fue realizada fuera del tiempo establecido." : "";
-        
-      Alert.alert(
+          Alert.alert(
         "Entrega Exitosa",
         `Tu tarea ha sido enviada correctamente.${lateMessage}`,
-        [{ text: "Ver detalles", style: "default" }]
+        [{ 
+          text: "Ver detalles", 
+          style: "default",
+          onPress: () => {
+            // Llamar el callback si existe
+            onSubmissionSuccess?.();
+          }
+        }]
       );
     } catch (error: any) {
       console.error("Error al enviar la tarea:", error);

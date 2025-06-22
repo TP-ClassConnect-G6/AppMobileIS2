@@ -9,6 +9,7 @@ import { es } from "date-fns/locale";
 import { useSession } from "@/contexts/session";
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import TaskSubmissionModal from '@/components/TaskSubmissionModal';
 
 // Tipo para la respuesta de cursos
 type Course = {
@@ -164,11 +165,14 @@ export default function StudentAssignmentsScreen() {
     date: null as Date | null,
     status: null as string | null,
   });
-
   // Estados para UI de los filtros
   const [showDueDatePicker, setShowDueDatePicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [filtersVisible, setFiltersVisible] = useState(false);
+
+  // Estados para el modal de entrega de tareas
+  const [submissionModalVisible, setSubmissionModalVisible] = useState(false);
+  const [selectedTaskForSubmission, setSelectedTaskForSubmission] = useState<StudentTask | null>(null);
 
   // Verificar que el usuario sea estudiante
   const isStudent = session?.userType === "student";
@@ -208,7 +212,6 @@ export default function StudentAssignmentsScreen() {
     setTaskPage(1);
     setExamPage(1);
   };
-
   // Función para limpiar filtros
   const clearFilters = () => {
     const resetFilters = {
@@ -222,6 +225,20 @@ export default function StudentAssignmentsScreen() {
     setSearchFilters(resetFilters);
     setTaskPage(1);
     setExamPage(1);
+  };
+
+  // Función para manejar la entrega de tarea
+  const handleSubmitTask = (task: StudentTask) => {
+    setSelectedTaskForSubmission(task);
+    setSubmissionModalVisible(true);
+  };
+  // Función para manejar cuando se completa la entrega
+  const handleSubmissionCompleted = async () => {
+    setSubmissionModalVisible(false);
+    setSelectedTaskForSubmission(null);
+    // Invalidar y refrescar los datos para mostrar el estado actualizado
+    await queryClient.invalidateQueries({ queryKey: ['student-assignments'] });
+    refetch();
   };
 
   // Función para renderizar los controles de paginación
@@ -349,14 +366,10 @@ export default function StudentAssignmentsScreen() {
           >
             Ver Detalle
           </Button>
-          
-          {item.status === 'Pending' && item.published && (
+            {item.status === 'Pending' && item.published && (
             <Button 
               mode="outlined"
-              onPress={() => {
-                // TODO: Implementar entrega de tarea
-                Alert.alert('Información', 'Funcionalidad de entrega de tarea próximamente');
-              }}
+              onPress={() => handleSubmitTask(item)}
               style={styles.fullWidthButton}
               icon="upload"
             >
@@ -662,10 +675,22 @@ export default function StudentAssignmentsScreen() {
                 data?.response?.exams?.totalPages || 1,
                 handleExamPageChange
               ) : null
-            }
-          />
+            }          />
         )}
-      </View>
+      </View>      {/* Modal de entrega de tarea */}
+      {selectedTaskForSubmission && (
+        <TaskSubmissionModal
+          visible={submissionModalVisible}
+          onDismiss={() => {
+            setSubmissionModalVisible(false);
+            setSelectedTaskForSubmission(null);
+          }}
+          taskId={selectedTaskForSubmission.task_id}
+          taskTitle={selectedTaskForSubmission.title}
+          dueDate={selectedTaskForSubmission.due_date}
+          onSubmissionSuccess={handleSubmissionCompleted}
+        />
+      )}
     </Provider>
   );
 }
