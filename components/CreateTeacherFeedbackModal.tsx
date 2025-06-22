@@ -132,8 +132,7 @@ const CreateTeacherFeedbackModal = ({ visible, onDismiss, onFeedbackCreated }: C
       throw error;
     }
   };
-  
-  // Mutación para crear feedback
+    // Mutación para crear feedback
   const createMutation = useMutation({
     mutationFn: createFeedback, onSuccess: (data) => {
       console.log('Feedback creado exitosamente:', data);
@@ -143,16 +142,19 @@ const CreateTeacherFeedbackModal = ({ visible, onDismiss, onFeedbackCreated }: C
       onFeedbackCreated();
     },
     onError: (error: any) => {
-      console.error('Error al crear feedback:', error);
       let errorMessage = 'No se pudo crear el feedback. Inténtelo nuevamente.';
       
-      if (error.response && error.response.data && error.response.data.message) {
+      // Verificar si es el error específico de estudiante no inscrito
+      if (error.response && error.response.status === 400 && 
+          error.response.data && error.response.data.error === "The student is not enrolled in this course.") {
+        errorMessage = 'El estudiante no pertenece a este curso.';
+      } else if (error.response && error.response.data && error.response.data.message) {
         errorMessage = error.response.data.message;
       }
       
       Alert.alert('Error', errorMessage);
     }
-  });    // Función para manejar el envío del formulario
+  });// Función para manejar el envío del formulario
   const onSubmit = async (formData: TeacherFeedbackFormData) => {
     if (!selectedCourseId) {
       Alert.alert('Error', 'Por favor selecciona un curso.');
