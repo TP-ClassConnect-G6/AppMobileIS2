@@ -3,7 +3,7 @@ import { StyleSheet, View, Text, FlatList, ActivityIndicator, RefreshControl, To
 import { Card, Title, Paragraph, Chip, Divider, Button, Provider, SegmentedButtons, TextInput } from "react-native-paper";
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { courseClient } from "@/lib/http";
+import { courseClient, client } from "@/lib/http";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useSession } from "@/contexts/session";
@@ -163,17 +163,13 @@ const fetchStudentAssignments = async (
 
 // Función para obtener el perfil de usuario
 const fetchUserProfile = async (token: string, userId: string): Promise<UserProfile> => {
-  const response = await fetch(`https://usuariosis2-production.up.railway.app/profile/${userId}`, {
+  const response = await client.get(`/profile/${userId}`, {
     headers: {
       'Authorization': `Bearer ${token}`
     }
   });
   
-  if (!response.ok) {
-    throw new Error('Failed to fetch user profile');
-  }
-  
-  return response.json();
+  return response.data;
 };
 
 export default function StudentAssignmentsScreen() {
