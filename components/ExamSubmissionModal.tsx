@@ -394,11 +394,20 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle, onSubmissi
       <Modal
         visible={visible}
         onDismiss={() => {
-          if (!uploading) {
+          // Solo permitir cerrar si el examen fue enviado exitosamente o si hay un error crítico
+          if (submissionSuccess && !uploading) {
             resetForm();
             onDismiss();
+          } else {
+            // Mostrar alerta explicando que no se puede cerrar durante el examen
+            Alert.alert(
+              "Examen en Progreso",
+              "No puedes cerrar el examen hasta completarlo. Si necesitas salir, debes enviar tus respuestas primero.",
+              [{ text: "Entendido" }]
+            );
           }
         }}
+        dismissable={submissionSuccess} // Solo dismissable después de enviar
         contentContainerStyle={styles.modalContainer}
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -513,11 +522,18 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle, onSubmissi
                 </Button>
               </View>
             </>
-            ) : (
-              // Vista de formulario para enviar el examen
+          ) : (
+            // Vista de formulario para enviar el examen
             <>
               <Title style={styles.title}>Enviar Examen</Title>
               <Text style={styles.examTitle}>{examTitle}</Text>
+              
+              {/* Advertencia sobre no poder cerrar */}
+              <View style={styles.examWarningContainer}>
+                <Text style={styles.examWarningText}>
+                  ⚠️ Una vez iniciado el examen, no podrás cerrar esta ventana hasta completarlo y enviarlo.
+                </Text>
+              </View>
               
               {/* Contador regresivo */}
               {timeRemaining > 0 && (
@@ -619,23 +635,11 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle, onSubmissi
               >
                 Adjuntar Archivo
               </Button>
-              
-              <View style={styles.buttonContainer}>
-                <Button 
-                  mode="outlined" 
-                  onPress={() => {
-                    resetForm();
-                    onDismiss();
-                  }} 
-                  style={styles.cancelButton}
-                  disabled={uploading}
-                >
-                  Cancelar
-                </Button>
+                <View style={styles.buttonContainer}>
                 <Button 
                   mode="contained" 
                   onPress={submitExam}
-                  style={styles.submitButton}
+                  style={styles.submitButtonFullWidth}
                   loading={uploading}
                   disabled={uploading || (examQuestions.length === 0 && !answers.trim()) || timeExpired}
                 >
@@ -769,10 +773,12 @@ const styles = StyleSheet.create({
   cancelButton: {
     flex: 1,
     marginRight: 10,
-  },
-  submitButton: {
+  },  submitButton: {
     flex: 1,
     marginLeft: 10,
+  },
+  submitButtonFullWidth: {
+    width: '100%',
   },
   uploadingContainer: {
     marginTop: 20,
@@ -854,7 +860,8 @@ const styles = StyleSheet.create({
     marginVertical: 10,
     borderLeftWidth: 3,
     borderLeftColor: '#FFB74D',
-  },  warningText: {
+  },
+  warningText: {
     color: '#E65100',
     fontSize: 14,
   },
@@ -892,6 +899,21 @@ const styles = StyleSheet.create({
     color: '#FF9800',
     marginTop: 4,
     fontWeight: '500',
+  },
+  // Estilos para la advertencia del examen
+  examWarningContainer: {
+    backgroundColor: '#FFF3E0',
+    borderRadius: 8,
+    padding: 12,
+    marginVertical: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: '#FF9800',
+  },
+  examWarningText: {
+    color: '#E65100',
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });
 

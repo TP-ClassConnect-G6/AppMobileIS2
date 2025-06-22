@@ -235,11 +235,26 @@ export default function StudentAssignmentsScreen() {
     setSelectedTaskForSubmission(task);
     setSubmissionModalVisible(true);
   };
-
   // Función para manejar la realización de examen
   const handleSubmitExam = (exam: StudentExam) => {
-    setSelectedExamForSubmission(exam);
-    setExamModalVisible(true);
+    Alert.alert(
+      "Iniciar Examen",
+      "⚠️ Una vez que inicies el examen, no podrás cerrar la ventana hasta completarlo. ¿Estás seguro de que quieres comenzar?",
+      [
+        {
+          text: "Cancelar",
+          style: "cancel"
+        },
+        {
+          text: "Iniciar Examen",
+          style: "default",
+          onPress: () => {
+            setSelectedExamForSubmission(exam);
+            setExamModalVisible(true);
+          }
+        }
+      ]
+    );
   };
 
   // Función para manejar cuando se completa la entrega
@@ -690,9 +705,11 @@ export default function StudentAssignmentsScreen() {
                 data?.response?.exams?.totalPages || 1,
                 handleExamPageChange
               ) : null
-            }          />
+            }
+            />
         )}
-      </View>      {/* Modal de entrega de tarea */}
+      </View>
+      {/* Modal de entrega de tarea */}
       {selectedTaskForSubmission && (
         <TaskSubmissionModal
           visible={submissionModalVisible}
