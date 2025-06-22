@@ -54,6 +54,11 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle, onSubmissi
   const [examDetails, setExamDetails] = useState<ExamDetails | null>(null);
   const [loading, setLoading] = useState(false);
   
+  // Estados para el contador regresivo
+  const [timeRemaining, setTimeRemaining] = useState<number>(0); // en segundos
+  const [timerActive, setTimerActive] = useState(false);
+  const [timeExpired, setTimeExpired] = useState(false);
+  
   // Extraer el ID del estudiante del token JWT
   useEffect(() => {
     if (session?.token) {
@@ -68,8 +73,7 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle, onSubmissi
       }
     }
   }, [session]);
-  
-  // Reset form state when examId changes or when modal becomes visible
+    // Reset form state when examId changes or when modal becomes visible
   useEffect(() => {
     if (visible) {
       resetForm();
@@ -77,6 +81,35 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle, onSubmissi
       console.log(`Modal opened for exam: ${examId}, resetting form state`);
     }
   }, [examId, visible]);
+
+  // Efecto para el contador regresivo
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    
+    if (timerActive && timeRemaining > 0) {
+      interval = setInterval(() => {
+        setTimeRemaining((prevTime) => {
+          if (prevTime <= 1) {
+            setTimeExpired(true);
+            setTimerActive(false);
+            Alert.alert(
+              "Tiempo Agotado",
+              "El tiempo para completar el examen ha terminado. El botón de envío ha sido deshabilitado.",
+              [{ text: "Entendido" }]
+            );
+            return 0;
+          }
+          return prevTime - 1;
+        });
+      }, 1000);
+    } else if (timeRemaining === 0 && timerActive) {
+      setTimerActive(false);
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [timerActive, timeRemaining]);
 
   // Fetch exam details including questions
   const fetchExamDetails = async () => {
@@ -86,6 +119,15 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle, onSubmissi
       setLoading(true);
       const response = await courseClient.get(`/exams/${examId}`);
       setExamDetails(response.data);
+      
+      // Inicializar el contador regresivo si hay duración
+      if (response.data?.duration) {
+        const durationInSeconds = response.data.duration * 60; // Convertir minutos a segundos
+        setTimeRemaining(durationInSeconds);
+        setTimerActive(true);
+        setTimeExpired(false);
+        console.log(`Timer started: ${response.data.duration} minutes (${durationInSeconds} seconds)`);
+      }
       
       // Extract questions from additional_info if available
       if (response.data?.additional_info?.questions) {
@@ -144,13 +186,25 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle, onSubmissi
       prevFiles.filter((_: DocumentPicker.DocumentPickerAsset, i: number) => i !== index)
     );
   };
-  
-  // Función para actualizar la respuesta a una pregunta específica
+    // Función para actualizar la respuesta a una pregunta específica
   const updateQuestionAnswer = (questionIndex: number, answer: string) => {
     setQuestionAnswers((prev: {[key: number]: string}) => ({
       ...prev,
       [questionIndex]: answer
     }));
+  };
+
+  // Función para formatear el tiempo restante
+  const formatTimeRemaining = (seconds: number): string => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainingSeconds = seconds % 60;
+    
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+    } else {
+      return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+    }
   };
 
   // Función para enviar la entrega del examen
@@ -322,14 +376,16 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle, onSubmissi
       }
     });
   };
-  
-  // Función para resetear el formulario y volver al modo de envío
+    // Función para resetear el formulario y volver al modo de envío
   const resetForm = () => {
     setAnswers("");
     setSelectedFiles([]);
     setSubmissionData(null);
     setSubmissionSuccess(false);
     setQuestionAnswers({});
+    setTimeRemaining(0);
+    setTimerActive(false);
+    setTimeExpired(false);
     console.log("Form state reset completed");
   };
 
@@ -456,11 +512,30 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle, onSubmissi
                   Finalizar
                 </Button>
               </View>
-            </>          ) : (
-            // Vista de formulario para enviar el examen
+            </>
+            ) : (
+              // Vista de formulario para enviar el examen
             <>
               <Title style={styles.title}>Enviar Examen</Title>
               <Text style={styles.examTitle}>{examTitle}</Text>
+              
+              {/* Contador regresivo */}
+              {timeRemaining > 0 && (
+                <View style={[styles.timerContainer, timeExpired && styles.timerExpired]}>
+                  <Text style={[styles.timerLabel, timeExpired && styles.timerExpiredText]}>
+                    Tiempo restante:
+                  </Text>
+                  <Text style={[styles.timerText, timeExpired && styles.timerExpiredText]}>
+                    {formatTimeRemaining(timeRemaining)}
+                  </Text>
+                  {timeRemaining <= 300 && !timeExpired && ( // 5 minutos = 300 segundos
+                    <Text style={styles.timerWarning}>
+                      ⚠️ Quedan pocos minutos
+                    </Text>
+                  )}
+                </View>
+              )}
+              
               <Divider style={styles.divider} />
               
               {loading ? (
@@ -562,9 +637,9 @@ const ExamSubmissionModal = ({ visible, onDismiss, examId, examTitle, onSubmissi
                   onPress={submitExam}
                   style={styles.submitButton}
                   loading={uploading}
-                  disabled={uploading || (examQuestions.length === 0 && !answers.trim())}
+                  disabled={uploading || (examQuestions.length === 0 && !answers.trim()) || timeExpired}
                 >
-                  Enviar Examen
+                  {timeExpired ? 'Tiempo Agotado' : 'Enviar Examen'}
                 </Button>
               </View>
               
@@ -779,10 +854,44 @@ const styles = StyleSheet.create({
     marginVertical: 10,
     borderLeftWidth: 3,
     borderLeftColor: '#FFB74D',
-  },
-  warningText: {
+  },  warningText: {
     color: '#E65100',
     fontSize: 14,
+  },
+  // Estilos para el contador regresivo
+  timerContainer: {
+    backgroundColor: '#E3F2FD',
+    borderRadius: 8,
+    padding: 12,
+    marginVertical: 10,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#2196F3',
+  },
+  timerExpired: {
+    backgroundColor: '#FFEBEE',
+    borderColor: '#F44336',
+  },
+  timerLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#1976D2',
+    marginBottom: 4,
+  },
+  timerText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1976D2',
+    fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
+  },
+  timerExpiredText: {
+    color: '#D32F2F',
+  },
+  timerWarning: {
+    fontSize: 12,
+    color: '#FF9800',
+    marginTop: 4,
+    fontWeight: '500',
   },
 });
 
