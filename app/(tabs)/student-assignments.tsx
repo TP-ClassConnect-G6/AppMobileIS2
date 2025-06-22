@@ -82,6 +82,27 @@ type UserProfile = {
   is_blocked: boolean;
 };
 
+type ExamDetail = {
+  id: string;
+  course_id: string;
+  title: string;
+  description: string;
+  date: string;
+  duration: number;
+  location: string;
+  owner: string;
+  additional_info: {
+    open_book: boolean;
+    questions?: string;
+    grace_period: string;
+    submission_rules: string;
+  };
+  published: boolean;
+  created_at: string;
+  updated_at: string;
+  is_active: boolean;
+};
+
 type StudentAssignmentsResponse = {
   response: {
     tasks: {
@@ -221,9 +242,9 @@ export default function StudentAssignmentsScreen() {
   // Estados para el modal de exámenes
   const [examModalVisible, setExamModalVisible] = useState(false);
   const [selectedExamForSubmission, setSelectedExamForSubmission] = useState<StudentExam | null>(null);
-
   // Estado para indicar si se está descargando un PDF
   const [downloadingTaskId, setDownloadingTaskId] = useState<string | null>(null);
+  const [downloadingExamId, setDownloadingExamId] = useState<string | null>(null);
 
   // Verificar que el usuario sea estudiante
   const isStudent = session?.userType === "student";
@@ -588,10 +609,290 @@ export default function StudentAssignmentsScreen() {
       Alert.alert(
         'Error', 
         `No se pudo generar el PDF: ${error instanceof Error ? error.message : 'Error desconocido'}`
+      );    } finally {
+      // Limpiar estado de carga
+      setDownloadingTaskId(null);
+    }
+  };
+
+  // Función para generar PDF de examen
+  const handleDownloadExamPDF = async (examId: string, examTitle: string) => {
+    try {
+      if (!session?.token) {
+        Alert.alert('Error', 'No hay sesión activa');
+        return;
+      }
+
+      // Establecer estado de carga
+      setDownloadingExamId(examId);
+
+      // Obtener detalles del examen
+      const examResponse = await courseClient.get(`/exams/${examId}`, {
+        headers: {
+          'Authorization': `Bearer ${session.token}`
+        }
+      });
+      const examDetail: ExamDetail = examResponse.data;
+      
+      // Obtener información del propietario
+      let ownerName = examDetail.owner; // Fallback al ID si no se puede obtener el nombre
+      try {
+        const userProfile = await fetchUserProfile(session.token, examDetail.owner);
+        ownerName = userProfile.name || userProfile.email || examDetail.owner;
+      } catch (profileError) {
+        console.warn('No se pudo obtener el perfil del propietario:', profileError);
+        // Mantener el ID como fallback
+      }
+
+      // Procesar las preguntas de additional_info
+      let questionsHtml = '';
+      if (examDetail.additional_info?.questions) {
+        const questions = examDetail.additional_info.questions.split('\n---\n').filter((q: string) => q.trim());
+        if (questions.length > 0) {
+          questionsHtml = `
+            <div class="section">
+              <h2 class="section-title">❓ Preguntas del Examen</h2>
+              <div class="questions-container">
+                ${questions.map((question: string, index: number) => `
+                  <div class="question-item">
+                    <div class="question-number">${index + 1}.</div>
+                    <div class="question-text">${question.trim()}</div>
+                    <div class="answer-space"></div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `;
+        }
+      }
+
+      // Generar HTML para el PDF
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>${examDetail.title}</title>
+          <style>
+            body {
+              font-family: 'Arial', sans-serif;
+              margin: 40px;
+              line-height: 1.6;
+              color: #333;
+            }
+            .header {
+              text-align: center;
+              border-bottom: 3px solid #2196f3;
+              padding-bottom: 20px;
+              margin-bottom: 30px;
+            }
+            .title {
+              color: #2196f3;
+              font-size: 28px;
+              font-weight: bold;
+              margin: 0;
+            }
+            .subtitle {
+              color: #666;
+              font-size: 14px;
+              margin-top: 5px;
+            }
+            .section {
+              margin-bottom: 25px;
+              padding: 15px;
+              background-color: #f9f9f9;
+              border-left: 4px solid #2196f3;
+              border-radius: 5px;
+            }
+            .section-title {
+              color: #2196f3;
+              font-size: 18px;
+              font-weight: bold;
+              margin: 0 0 10px 0;
+            }
+            .section-content {
+              font-size: 14px;
+              margin: 0;
+            }
+            .info-grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 20px;
+              margin-bottom: 25px;
+            }
+            .info-item {
+              background-color: #f5f5f5;
+              padding: 15px;
+              border-radius: 8px;
+              border: 1px solid #e0e0e0;
+            }
+            .info-label {
+              font-weight: bold;
+              color: #2196f3;
+              margin-bottom: 5px;
+              font-size: 14px;
+            }
+            .info-value {
+              color: #333;
+              font-size: 14px;
+            }
+            .questions-container {
+              margin-top: 15px;
+            }
+            .question-item {
+              margin-bottom: 25px;
+              padding: 15px;
+              background-color: white;
+              border: 1px solid #e0e0e0;
+              border-radius: 8px;
+              page-break-inside: avoid;
+            }
+            .question-number {
+              font-weight: bold;
+              color: #2196f3;
+              font-size: 16px;
+              margin-bottom: 8px;
+            }
+            .question-text {
+              font-size: 14px;
+              margin-bottom: 15px;
+              color: #333;
+            }
+            .answer-space {
+              height: 80px;
+              border: 1px dashed #ccc;
+              background-color: #fafafa;
+              margin-top: 10px;
+              position: relative;
+            }
+            .answer-space::after {
+              content: "Espacio para respuesta";
+              position: absolute;
+              top: 50%;
+              left: 50%;
+              transform: translate(-50%, -50%);
+              color: #999;
+              font-size: 12px;
+              font-style: italic;
+            }
+            .footer {
+              margin-top: 40px;
+              padding-top: 20px;
+              border-top: 1px solid #e0e0e0;
+              text-align: center;
+              font-size: 12px;
+              color: #666;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1 class="title">${examDetail.title}</h1>
+            <p class="subtitle">Detalles del Examen</p>
+          </div>
+
+          <div class="info-grid">
+            <div class="info-item">
+              <div class="info-label">Fecha del Examen:</div>
+              <div class="info-value">${format(new Date(examDetail.date), 'dd MMMM yyyy', { locale: es })}</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">Propietario:</div>
+              <div class="info-value">${ownerName}</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">Duración:</div>
+              <div class="info-value">${examDetail.duration} minutos</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">Ubicación:</div>
+              <div class="info-value">${examDetail.location || 'No especificada'}</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">Libro Abierto:</div>
+              <div class="info-value">${examDetail.additional_info?.open_book ? 'Sí' : 'No'}</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">Período de Gracia:</div>
+              <div class="info-value">${examDetail.additional_info?.grace_period || 'No especificado'} minutos</div>
+            </div>
+          </div>
+
+          <div class="section">
+            <h2 class="section-title">📋 Descripción</h2>
+            <p class="section-content">${examDetail.description || 'No hay descripción disponible.'}</p>
+          </div>
+
+          <div class="section">
+            <h2 class="section-title">📝 Reglas de Entrega</h2>
+            <p class="section-content">${examDetail.additional_info?.submission_rules || 'No hay reglas específicas.'}</p>
+          </div>
+
+          ${questionsHtml}
+
+          <div class="info-grid">
+            <div class="info-item">
+              <div class="info-label">Fecha de Creación:</div>
+              <div class="info-value">${format(new Date(examDetail.created_at), 'dd MMMM yyyy - HH:mm', { locale: es })}</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">Última Actualización:</div>
+              <div class="info-value">${format(new Date(examDetail.updated_at), 'dd MMMM yyyy - HH:mm', { locale: es })}</div>
+            </div>
+          </div>
+
+          <div class="footer">
+            <p>Documento generado el ${format(new Date(), 'dd MMMM yyyy - HH:mm', { locale: es })}</p>
+            <p>ClassConnect - Sistema de Gestión Académica</p>
+          </div>
+        </body>
+        </html>
+      `;
+
+      // Generar PDF usando expo-print
+      const { uri } = await Print.printToFileAsync({
+        html: htmlContent,
+        base64: false
+      });
+
+      // Verificar si se puede compartir archivos
+      const canShare = await Sharing.isAvailableAsync();
+      
+      if (canShare) {
+        // Usar expo-sharing para abrir el archivo con otras aplicaciones
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: `${examDetail.title} - Detalles del Examen`,
+          UTI: 'com.adobe.pdf'
+        });
+      } else {
+        // Fallback para plataformas que no soportan sharing
+        if (Platform.OS === 'android') {
+          try {
+            const contentUri = await FileSystem.getContentUriAsync(uri);
+            await Linking.openURL(contentUri);
+          } catch (linkError) {
+            Alert.alert(
+              'PDF Generado', 
+              `El PDF se ha generado exitosamente.\nUbicación: ${uri}`
+            );
+          }
+        } else {
+          Alert.alert(
+            'PDF Generado', 
+            `El PDF se ha generado exitosamente para el examen: ${examDetail.title}`
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Error al generar PDF:', error);
+      Alert.alert(
+        'Error', 
+        `No se pudo generar el PDF: ${error instanceof Error ? error.message : 'Error desconocido'}`
       );
     } finally {
       // Limpiar estado de carga
-      setDownloadingTaskId(null);
+      setDownloadingExamId(null);
     }
   };
 
@@ -775,6 +1076,19 @@ export default function StudentAssignmentsScreen() {
       </Card.Content>
       <Card.Actions style={styles.cardActions}>
         <View style={styles.buttonContainer}>
+          {/* Botón de descarga - siempre disponible para todos los exámenes */}
+          <Button
+            mode="outlined"
+            onPress={() => handleDownloadExamPDF(item.exam_id, item.title)}
+            style={styles.fullWidthButton}
+            icon={downloadingExamId === item.exam_id ? "loading" : "download"}
+            loading={downloadingExamId === item.exam_id}
+            disabled={downloadingExamId === item.exam_id}
+          >
+            {downloadingExamId === item.exam_id ? "Generando..." : "Generar PDF"}
+          </Button>
+          
+          {/* Botón de examen - solo para exámenes pendientes */}
           {item.status === 'Pending' && item.published && (
             <Button 
               mode="contained"
