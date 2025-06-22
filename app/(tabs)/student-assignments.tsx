@@ -388,21 +388,9 @@ export default function StudentAssignmentsScreen() {
       </Card.Content>
       <Card.Actions style={styles.cardActions}>
         <View style={styles.buttonContainer}>
-          <Button 
-            mode="contained"
-            onPress={() => {
-              // TODO: Implementar navegación a detalle de tarea
-              Alert.alert('Información', 'Funcionalidad de detalle de tarea próximamente');
-            }}
-            style={styles.fullWidthButton}
-            icon="eye"
-            disabled={!item.published}
-          >
-            Ver Detalle
-          </Button>
-            {item.status === 'Pending' && item.published && (
+          {item.status === 'Pending' && item.published && (
             <Button 
-              mode="outlined"
+              mode="contained"
               onPress={() => handleSubmitTask(item)}
               style={styles.fullWidthButton}
               icon="upload"
@@ -452,21 +440,9 @@ export default function StudentAssignmentsScreen() {
       </Card.Content>
       <Card.Actions style={styles.cardActions}>
         <View style={styles.buttonContainer}>
-          <Button 
-            mode="contained"
-            onPress={() => {
-              // TODO: Implementar navegación a detalle de examen
-              Alert.alert('Información', 'Funcionalidad de detalle de examen próximamente');
-            }}
-            style={styles.fullWidthButton}
-            icon="eye"
-            disabled={!item.published}
-          >
-            Ver Detalle
-          </Button>
-            {item.status === 'Pending' && item.published && (
+          {item.status === 'Pending' && item.published && (
             <Button 
-              mode="outlined"
+              mode="contained"
               onPress={() => handleSubmitExam(item)}
               style={styles.fullWidthButton}
               icon="pencil"
