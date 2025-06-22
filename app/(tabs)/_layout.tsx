@@ -119,9 +119,20 @@ export default function TabLayout() {
           title: "Mis Cursos",
           tabBarIcon: ({ color }: { color: string }) => (
             <IconSymbol size={28} name="backpack.circle.fill" color={color} />
-          ),          href: session?.userType === 'student' ? "/mis-cursos" : null, // Solo mostrar para estudiantes
+          ),
+          href: session?.userType === 'student' ? "/mis-cursos" : null, // Solo mostrar para estudiantes
         }}
       />      <Tabs.Screen
+        name="student-assignments"
+        options={{
+          title: "Mis Tareas/Exámenes",
+          tabBarIcon: ({ color }: { color: string }) => (
+            <IconSymbol size={28} name="clipboard.fill" color={color} />
+          ),
+          href: session?.userType === 'student' ? "/student-assignments" as any : null, // Solo mostrar para estudiantes
+        }}
+      />
+      <Tabs.Screen
         name="mis-feedbacks"
         options={{
           title: "Mis Feedbacks",
