@@ -18,13 +18,6 @@ type Course = {
   category: string | null;
 };
 
-// Tipo para un estudiante
-type Student = {
-  id: string;
-  email: string;
-  name?: string;
-};
-
 // Props para el modal
 interface CreateTeacherFeedbackModalProps {
   visible: boolean;
@@ -36,23 +29,22 @@ interface CreateTeacherFeedbackModalProps {
 type TeacherFeedbackFormData = {
   comment: string;
   rating: string;
+  studentEmail: string;
 };
 
 const CreateTeacherFeedbackModal = ({ visible, onDismiss, onFeedbackCreated }: CreateTeacherFeedbackModalProps) => {
   const queryClient = useQueryClient();
-  const { session } = useSession();
-  
-  // React Hook Form
+  const { session } = useSession();  // React Hook Form
   const { control, handleSubmit, formState: { errors }, reset, setError, clearErrors } = useForm<TeacherFeedbackFormData>({
     defaultValues: {
       comment: '',
       rating: '5',
+      studentEmail: '',
     }
   });
-  
-  // Estados adicionales
+    // Estados adicionales
   const [selectedCourseId, setSelectedCourseId] = useState('');
-  const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [isSearchingUser, setIsSearchingUser] = useState(false);
     // Obtener lista de cursos del teacher
   const { data: courses = [], isLoading: coursesLoading } = useQuery({
     queryKey: ['teacher-courses', session?.userId],
@@ -99,45 +91,29 @@ const CreateTeacherFeedbackModal = ({ visible, onDismiss, onFeedbackCreated }: C
         console.error('Error fetching teacher courses:', error);
         return [];
       }
-    },
-    enabled: visible && session?.userType === 'teacher' && !!session?.userId && !!session?.email,
-  });
-    // Obtener lista de estudiantes del curso seleccionado
-  const { data: students = [], isLoading: studentsLoading } = useQuery({
-    queryKey: ['course-students', selectedCourseId],
-    queryFn: async () => {
-      try {
-        if (!selectedCourseId) return [];
-        
-        // TODO: Implementar endpoint real para obtener estudiantes de un curso
-        // Por ahora, retornamos datos mock basados en IDs reales
-        const mockStudents = [
-          { 
-            id: '3b5d4062-95d0-4a36-b7a1-80ba09525093', 
-            email: 'estudiante1@correo.com', 
-            name: 'Ana García'
-          },
-          { 
-            id: '2a4c3051-84c0-3a25-a6a0-79ab08414082', 
-            email: 'estudiante2@correo.com', 
-            name: 'Carlos López'
-          },
-          { 
-            id: '1c2b3052-73b0-2a15-a5a0-68aa07313071', 
-            email: 'estudiante3@correo.com', 
-            name: 'María Rodríguez'
-          },
-        ];
-        
-        console.log('Estudiantes del curso:', mockStudents);
-        return mockStudents;
-      } catch (error) {
-        console.error('Error fetching course students:', error);
-        return [];
+    },    enabled: visible && session?.userType === 'teacher' && !!session?.userId && !!session?.email,  });
+  
+  // Función para buscar usuario por email
+  const getUserByEmail = async (email: string) => {
+    try {
+      const response = await fetch(`https://usuariosis2-production.up.railway.app/profile/from_email/${email}`, {
+        headers: {
+          'Authorization': `Bearer ${session?.token}`,
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: Usuario no encontrado`);
       }
-    },
-    enabled: !!selectedCourseId,
-  });
+      
+      const userData = await response.json();
+      console.log('Usuario encontrado:', userData);
+      return userData;
+    } catch (error) {
+      console.error('Error buscando usuario por email:', error);
+      throw error;
+    }
+  };
   
   // Función para crear feedback
   const createFeedback = async (feedbackData: any) => {
@@ -158,13 +134,11 @@ const CreateTeacherFeedbackModal = ({ visible, onDismiss, onFeedbackCreated }: C
   
   // Mutación para crear feedback
   const createMutation = useMutation({
-    mutationFn: createFeedback,
-    onSuccess: (data) => {
+    mutationFn: createFeedback,    onSuccess: (data) => {
       console.log('Feedback creado exitosamente:', data);
       queryClient.invalidateQueries({ queryKey: ['teacher-feedbacks'] });
       reset();
       setSelectedCourseId('');
-      setSelectedStudentId('');
       onFeedbackCreated();
     },
     onError: (error: any) => {
@@ -177,46 +151,51 @@ const CreateTeacherFeedbackModal = ({ visible, onDismiss, onFeedbackCreated }: C
       
       Alert.alert('Error', errorMessage);
     }
-  });
-  
-  // Función para manejar el envío del formulario
-  const onSubmit = (formData: TeacherFeedbackFormData) => {
+  });    // Función para manejar el envío del formulario
+  const onSubmit = async (formData: TeacherFeedbackFormData) => {
     if (!selectedCourseId) {
       Alert.alert('Error', 'Por favor selecciona un curso.');
       return;
     }
     
-    if (!selectedStudentId) {
-      Alert.alert('Error', 'Por favor selecciona un estudiante.');
+    if (!formData.studentEmail.trim()) {
+      Alert.alert('Error', 'Por favor ingresa el email del estudiante.');
       return;
     }
     
-    const feedbackData = {
-      course_id: selectedCourseId,
-      student_reviewed: selectedStudentId,
-      rating: parseInt(formData.rating, 10),
-      comment: formData.comment.trim(),
-    };
-    
-    console.log('Enviando feedback:', feedbackData);
-    createMutation.mutate(feedbackData);
+    setIsSearchingUser(true);
+    try {
+      // Buscar el usuario por email para obtener el user_id
+      const userData = await getUserByEmail(formData.studentEmail.trim());
+      
+      const feedbackData = {
+        course_id: selectedCourseId,
+        student_reviewed: userData.user_id,
+        rating: parseInt(formData.rating, 10),
+        comment: formData.comment.trim(),
+      };
+      
+      console.log('Enviando feedback:', feedbackData);
+      createMutation.mutate(feedbackData);
+    } catch (error: any) {
+      console.error('Error obteniendo datos del usuario:', error);
+      Alert.alert(
+        'Error', 
+        error.message || 'No se pudo encontrar el usuario con ese email. Verifica que el email sea correcto.'
+      );
+    } finally {
+      setIsSearchingUser(false);
+    }
   };
   
   const handleSave = handleSubmit(onSubmit);
-  
-  // Reset del formulario cuando se cierra el modal
+    // Reset del formulario cuando se cierra el modal
   useEffect(() => {
     if (!visible) {
       reset();
       setSelectedCourseId('');
-      setSelectedStudentId('');
     }
   }, [visible, reset]);
-  
-  // Reset de estudiante cuando cambia el curso
-  useEffect(() => {
-    setSelectedStudentId('');
-  }, [selectedCourseId]);
   
   return (
     <Portal>
@@ -248,34 +227,56 @@ const CreateTeacherFeedbackModal = ({ visible, onDismiss, onFeedbackCreated }: C
                 </Picker>
               </View>
             )}
-          </View>
-          
-          {/* Selector de estudiante */}
-          <View style={styles.pickerContainer}>
-            <Text style={styles.label}>Estudiante *</Text>
-            {studentsLoading ? (
-              <Text>Cargando estudiantes...</Text>
-            ) : selectedCourseId ? (
-              <View style={styles.pickerWrapper}>
-                <Picker
-                  selectedValue={selectedStudentId}
-                  onValueChange={(value) => setSelectedStudentId(value)}
-                  style={styles.picker}
-                >
-                  <Picker.Item label="Selecciona un estudiante" value="" />
-                  {students.map((student: Student) => (
-                    <Picker.Item 
-                      key={student.id} 
-                      label={student.name || student.email} 
-                      value={student.id} 
-                    />
-                  ))}
-                </Picker>
-              </View>
-            ) : (
-              <Text style={styles.helperText}>Primero selecciona un curso</Text>
+          </View>            {/* Campo de email de estudiante */}
+          <Controller
+            control={control}
+            name="studentEmail"
+            rules={{
+              required: "El email del estudiante es requerido",
+              pattern: {
+                value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                message: "Ingresa un email válido"
+              }
+            }}
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Email del Estudiante *"
+                value={value}
+                onChangeText={(text) => {
+                  onChange(text);
+                  // Validar email en tiempo real
+                  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text.trim())) {
+                    clearErrors("studentEmail");
+                  }
+                }}
+                onBlur={() => {
+                  onBlur();
+                  if (!value) {
+                    setError("studentEmail", {
+                      type: "manual",
+                      message: "El email del estudiante es requerido"
+                    });
+                  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())) {
+                    setError("studentEmail", {
+                      type: "manual",
+                      message: "Ingresa un email válido"
+                    });
+                  }
+                }}
+                style={[styles.input, !!errors.studentEmail && styles.inputError]}
+                mode="outlined"
+                error={!!errors.studentEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                placeholder="ejemplo@correo.com"
+                right={
+                  value && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim()) ? 
+                  <TextInput.Icon icon="check-circle" color="green" /> : undefined
+                }
+              />
             )}
-          </View>
+          />
+          {errors.studentEmail && <HelperText type="error">{errors.studentEmail.message}</HelperText>}
           
           {/* Campo de comentario */}
           <Controller
@@ -385,15 +386,14 @@ const CreateTeacherFeedbackModal = ({ visible, onDismiss, onFeedbackCreated }: C
               style={[styles.button, styles.cancelButton]}
             >
               Cancelar
-            </Button>
-            <Button
+            </Button>            <Button
               mode="contained"
               onPress={handleSave}
               style={styles.button}
-              loading={createMutation.isPending}
-              disabled={createMutation.isPending || !selectedCourseId || !selectedStudentId}
+              loading={createMutation.isPending || isSearchingUser}
+              disabled={createMutation.isPending || isSearchingUser || !selectedCourseId}
             >
-              Crear Feedback
+              {isSearchingUser ? 'Buscando usuario...' : 'Crear Feedback'}
             </Button>
           </View>
         </ScrollView>
