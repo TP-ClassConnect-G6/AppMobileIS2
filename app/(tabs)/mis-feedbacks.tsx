@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, ScrollView, Alert, TouchableOpacity, Platform } from 'react-native';
+import { StyleSheet, View, ScrollView, Alert, TouchableOpacity, Platform, Modal } from 'react-native';
 import { Text, Card, FAB, Portal, Button, ActivityIndicator, Menu } from 'react-native-paper';
 import { useSession } from '@/contexts/session';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -41,11 +41,11 @@ export default function MisFeedbacksScreen() {
     published_to: null as Date | null,
     score: '' as string,
   });
-  
-  // Estados para date pickers y dropdown
+    // Estados para date pickers y dropdown
   const [showFromDatePicker, setShowFromDatePicker] = useState(false);
   const [showToDatePicker, setShowToDatePicker] = useState(false);
-  const [courseDropdownVisible, setCourseDropdownVisible] = useState(false);  // Get student's feedbacks with pagination and filters
+  const [courseDropdownVisible, setCourseDropdownVisible] = useState(false);
+  const [showAISummaryModal, setShowAISummaryModal] = useState(false);// Get student's feedbacks with pagination and filters
   const { data: feedbacksData, isLoading: feedbacksLoading, refetch: refetchFeedbacks } = useQuery({
     queryKey: ['student-feedbacks', session?.userId, currentPage, filters],
     queryFn: async () => {
@@ -100,8 +100,24 @@ export default function MisFeedbacksScreen() {
       });
       
       return response.data?.response || [];
+    },    enabled: !!session?.token && feedbacks.length > 0,
+  });
+
+  // Get AI summary for student's feedbacks (only when modal is open)
+  const { data: aiSummaryData, isLoading: summaryLoading } = useQuery({
+    queryKey: ['student-feedback-summary', session?.userId],
+    queryFn: async () => {
+      if (!session?.token || !session?.userId) throw new Error('No access token or user ID');
+      
+      const response = await courseClient.get(`/feedback/student/${session.userId}/resume`, {
+        headers: {
+          'Authorization': `Bearer ${session.token}`,
+        },
+      });
+      
+      return response.data;
     },
-    enabled: !!session?.token && feedbacks.length > 0,
+    enabled: !!session?.token && !!session?.userId && showAISummaryModal,
   });
 
   // Helper function to get course name by ID
@@ -348,6 +364,23 @@ export default function MisFeedbacksScreen() {
                 </View>
               )}
             </View>
+
+            {/* Button to generate AI summary */}
+            {totalItems > 0 && (
+              <View style={styles.aiSummaryButtonContainer}>
+                <Button
+                  mode="outlined"
+                  onPress={() => setShowAISummaryModal(true)}
+                  style={styles.aiSummaryButton}
+                  contentStyle={styles.aiSummaryButtonContent}
+                  labelStyle={styles.aiSummaryButtonLabel}
+                  icon="robot"
+                >
+                  Ver resumen por IA
+                </Button>
+              </View>
+            )}
+
             {feedbacks.map((feedback: StudentFeedback, index: number) => (
               <Card key={feedback.id} style={styles.feedbackCard}>
                 <Card.Content>
@@ -427,6 +460,51 @@ export default function MisFeedbacksScreen() {
           onChange={onToDateChange}
         />
       )}
+
+      {/* AI Summary Modal */}
+      <Modal
+        visible={showAISummaryModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowAISummaryModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                Resumen por IA de tus Feedbacks
+              </Text>
+              <Button
+                mode="text"
+                onPress={() => setShowAISummaryModal(false)}
+                style={styles.modalCloseButton}
+                labelStyle={{ fontSize: 14 }}
+              >
+                Cerrar
+              </Button>
+            </View>
+            
+            {summaryLoading ? (
+              <View style={styles.modalLoadingContainer}>
+                <ActivityIndicator size="large" color="#6200ee" />
+                <Text style={styles.modalLoadingText}>Generando resumen con IA...</Text>
+              </View>
+            ) : aiSummaryData ? (
+              <ScrollView style={styles.modalScrollView}>
+                <Text style={styles.modalResumeText}>
+                  {aiSummaryData.summary || 'No hay resumen disponible'}
+                </Text>
+              </ScrollView>
+            ) : (
+              <View style={styles.modalLoadingContainer}>
+                <Text style={styles.modalLoadingText}>
+                  No se pudo generar el resumen. Intenta nuevamente.
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
 
       <CreateFeedbackModal
         visible={showCreateModal}
@@ -661,8 +739,72 @@ const styles = StyleSheet.create({
   },
   applyFiltersButton: {
     flex: 1,
-  },
-  clearFiltersButton: {
+  },  clearFiltersButton: {
     flex: 1,
+  },
+  aiSummaryButtonContainer: {
+    marginVertical: 16,
+    paddingHorizontal: 16,
+  },
+  aiSummaryButton: {
+    borderColor: '#6200ee',
+    borderWidth: 2,
+  },
+  aiSummaryButtonContent: {
+    height: 50,
+  },
+  aiSummaryButtonLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6200ee',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 20,
+    width: '100%',
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    flex: 1,
+  },
+  modalCloseButton: {
+    marginLeft: 10,
+  },
+  modalScrollView: {
+    maxHeight: 400,
+  },
+  modalResumeText: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: '#333',
+    textAlign: 'justify',
+  },
+  modalLoadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  modalLoadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
   },
 });
