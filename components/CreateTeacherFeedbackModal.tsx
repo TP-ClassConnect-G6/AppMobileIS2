@@ -115,11 +115,11 @@ const CreateTeacherFeedbackModal = ({ visible, onDismiss, onFeedbackCreated }: C
       throw new Error('Error al buscar usuario');
     }
   };
-  
-  // Función para crear feedback
+    // Función para crear feedback
   const createFeedback = async (feedbackData: any) => {
     try {
-      const response = await courseClient.post('/feedback/student', feedbackData, {
+      const { student_reviewed, ...bodyData } = feedbackData;
+      const response = await courseClient.post(`/feedback/student/${student_reviewed}`, bodyData, {
         headers: {
           'Authorization': `Bearer ${session?.token}`,
           'Content-Type': 'application/json',
