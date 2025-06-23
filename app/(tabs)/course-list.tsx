@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { StyleSheet, View, Text, FlatList, ActivityIndicator, RefreshControl, TouchableOpacity, Alert } from "react-native";
 import { Card, Title, Paragraph, Chip, Divider, Button, Provider } from "react-native-paper";
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -10,7 +10,7 @@ import { TextInput } from "react-native-paper";
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSession } from "@/contexts/session";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import EditCourseModal from "@/components/EditCourseModal";
 import CourseDetailModal from "@/components/CourseDetailModal";
 
@@ -216,6 +216,16 @@ export default function CourseListScreen() {
   
   // Estado para mostrar solo favoritos
   const [showOnlyFavourites, setShowOnlyFavourites] = useState(false);
+
+  
+  const params = useLocalSearchParams();
+
+  useEffect(() => {
+    if (params.courseId) {
+      setSelectedCourseId(params.courseId as string);
+      setDetailModalVisible(true);
+    }
+  }, [params.courseId]);
 
   const [filters, setFilters] = useState({ 
     course_name: '', 

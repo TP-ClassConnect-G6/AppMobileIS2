@@ -1,5 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
+import * as Linking from 'expo-linking';
+import { useEffect } from 'react';
 
 export async function getFCMPushToken(): Promise<string | null> {
   if (!Device.isDevice) {
@@ -24,3 +26,10 @@ export async function getFCMPushToken(): Promise<string | null> {
   console.log('🔔 FCM Token:', fcmToken);
   return fcmToken;
 }
+
+
+// useEffect(() => {
+  
+
+//   return () => subscription.remove();
+// }, []);
