@@ -36,10 +36,16 @@ export default function TeacherFeedbacksScreen() {
   const [coursesDropdownVisible, setCoursesDropdownVisible] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const limit = 3;
-  
-  // Filtros
+    // Filtros
   const [filtersVisible, setFiltersVisible] = useState(false);
   const [filters, setFilters] = useState({
+    published_from: null as Date | null,
+    published_to: null as Date | null,
+    score: '' as string,
+  });
+  
+  // Filtros temporales (para editar antes de aplicar)
+  const [tempFilters, setTempFilters] = useState({
     published_from: null as Date | null,
     published_to: null as Date | null,
     score: '' as string,
@@ -171,33 +177,37 @@ export default function TeacherFeedbacksScreen() {
       setCurrentPage(currentPage - 1);
     }
   };
-
   const handleFilterChange = () => {
     setCurrentPage(1); // Reset to first page when filters change
   };
 
+  const applyFilters = () => {
+    setFilters({ ...tempFilters });
+    setCurrentPage(1);
+  };
+
   const clearFilters = () => {
-    setFilters({
+    const emptyFilters = {
       published_from: null,
       published_to: null,
       score: '',
-    });
+    };
+    setFilters(emptyFilters);
+    setTempFilters(emptyFilters);
     setCurrentPage(1);
   };
 
   const onFromDateChange = (event: any, selectedDate?: Date) => {
     setShowFromDatePicker(false);
     if (selectedDate) {
-      setFilters(prev => ({ ...prev, published_from: selectedDate }));
-      handleFilterChange();
+      setTempFilters(prev => ({ ...prev, published_from: selectedDate }));
     }
   };
 
   const onToDateChange = (event: any, selectedDate?: Date) => {
     setShowToDatePicker(false);
     if (selectedDate) {
-      setFilters(prev => ({ ...prev, published_to: selectedDate }));
-      handleFilterChange();
+      setTempFilters(prev => ({ ...prev, published_to: selectedDate }));
     }
   };
   const selectedCourse = teacherCourses?.find((course: TeacherCourse) => course.course_id === selectedCourseId);
@@ -290,8 +300,8 @@ export default function TeacherFeedbacksScreen() {
                   onPress={() => setShowFromDatePicker(true)}
                 >
                   <Text style={styles.dateButtonText}>
-                    {filters.published_from 
-                      ? formatDate(filters.published_from, 'dd/MM/yyyy')
+                    {tempFilters.published_from 
+                      ? formatDate(tempFilters.published_from, 'dd/MM/yyyy')
                       : 'Seleccionar fecha'
                     }
                   </Text>
@@ -305,8 +315,8 @@ export default function TeacherFeedbacksScreen() {
                   onPress={() => setShowToDatePicker(true)}
                 >
                   <Text style={styles.dateButtonText}>
-                    {filters.published_to 
-                      ? formatDate(filters.published_to, 'dd/MM/yyyy')
+                    {tempFilters.published_to 
+                      ? formatDate(tempFilters.published_to, 'dd/MM/yyyy')
                       : 'Seleccionar fecha'
                     }
                   </Text>
@@ -318,10 +328,9 @@ export default function TeacherFeedbacksScreen() {
             <Text style={styles.filterSectionTitle}>Filtrar por puntuación:</Text>
             <View style={styles.dropdownContainer}>
               <Picker
-                selectedValue={filters.score}
+                selectedValue={tempFilters.score}
                 onValueChange={(value) => {
-                  setFilters(prev => ({ ...prev, score: value }));
-                  handleFilterChange();
+                  setTempFilters(prev => ({ ...prev, score: value }));
                 }}
                 style={styles.picker}
               >
@@ -334,15 +343,26 @@ export default function TeacherFeedbacksScreen() {
               </Picker>
             </View>
 
-            {/* Botón para limpiar filtros */}
-            <Button
-              mode="outlined"
-              onPress={clearFilters}
-              style={styles.clearFiltersButton}
-              icon="filter-off"
-            >
-              Limpiar filtros
-            </Button>
+            {/* Botones de acción */}
+            <View style={styles.filterButtonsContainer}>
+              <Button
+                mode="contained"
+                onPress={applyFilters}
+                style={styles.applyFiltersButton}
+                icon="check"
+              >
+                Aplicar filtros
+              </Button>
+              
+              <Button
+                mode="outlined"
+                onPress={clearFilters}
+                style={styles.clearFiltersButton}
+                icon="filter-off"
+              >
+                Limpiar filtros
+              </Button>
+            </View>
           </View>
         )}
         {/* Statistics */}
@@ -441,11 +461,10 @@ export default function TeacherFeedbacksScreen() {
           </View>
         )}
       </View>
-
       {/* Date Pickers */}
       {showFromDatePicker && (
         <DateTimePicker
-          value={filters.published_from || new Date()}
+          value={tempFilters.published_from || new Date()}
           mode="date"
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
           onChange={onFromDateChange}
@@ -454,7 +473,7 @@ export default function TeacherFeedbacksScreen() {
       
       {showToDatePicker && (
         <DateTimePicker
-          value={filters.published_to || new Date()}
+          value={tempFilters.published_to || new Date()}
           mode="date"
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
           onChange={onToDateChange}
@@ -634,7 +653,8 @@ const styles = StyleSheet.create({
   },
   paginationButton: {
     marginHorizontal: 8,
-  },  paginationText: {
+  },
+  paginationText: {
     fontSize: 14,
     color: '#666',
     fontWeight: '500',
@@ -690,12 +710,19 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     backgroundColor: '#f9f9f9',
     overflow: 'hidden',
-  },
-  picker: {
+  },  picker: {
     height: 50,
     width: '100%',
   },
+  filterButtonsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 16,
+  },
+  applyFiltersButton: {
+    flex: 1,
+  },
   clearFiltersButton: {
-    marginTop: 8,
+    flex: 1,
   },
 });
