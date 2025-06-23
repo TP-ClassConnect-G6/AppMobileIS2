@@ -272,36 +272,28 @@ export default function TeacherFeedbacksScreen() {
             ))
           )}
         </ScrollView>
-
         {/* Pagination Controls */}
         {selectedCourseId && totalPages > 1 && (
           <View style={styles.paginationContainer}>
             <Button
               mode="outlined"
+              disabled={currentPage <= 1}
               onPress={handlePrevPage}
-              disabled={currentPage === 1}
-              style={[styles.paginationButton, currentPage === 1 && styles.disabledButton]}
+              style={styles.paginationButton}
               icon="chevron-left"
             >
               Anterior
             </Button>
-            
-            <View style={styles.pageInfo}>
-              <Text style={styles.pageText}>
-                Página {currentPage} de {totalPages}
-              </Text>
-              <Text style={styles.itemsText}>
-                Mostrando {feedbacks.length} de {totalItems} feedbacks
-              </Text>
-            </View>
-            
+            <Text style={styles.paginationText}>
+              Página {currentPage} de {totalPages}
+            </Text>
             <Button
               mode="outlined"
+              disabled={currentPage >= totalPages}
               onPress={handleNextPage}
-              disabled={currentPage === totalPages}
-              style={[styles.paginationButton, currentPage === totalPages && styles.disabledButton]}
+              style={styles.paginationButton}
               icon="chevron-right"
-              contentStyle={styles.nextButtonContent}
+              contentStyle={{ flexDirection: 'row-reverse' }}
             >
               Siguiente
             </Button>
@@ -469,40 +461,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#2196f3',
-  },
-  paginationContainer: {
+  },  paginationContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 8,
-    elevation: 2,
-    marginTop: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+    backgroundColor: '#f9f9f9',
   },
   paginationButton: {
-    minWidth: 100,
+    marginHorizontal: 8,
   },
-  disabledButton: {
-    opacity: 0.5,
-  },
-  pageInfo: {
-    alignItems: 'center',
-    flex: 1,
-    marginHorizontal: 16,
-  },
-  pageText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
-  },
-  itemsText: {
-    fontSize: 12,
+  paginationText: {
+    fontSize: 14,
     color: '#666',
-    textAlign: 'center',
-  },
-  nextButtonContent: {
-    flexDirection: 'row-reverse',
+    fontWeight: '500',
   },
 });
