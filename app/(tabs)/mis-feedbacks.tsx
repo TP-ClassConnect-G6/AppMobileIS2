@@ -178,7 +178,7 @@ export default function MisFeedbacksScreen() {
           <View style={styles.titleContainer}>
             <Text style={styles.title}>Mis Feedbacks</Text>
             <Text style={styles.subtitle}>
-              Aquí podrás ver todos los feedbacks que has enviado
+              Aquí podrás ver todos los feedbacks recibidos sobre los cursos que has tomado.
             </Text>
           </View>
           <Button
