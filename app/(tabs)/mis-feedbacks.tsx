@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, ScrollView, Alert } from 'react-native';
-import { Text, Card, FAB, Portal, Button, ActivityIndicator } from 'react-native-paper';
+import { StyleSheet, View, ScrollView, Alert, TouchableOpacity, Platform } from 'react-native';
+import { Text, Card, FAB, Portal, Button, ActivityIndicator, Menu } from 'react-native-paper';
 import { useSession } from '@/contexts/session';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import CreateFeedbackModal from '../../components/CreateFeedbackModal';
 import { courseClient } from '@/lib/http';
+import { Picker } from '@react-native-picker/picker';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { formatDate } from "date-fns";
 
 interface StudentFeedback {
   id: string;
@@ -21,13 +24,54 @@ export default function MisFeedbacksScreen() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const limit = 3;
-  // Get student's feedbacks with pagination
+
+  // Filtros
+  const [filtersVisible, setFiltersVisible] = useState(false);
+  const [filters, setFilters] = useState({
+    course_id: '' as string,
+    published_from: null as Date | null,
+    published_to: null as Date | null,
+    score: '' as string,
+  });
+  
+  // Filtros temporales (para editar antes de aplicar)
+  const [tempFilters, setTempFilters] = useState({
+    course_id: '' as string,
+    published_from: null as Date | null,
+    published_to: null as Date | null,
+    score: '' as string,
+  });
+  
+  // Estados para date pickers y dropdown
+  const [showFromDatePicker, setShowFromDatePicker] = useState(false);
+  const [showToDatePicker, setShowToDatePicker] = useState(false);
+  const [courseDropdownVisible, setCourseDropdownVisible] = useState(false);  // Get student's feedbacks with pagination and filters
   const { data: feedbacksData, isLoading: feedbacksLoading, refetch: refetchFeedbacks } = useQuery({
-    queryKey: ['student-feedbacks', session?.userId, currentPage],
+    queryKey: ['student-feedbacks', session?.userId, currentPage, filters],
     queryFn: async () => {
       if (!session?.token || !session?.userId) throw new Error('No access token or user ID');
       
-      const response = await courseClient.get(`/feedback/student/${session.userId}?page=${currentPage}&limit=${limit}`, {
+      // Construir parámetros de consulta
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: limit.toString(),
+      });
+      
+      // Agregar filtros si están definidos
+      if (filters.course_id) {
+        params.append('course_id', filters.course_id);
+      }
+      if (filters.published_from) {
+        params.append('published_from', formatDate(filters.published_from, 'yyyy-MM-dd'));
+      }
+      if (filters.published_to) {
+        params.append('published_to', formatDate(filters.published_to, 'yyyy-MM-dd'));
+      }
+      if (filters.score) {
+        params.append('score', filters.score);
+      }
+      
+      const response = await courseClient.get(`/feedback/student/${session.userId}?${params.toString()}`, {
         headers: {
           'Authorization': `Bearer ${session.token}`,
         },
@@ -84,11 +128,47 @@ export default function MisFeedbacksScreen() {
       setCurrentPage(currentPage + 1);
     }
   };
-
   const handlePrevPage = () => {
     if (currentPage > 1) {
       setCurrentPage(currentPage - 1);
     }
+  };
+
+  // Funciones para manejar filtros
+  const applyFilters = () => {
+    setFilters({ ...tempFilters });
+    setCurrentPage(1); // Reset to first page when filters change
+  };
+
+  const clearFilters = () => {
+    const emptyFilters = {
+      course_id: '',
+      published_from: null,
+      published_to: null,
+      score: '',
+    };
+    setFilters(emptyFilters);
+    setTempFilters(emptyFilters);
+    setCurrentPage(1);
+  };
+
+  const onFromDateChange = (event: any, selectedDate?: Date) => {
+    setShowFromDatePicker(false);
+    if (selectedDate) {
+      setTempFilters(prev => ({ ...prev, published_from: selectedDate }));
+    }
+  };
+
+  const onToDateChange = (event: any, selectedDate?: Date) => {
+    setShowToDatePicker(false);
+    if (selectedDate) {
+      setTempFilters(prev => ({ ...prev, published_to: selectedDate }));
+    }
+  };
+
+  const handleCourseFilter = (courseId: string) => {
+    setTempFilters(prev => ({ ...prev, course_id: courseId }));
+    setCourseDropdownVisible(false);
   };
 
   return (
@@ -111,6 +191,128 @@ export default function MisFeedbacksScreen() {
           </Button>
         </View>
       </View>
+
+      {/* Control para mostrar/ocultar filtros */}
+      <View style={styles.headerControls}>
+        <TouchableOpacity onPress={() => setFiltersVisible(!filtersVisible)} style={{ marginBottom: 16, paddingHorizontal: 20 }}>
+          <Text style={{ fontSize: 18, fontWeight: 'bold' }}>
+            {filtersVisible ? "Ocultar filtros ▲" : "Mostrar filtros ▼"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Filtros */}
+      {filtersVisible && (
+        <View style={styles.filtersContainer}>
+          {/* Filtro por curso */}
+          <Text style={styles.filterSectionTitle}>Filtrar por curso:</Text>
+          <Menu
+            visible={courseDropdownVisible}
+            onDismiss={() => setCourseDropdownVisible(false)}
+            anchor={
+              <Button
+                mode="outlined"
+                onPress={() => setCourseDropdownVisible(true)}
+                icon="chevron-down"
+                style={styles.dropdownButton}
+                contentStyle={styles.dropdownButtonContent}
+              >
+                {tempFilters.course_id 
+                  ? getCourseName(tempFilters.course_id)
+                  : 'Todos los cursos'
+                }
+              </Button>
+            }
+          >
+            <Menu.Item
+              onPress={() => handleCourseFilter('')}
+              title="Todos los cursos"
+            />
+            {coursesData?.map((course: any) => (
+              <Menu.Item
+                key={course.course_id}
+                onPress={() => handleCourseFilter(course.course_id)}
+                title={course.course_name}
+              />
+            ))}
+          </Menu>
+
+          {/* Filtros de fecha */}
+          <Text style={styles.filterSectionTitle}>Filtrar por fecha de publicación:</Text>
+          <View style={styles.dateFilterContainer}>
+            <View style={styles.dateInputContainer}>
+              <Text style={styles.dateLabel}>Desde:</Text>
+              <TouchableOpacity
+                style={styles.dateButton}
+                onPress={() => setShowFromDatePicker(true)}
+              >
+                <Text style={styles.dateButtonText}>
+                  {tempFilters.published_from 
+                    ? formatDate(tempFilters.published_from, 'dd/MM/yyyy')
+                    : 'Seleccionar fecha'
+                  }
+                </Text>
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.dateInputContainer}>
+              <Text style={styles.dateLabel}>Hasta:</Text>
+              <TouchableOpacity
+                style={styles.dateButton}
+                onPress={() => setShowToDatePicker(true)}
+              >
+                <Text style={styles.dateButtonText}>
+                  {tempFilters.published_to 
+                    ? formatDate(tempFilters.published_to, 'dd/MM/yyyy')
+                    : 'Seleccionar fecha'
+                  }
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Filtro de score */}
+          <Text style={styles.filterSectionTitle}>Filtrar por puntuación:</Text>
+          <View style={styles.dropdownContainer}>
+            <Picker
+              selectedValue={tempFilters.score}
+              onValueChange={(value) => {
+                setTempFilters(prev => ({ ...prev, score: value }));
+              }}
+              style={styles.picker}
+            >
+              <Picker.Item label="Todas las puntuaciones" value="" />
+              <Picker.Item label="1 estrella" value="1" />
+              <Picker.Item label="2 estrellas" value="2" />
+              <Picker.Item label="3 estrellas" value="3" />
+              <Picker.Item label="4 estrellas" value="4" />
+              <Picker.Item label="5 estrellas" value="5" />
+            </Picker>
+          </View>
+
+          {/* Botones de acción */}
+          <View style={styles.filterButtonsContainer}>
+            <Button
+              mode="contained"
+              onPress={applyFilters}
+              style={styles.applyFiltersButton}
+              icon="check"
+            >
+              Aplicar filtros
+            </Button>
+            
+            <Button
+              mode="outlined"
+              onPress={clearFilters}
+              style={styles.clearFiltersButton}
+              icon="filter-off"
+            >
+              Limpiar filtros
+            </Button>
+          </View>
+        </View>
+      )}
+
       <ScrollView style={styles.content}>
         {feedbacksLoading ? (
           <View style={styles.loadingContainer}>
@@ -205,6 +407,25 @@ export default function MisFeedbacksScreen() {
             Siguiente
           </Button>
         </View>
+      )}
+
+      {/* Date Pickers */}
+      {showFromDatePicker && (
+        <DateTimePicker
+          value={tempFilters.published_from || new Date()}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={onFromDateChange}
+        />
+      )}
+      
+      {showToDatePicker && (
+        <DateTimePicker
+          value={tempFilters.published_to || new Date()}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={onToDateChange}
+        />
       )}
 
       <CreateFeedbackModal
@@ -366,5 +587,82 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     fontWeight: '500',
+  },
+  headerControls: {
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    backgroundColor: '#f5f5f5',
+  },
+  filtersContainer: {
+    backgroundColor: '#fff',
+    padding: 16,
+    marginHorizontal: 20,
+    borderRadius: 8,
+    marginBottom: 16,
+    elevation: 2,
+  },
+  filterSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 12,
+    marginTop: 8,
+  },
+  dropdownButton: {
+    justifyContent: 'flex-start',
+    marginBottom: 16,
+  },
+  dropdownButtonContent: {
+    justifyContent: 'flex-start',
+  },
+  dateFilterContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    gap: 8,
+  },
+  dateInputContainer: {
+    flex: 1,
+  },
+  dateLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+    marginBottom: 8,
+  },
+  dateButton: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 4,
+    padding: 12,
+    backgroundColor: '#f9f9f9',
+  },
+  dateButtonText: {
+    fontSize: 14,
+    color: '#333',
+    textAlign: 'center',
+  },
+  dropdownContainer: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 4,
+    marginBottom: 16,
+    backgroundColor: '#f9f9f9',
+    overflow: 'hidden',
+  },
+  picker: {
+    height: 50,
+    width: '100%',
+  },
+  filterButtonsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 16,
+  },
+  applyFiltersButton: {
+    flex: 1,
+  },
+  clearFiltersButton: {
+    flex: 1,
   },
 });
