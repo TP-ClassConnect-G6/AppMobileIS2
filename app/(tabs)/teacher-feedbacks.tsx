@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, ScrollView, Alert, TouchableOpacity, Platform } from 'react-native';
+import { StyleSheet, View, ScrollView, Alert, TouchableOpacity, Platform, Modal } from 'react-native';
 import { Text, Card, Button, Menu, Divider, ActivityIndicator, TextInput } from 'react-native-paper';
 import { useSession } from '@/contexts/session';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -50,10 +50,10 @@ export default function TeacherFeedbacksScreen() {
     published_to: null as Date | null,
     score: '' as string,
   });
-  
-  // Estados para date pickers
+    // Estados para date pickers
   const [showFromDatePicker, setShowFromDatePicker] = useState(false);
-  const [showToDatePicker, setShowToDatePicker] = useState(false);// Get teacher's courses
+  const [showToDatePicker, setShowToDatePicker] = useState(false);
+  const [showResumeModal, setShowResumeModal] = useState(false);// Get teacher's courses
   const { data: teacherCourses, isLoading: coursesLoading } = useQuery({
     queryKey: ['teacher-courses', session?.userId],
     queryFn: async () => {
@@ -146,8 +146,7 @@ export default function TeacherFeedbacksScreen() {
   const feedbacks = feedbacksData?.items || [];
   const totalPages = feedbacksData?.totalPages || 1;
   const totalItems = feedbacksData?.totalItems || 0;
-
-  // Get course feedback resume
+  // Get course feedback resume (only when modal is open)
   const { data: feedbackResume, isLoading: resumeLoading } = useQuery({
     queryKey: ['course-feedback-resume', selectedCourseId],
     queryFn: async () => {
@@ -161,7 +160,7 @@ export default function TeacherFeedbacksScreen() {
       
       return response.data;
     },
-    enabled: !!session?.token && !!selectedCourseId,
+    enabled: !!session?.token && !!selectedCourseId && showResumeModal,
   });
 
   const handleCreateFeedback = () => {
@@ -396,24 +395,22 @@ export default function TeacherFeedbacksScreen() {
               <Text style={styles.statValue}>{currentPage}/{totalPages}</Text>
               <Text style={styles.statLabel}>Página</Text>
             </View>
-          </View>        )}
+          </View>
+        )}
 
-        {/* Course Feedback Resume */}
-        {selectedCourseId && feedbackResume && (
-          <View style={styles.resumeContainer}>
-            <Text style={styles.resumeTitle}>Resumen de Feedbacks del Curso</Text>
-            {resumeLoading ? (
-              <View style={styles.resumeLoadingContainer}>
-                <ActivityIndicator size="small" />
-                <Text style={styles.resumeLoadingText}>Cargando resumen...</Text>
-              </View>
-            ) : (
-              <View style={styles.resumeContent}>
-                <Text style={styles.resumeText}>
-                  {feedbackResume.resume || feedbackResume.summary || 'No hay resumen disponible'}
-                </Text>
-              </View>
-            )}
+        {/* Button to generate AI summary */}
+        {selectedCourseId && feedbacks.length > 0 && (
+          <View style={styles.aiSummaryButtonContainer}>
+            <Button
+              mode="outlined"
+              onPress={() => setShowResumeModal(true)}
+              style={styles.aiSummaryButton}
+              contentStyle={styles.aiSummaryButtonContent}
+              labelStyle={styles.aiSummaryButtonLabel}
+              icon="robot"
+            >
+              Generar resumen por IA
+            </Button>
           </View>
         )}
 
@@ -513,6 +510,51 @@ export default function TeacherFeedbacksScreen() {
           onChange={onToDateChange}
         />
       )}
+
+      {/* AI Summary Modal */}
+      <Modal
+        visible={showResumeModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowResumeModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                Resumen por IA - {teacherCourses?.find((c: TeacherCourse) => c.course_id === selectedCourseId)?.course_name}
+              </Text>
+              <Button
+                mode="text"
+                onPress={() => setShowResumeModal(false)}
+                style={styles.modalCloseButton}
+                labelStyle={{ fontSize: 14 }}
+              >
+                Cerrar
+              </Button>
+            </View>
+            
+            {resumeLoading ? (
+              <View style={styles.modalLoadingContainer}>
+                <ActivityIndicator size="large" color="#6200ee" />
+                <Text style={styles.modalLoadingText}>Generando resumen con IA...</Text>
+              </View>
+            ) : feedbackResume ? (
+              <ScrollView style={styles.modalScrollView}>
+                <Text style={styles.modalResumeText}>
+                  {feedbackResume.resume || feedbackResume.summary || 'No hay resumen disponible'}
+                </Text>
+              </ScrollView>
+            ) : (
+              <View style={styles.modalLoadingContainer}>
+                <Text style={styles.modalLoadingText}>
+                  No se pudo generar el resumen. Intenta nuevamente.
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
 
       <CreateTeacherFeedbackModal
         visible={showCreateModal}
@@ -794,5 +836,69 @@ const styles = StyleSheet.create({
   },
   clearFiltersButton: {
     flex: 1,
+  },
+  aiSummaryButtonContainer: {
+    marginVertical: 16,
+    paddingHorizontal: 16,
+  },
+  aiSummaryButton: {
+    borderColor: '#6200ee',
+    borderWidth: 2,
+  },
+  aiSummaryButtonContent: {
+    height: 50,
+  },
+  aiSummaryButtonLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6200ee',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 20,
+    width: '100%',
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    flex: 1,
+  },
+  modalCloseButton: {
+    marginLeft: 10,
+  },
+  modalScrollView: {
+    maxHeight: 400,
+  },
+  modalResumeText: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: '#333',
+    textAlign: 'justify',
+  },
+  modalLoadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  modalLoadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#666',
   },
 });
