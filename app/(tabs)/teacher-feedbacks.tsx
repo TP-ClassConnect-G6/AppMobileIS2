@@ -232,9 +232,6 @@ export default function TeacherFeedbacksScreen() {
                       <Text style={styles.ratingText}>{feedback.score}/5</Text>
                     </View>
                   </View>
-                  <Text style={styles.feedbackEmail}>
-                    ID: {feedback.student_id || 'N/A'}
-                  </Text>
                   <Text style={styles.feedbackContent}>
                     {feedback.content}
                   </Text>
