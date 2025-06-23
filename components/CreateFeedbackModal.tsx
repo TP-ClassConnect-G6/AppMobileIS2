@@ -78,10 +78,11 @@ const CreateFeedbackModal = ({ visible, onDismiss, onFeedbackCreated }: CreateFe
     },
     enabled: visible && session?.userType === 'student' && !!session?.userId,
   });
-    // Función para crear feedback
+  // Función para crear feedback
   const createFeedback = async (feedbackData: any) => {
     try {
-      const response = await courseClient.post('/feedback/course', feedbackData, {
+      const { course_id, ...bodyData } = feedbackData;
+      const response = await courseClient.post(`/feedback/course/${course_id}`, bodyData, {
         headers: {
           'Authorization': `Bearer ${session?.token}`,
           'Content-Type': 'application/json',
