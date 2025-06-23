@@ -143,10 +143,26 @@ export default function TeacherFeedbacksScreen() {
     },
     enabled: !!session?.token && !!selectedCourseId,
   });
-
   const feedbacks = feedbacksData?.items || [];
   const totalPages = feedbacksData?.totalPages || 1;
   const totalItems = feedbacksData?.totalItems || 0;
+
+  // Get course feedback resume
+  const { data: feedbackResume, isLoading: resumeLoading } = useQuery({
+    queryKey: ['course-feedback-resume', selectedCourseId],
+    queryFn: async () => {
+      if (!session?.token || !selectedCourseId) return null;
+      
+      const response = await courseClient.get(`/feedback/course/${selectedCourseId}/resume`, {
+        headers: {
+          'Authorization': `Bearer ${session.token}`,
+        },
+      });
+      
+      return response.data;
+    },
+    enabled: !!session?.token && !!selectedCourseId,
+  });
 
   const handleCreateFeedback = () => {
     setShowCreateModal(true);
@@ -380,6 +396,24 @@ export default function TeacherFeedbacksScreen() {
               <Text style={styles.statValue}>{currentPage}/{totalPages}</Text>
               <Text style={styles.statLabel}>Página</Text>
             </View>
+          </View>        )}
+
+        {/* Course Feedback Resume */}
+        {selectedCourseId && feedbackResume && (
+          <View style={styles.resumeContainer}>
+            <Text style={styles.resumeTitle}>Resumen de Feedbacks del Curso</Text>
+            {resumeLoading ? (
+              <View style={styles.resumeLoadingContainer}>
+                <ActivityIndicator size="small" />
+                <Text style={styles.resumeLoadingText}>Cargando resumen...</Text>
+              </View>
+            ) : (
+              <View style={styles.resumeContent}>
+                <Text style={styles.resumeText}>
+                  {feedbackResume.resume || feedbackResume.summary || 'No hay resumen disponible'}
+                </Text>
+              </View>
+            )}
           </View>
         )}
 
@@ -558,11 +592,47 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#2196f3',
     marginBottom: 4,
-  },
-  statLabel: {
+  },  statLabel: {
     fontSize: 14,
     color: '#666',
     textAlign: 'center',
+  },
+  resumeContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 20,
+    elevation: 2,
+  },
+  resumeTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12,
+  },
+  resumeLoadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+  },
+  resumeLoadingText: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: '#666',
+  },
+  resumeContent: {
+    padding: 12,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#2196f3',
+  },
+  resumeText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#333',
+    fontStyle: 'italic',
   },
   scrollView: {
     flex: 1,
