@@ -30,7 +30,9 @@ export default function TeacherFeedbacksScreen() {
   const { session } = useSession();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
-  const [coursesDropdownVisible, setCoursesDropdownVisible] = useState(false);// Get teacher's courses
+  const [coursesDropdownVisible, setCoursesDropdownVisible] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const limit = 3;// Get teacher's courses
   const { data: teacherCourses, isLoading: coursesLoading } = useQuery({
     queryKey: ['teacher-courses', session?.userId],
     queryFn: async () => {
@@ -87,23 +89,26 @@ export default function TeacherFeedbacksScreen() {
       }
     },
     enabled: !!session?.token,
-  });
-  // Get feedbacks for selected course
-  const { data: feedbacks, isLoading: feedbacksLoading, refetch: refetchFeedbacks } = useQuery({
-    queryKey: ['course-feedbacks', selectedCourseId],
+  });  // Get feedbacks for selected course
+  const { data: feedbacksData, isLoading: feedbacksLoading, refetch: refetchFeedbacks } = useQuery({
+    queryKey: ['course-feedbacks', selectedCourseId, currentPage],
     queryFn: async () => {
-      if (!session?.token || !selectedCourseId) return [];
+      if (!session?.token || !selectedCourseId) return null;
       
-      const response = await courseClient.get(`/feedback/course/${selectedCourseId}`, {
+      const response = await courseClient.get(`/feedback/course/${selectedCourseId}?page=${currentPage}&limit=${limit}`, {
         headers: {
           'Authorization': `Bearer ${session.token}`,
         },
       });
       
-      return response.data?.items || [];
+      return response.data;
     },
     enabled: !!session?.token && !!selectedCourseId,
   });
+
+  const feedbacks = feedbacksData?.items || [];
+  const totalPages = feedbacksData?.totalPages || 1;
+  const totalItems = feedbacksData?.totalItems || 0;
 
   const handleCreateFeedback = () => {
     setShowCreateModal(true);
@@ -112,11 +117,28 @@ export default function TeacherFeedbacksScreen() {
   const handleCloseModal = () => {
     setShowCreateModal(false);
   };
-
   const handleFeedbackCreated = () => {
     setShowCreateModal(false);
     refetchFeedbacks();
     Alert.alert('Éxito', 'Feedback creado exitosamente');
+  };
+
+  const handleCourseChange = (courseId: string) => {
+    setSelectedCourseId(courseId);
+    setCurrentPage(1); // Reset to first page when changing course
+    setCoursesDropdownVisible(false);
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
   };
   const selectedCourse = teacherCourses?.find((course: TeacherCourse) => course.course_id === selectedCourseId);
 
@@ -176,26 +198,26 @@ export default function TeacherFeedbacksScreen() {
             {teacherCourses?.map((course: TeacherCourse) => (
               <Menu.Item
                 key={course.course_id}
-                onPress={() => {
-                  setSelectedCourseId(course.course_id);
-                  setCoursesDropdownVisible(false);
-                }}
+                onPress={() => handleCourseChange(course.course_id)}
                 title={course.course_name}
               />
             ))}
           </Menu>
         </View>
-
         {/* Statistics */}
         {selectedCourseId && feedbacks && feedbacks.length > 0 && (
           <View style={styles.statsContainer}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{feedbacks.length}</Text>
+              <Text style={styles.statValue}>{totalItems}</Text>
               <Text style={styles.statLabel}>Total Feedbacks</Text>
             </View>
             <View style={styles.statItem}>
               <Text style={styles.statValue}>{averageRating}</Text>
               <Text style={styles.statLabel}>Promedio Rating</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{currentPage}/{totalPages}</Text>
+              <Text style={styles.statLabel}>Página</Text>
             </View>
           </View>
         )}
@@ -221,7 +243,8 @@ export default function TeacherFeedbacksScreen() {
                 Los estudiantes aún no han dejado feedbacks para este curso
               </Text>
             </View>
-          ) : (            feedbacks?.map((feedback: TeacherFeedback, index: number) => (
+          ) : (
+            feedbacks?.map((feedback: TeacherFeedback, index: number) => (
               <Card key={feedback.id || index} style={styles.feedbackCard}>
                 <Card.Content>
                   <View style={styles.feedbackHeader}>
@@ -249,6 +272,41 @@ export default function TeacherFeedbacksScreen() {
             ))
           )}
         </ScrollView>
+
+        {/* Pagination Controls */}
+        {selectedCourseId && totalPages > 1 && (
+          <View style={styles.paginationContainer}>
+            <Button
+              mode="outlined"
+              onPress={handlePrevPage}
+              disabled={currentPage === 1}
+              style={[styles.paginationButton, currentPage === 1 && styles.disabledButton]}
+              icon="chevron-left"
+            >
+              Anterior
+            </Button>
+            
+            <View style={styles.pageInfo}>
+              <Text style={styles.pageText}>
+                Página {currentPage} de {totalPages}
+              </Text>
+              <Text style={styles.itemsText}>
+                Mostrando {feedbacks.length} de {totalItems} feedbacks
+              </Text>
+            </View>
+            
+            <Button
+              mode="outlined"
+              onPress={handleNextPage}
+              disabled={currentPage === totalPages}
+              style={[styles.paginationButton, currentPage === totalPages && styles.disabledButton]}
+              icon="chevron-right"
+              contentStyle={styles.nextButtonContent}
+            >
+              Siguiente
+            </Button>
+          </View>
+        )}
       </View>
 
       <CreateTeacherFeedbackModal
@@ -411,5 +469,40 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#2196f3',
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 8,
+    elevation: 2,
+    marginTop: 10,
+  },
+  paginationButton: {
+    minWidth: 100,
+  },
+  disabledButton: {
+    opacity: 0.5,
+  },
+  pageInfo: {
+    alignItems: 'center',
+    flex: 1,
+    marginHorizontal: 16,
+  },
+  pageText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  itemsText: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+  },
+  nextButtonContent: {
+    flexDirection: 'row-reverse',
   },
 });
