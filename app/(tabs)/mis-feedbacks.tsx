@@ -19,14 +19,15 @@ interface StudentFeedback {
 export default function MisFeedbacksScreen() {
   const { session } = useSession();
   const [showCreateModal, setShowCreateModal] = useState(false);
-
-  // Get student's feedbacks
+  const [currentPage, setCurrentPage] = useState(1);
+  const limit = 3;
+  // Get student's feedbacks with pagination
   const { data: feedbacksData, isLoading: feedbacksLoading, refetch: refetchFeedbacks } = useQuery({
-    queryKey: ['student-feedbacks', session?.userId],
+    queryKey: ['student-feedbacks', session?.userId, currentPage],
     queryFn: async () => {
       if (!session?.token || !session?.userId) throw new Error('No access token or user ID');
       
-      const response = await courseClient.get(`/feedback/student/${session.userId}`, {
+      const response = await courseClient.get(`/feedback/student/${session.userId}?page=${currentPage}&limit=${limit}`, {
         headers: {
           'Authorization': `Bearer ${session.token}`,
         },
@@ -38,6 +39,8 @@ export default function MisFeedbacksScreen() {
   });
   const feedbacks = feedbacksData?.items || [];
   const totalItems = feedbacksData?.totalItems || 0;
+  const totalPages = feedbacksData?.totalPages || 1;
+  const currentPageFromData = feedbacksData?.currentPage || 1;
   console.log('Feedbacks:', feedbacks);
 
   // Get course names for the feedbacks
@@ -69,11 +72,23 @@ export default function MisFeedbacksScreen() {
 
   const handleCloseModal = () => {
     setShowCreateModal(false);
-  };
-  const handleFeedbackCreated = () => {
+  };  const handleFeedbackCreated = () => {
     setShowCreateModal(false);
+    setCurrentPage(1); // Reset to first page when new feedback is created
     refetchFeedbacks(); // Refrescar la lista de feedbacks
     Alert.alert('Éxito', 'Feedback creado exitosamente');
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
   };
 
   return (
@@ -116,16 +131,27 @@ export default function MisFeedbacksScreen() {
         ) : (
           <>
             <View style={styles.statsContainer}>
-              <Text style={styles.statsText}>
-                Total de feedbacks enviados: {totalItems}
-              </Text>
+              <View style={styles.statItem}>
+                <Text style={styles.statValue}>{totalItems}</Text>
+                <Text style={styles.statLabel}>Total Feedbacks</Text>
+              </View>
+              <View style={styles.statItem}>
+                <Text style={styles.statValue}>{feedbacks.length}</Text>
+                <Text style={styles.statLabel}>En esta página</Text>
+              </View>
+              {totalPages > 1 && (
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>{currentPage}/{totalPages}</Text>
+                  <Text style={styles.statLabel}>Página</Text>
+                </View>
+              )}
             </View>
             {feedbacks.map((feedback: StudentFeedback, index: number) => (
               <Card key={feedback.id} style={styles.feedbackCard}>
                 <Card.Content>
                   <View style={styles.feedbackHeader}>
                     <Text style={styles.feedbackTitle}>
-                      Feedback #{index + 1}
+                      Feedback #{(currentPage - 1) * limit + index + 1}
                     </Text>
                     <View style={styles.ratingContainer}>
                       <Text style={styles.ratingText}>{feedback.score}/5</Text>
@@ -152,6 +178,34 @@ export default function MisFeedbacksScreen() {
           </>
         )}
         </ScrollView>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <View style={styles.paginationContainer}>
+          <Button
+            mode="outlined"
+            disabled={currentPage <= 1}
+            onPress={handlePrevPage}
+            style={styles.paginationButton}
+            icon="chevron-left"
+          >
+            Anterior
+          </Button>
+          <Text style={styles.paginationText}>
+            Página {currentPage} de {totalPages}
+          </Text>
+          <Button
+            mode="outlined"
+            disabled={currentPage >= totalPages}
+            onPress={handleNextPage}
+            style={styles.paginationButton}
+            icon="chevron-right"
+            contentStyle={{ flexDirection: 'row-reverse' }}
+          >
+            Siguiente
+          </Button>
+        </View>
+      )}
 
       <CreateFeedbackModal
         visible={showCreateModal}
@@ -227,13 +281,28 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: '#666',
-  },
-  statsContainer: {
+  },  statsContainer: {
+    flexDirection: 'row',
     backgroundColor: '#fff',
     borderRadius: 8,
     padding: 16,
     marginBottom: 20,
     elevation: 2,
+  },
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#2196f3',
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
   },
   statsText: {
     fontSize: 16,
@@ -275,10 +344,27 @@ const styles = StyleSheet.create({
     color: '#666',
     marginBottom: 8,
     fontStyle: 'italic',
-  },
-  feedbackDate: {
+  },  feedbackDate: {
     fontSize: 12,
     color: '#999',
     fontStyle: 'italic',
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+    backgroundColor: '#f9f9f9',
+  },
+  paginationButton: {
+    marginHorizontal: 8,
+  },
+  paginationText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
   },
 });
