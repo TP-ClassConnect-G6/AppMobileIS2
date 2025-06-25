@@ -102,11 +102,16 @@ export default function RegisterScreen() {
       setTimeout(() => {
         router.push("/(login)");
       }, 2000);
-
     } catch (e) {
       if (axios.isAxiosError(e)) {
         if (e.response?.status === 400) {
-          setError("PIN de verificación incorrecto o expirado");
+          const errorMessage = e.response?.data?.error || "PIN de verificación incorrecto o expirado";
+          setError(errorMessage);
+          
+          // Redirigir al login después de mostrar el error
+          setTimeout(() => {
+            router.push("/(login)");
+          }, 3000);
         } else if (e.response?.status === 404) {
           setError("Usuario no encontrado");
         } else if (e.code === "ECONNREFUSED") {
