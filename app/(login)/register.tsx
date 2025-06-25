@@ -24,9 +24,12 @@ export default function RegisterScreen() {
       password: "",
     },
   });
-
   const [error, setError] = useState<string | undefined>(undefined);
   const [successMessage, setSuccessMessage] = useState<string | undefined>(undefined);
+  const [showPinVerification, setShowPinVerification] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState<string>("");
+  const [verificationPin, setVerificationPin] = useState<string>("");
+  const [isVerifying, setIsVerifying] = useState(false);
   const theme = useTheme();
 
   const handleRegister = async ({
@@ -42,30 +45,15 @@ export default function RegisterScreen() {
       const apiUrl = process.env.EXPO_PUBLIC_API_URL; // Leer la URL desde .env
       if (!apiUrl) {
         throw new Error("API URL is not defined in .env");
-      }
-  
-      const response = await axios.post(`${apiUrl}/register`, {
+      }      const response = await axios.post(`${apiUrl}/register`, {
         email,
         password,
-      });
+      });      console.log("Registro exitoso:", response.data);
 
-      console.log("Registro exitoso:", response.data);
-
-      // // Mostrar mensaje de éxito
-      // setSuccessMessage("Registro exitoso. Redirigiendo al login...");
-      
-      // // Redirigir al login después de 2 segundos
-      // setTimeout(() => {
-      //   router.push("./");
-      // }, 2000);
-
-      // Dentro de handleRegister
+      // Mostrar mensaje de éxito y activar verificación por PIN
       setSuccessMessage(response.data.message);
-
-      // Redirigir a la pantalla de solicitud de ubicación después de 5 segundos
-      setTimeout(() => {
-        router.push("/(login)");
-      }, 5000);
+      setRegisteredEmail(email);
+      setShowPinVerification(true);
 
     } catch (e) {
       if (axios.isAxiosError(e)) {
@@ -79,72 +67,174 @@ export default function RegisterScreen() {
       } else {
         console.error("Error desconocido:", e);
         setError(e instanceof Error ? e.message : "Something went wrong");
-      }
-    }
+      }    }
   };
 
+  const handlePinVerification = async () => {
+    if (!verificationPin || verificationPin.length !== 6) {
+      setError("Por favor ingresa un PIN de 6 dígitos");
+      return;
+    }
+
+    setError(undefined);
+    setIsVerifying(true);
+
+    try {
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      if (!apiUrl) {
+        throw new Error("API URL is not defined in .env");
+      }
+
+      const response = await axios.post(`${apiUrl}/confirm_registration`, {
+        email: registeredEmail,
+        verification_pin: verificationPin,
+      });
+
+      console.log("Verificación exitosa:", response.data);
+      setSuccessMessage("¡Registro completado exitosamente! Redirigiendo al login...");
+
+      // Redirigir al login después de 2 segundos
+      setTimeout(() => {
+        router.push("/(login)");
+      }, 2000);
+
+    } catch (e) {
+      if (axios.isAxiosError(e)) {
+        if (e.response?.status === 400) {
+          setError("PIN de verificación incorrecto o expirado");
+        } else if (e.response?.status === 404) {
+          setError("Usuario no encontrado");
+        } else if (e.code === "ECONNREFUSED") {
+          setError("No se pudo conectar al servidor. Verifica tu conexión.");
+        } else {
+          setError(e.response?.data?.error || "Error en la verificación");
+        }
+      } else {
+        console.error("Error desconocido:", e);
+        setError(e instanceof Error ? e.message : "Something went wrong");
+      }
+    } finally {
+      setIsVerifying(false);
+    }
+  };
   return (
     <View style={styles.container}>
-      <Text variant="headlineMedium" style={styles.title}>
-        Register
-      </Text>
-      {error && <Text style={styles.error}>{error}</Text>}
-      {successMessage && <Text style={styles.success}>{successMessage}</Text>}
-      <Controller
-        control={control}
-        name="email"
-        render={({ field: { onChange, onBlur, value } }) => (
+      {!showPinVerification ? (
+        // Formulario de registro
+        <>
+          <Text variant="headlineMedium" style={styles.title}>
+            Register
+          </Text>
+          {error && <Text style={styles.error}>{error}</Text>}
+          {successMessage && <Text style={styles.success}>{successMessage}</Text>}
+          <Controller
+            control={control}
+            name="email"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Email"
+                mode="outlined"
+                style={styles.input}
+                onBlur={onBlur}
+                onChangeText={onChange}
+                value={value}
+                error={!!errors.email}
+              />
+            )}
+          />
+          <HelperText type="error" visible={!!errors.email}>
+            {errors.email?.message}
+          </HelperText>
+
+          <Controller
+            control={control}
+            name="password"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                label="Password"
+                mode="outlined"
+                secureTextEntry
+                style={styles.input}
+                onBlur={onBlur}
+                onChangeText={onChange}
+                value={value}
+                error={!!errors.password}
+              />
+            )}
+          />
+          <HelperText type="error" visible={!!errors.password}>
+            {errors.password?.message}
+          </HelperText>
+
+          <Button
+            mode="contained"
+            onPress={handleSubmit(handleRegister)}
+            loading={isLoading}
+            disabled={isLoading}
+            style={styles.button}
+          >
+            Register
+          </Button>
+          <Button
+            mode="text"
+            onPress={() => router.back()}
+            style={styles.goBackButton}
+          >
+            Go Back
+          </Button>
+        </>
+      ) : (
+        // Formulario de verificación por PIN
+        <>
+          <Text variant="headlineMedium" style={styles.title}>
+            Verificar Email
+          </Text>
+          <Text style={styles.instructions}>
+            Hemos enviado un código de verificación de 6 dígitos a:
+          </Text>
+          <Text style={styles.emailText}>{registeredEmail}</Text>
+          <Text style={styles.instructions}>
+            Por favor ingresa el código para completar tu registro:
+          </Text>
+          
+          {error && <Text style={styles.error}>{error}</Text>}
+          {successMessage && <Text style={styles.success}>{successMessage}</Text>}
+          
           <TextInput
-            label="Email"
+            label="Código de verificación (6 dígitos)"
             mode="outlined"
             style={styles.input}
-            onBlur={onBlur}
-            onChangeText={onChange}
-            value={value}
-            error={!!errors.email}
+            value={verificationPin}
+            onChangeText={setVerificationPin}
+            keyboardType="numeric"
+            maxLength={6}
+            placeholder="123456"
           />
-        )}
-      />
-      <HelperText type="error" visible={!!errors.email}>
-        {errors.email?.message}
-      </HelperText>
 
-      <Controller
-        control={control}
-        name="password"
-        render={({ field: { onChange, onBlur, value } }) => (
-          <TextInput
-            label="Password"
-            mode="outlined"
-            secureTextEntry
-            style={styles.input}
-            onBlur={onBlur}
-            onChangeText={onChange}
-            value={value}
-            error={!!errors.password}
-          />
-        )}
-      />
-      <HelperText type="error" visible={!!errors.password}>
-        {errors.password?.message}
-      </HelperText>
-
-      <Button
-        mode="contained"
-        onPress={handleSubmit(handleRegister)}
-        loading={isLoading}
-        disabled={isLoading}
-        style={styles.button}
-      >
-        Register
-      </Button>
-      <Button
-        mode="text"
-        onPress={() => router.back()}
-        style={styles.goBackButton}
-      >
-        Go Back
-      </Button>
+          <Button
+            mode="contained"
+            onPress={handlePinVerification}
+            loading={isVerifying}
+            disabled={isVerifying || verificationPin.length !== 6}
+            style={styles.button}
+          >
+            Verificar
+          </Button>
+          
+          <Button
+            mode="text"
+            onPress={() => {
+              setShowPinVerification(false);
+              setSuccessMessage(undefined);
+              setError(undefined);
+              setVerificationPin("");
+            }}
+            style={styles.goBackButton}
+          >
+            Volver al registro
+          </Button>
+        </>
+      )}
     </View>
   );
 }
@@ -173,10 +263,22 @@ const styles = StyleSheet.create({
     color: "red",
     textAlign: "center",
     marginBottom: 16,
-  },
-  success: {
+  },  success: {
     color: "green",
     textAlign: "center",
     marginBottom: 16,
+  },
+  instructions: {
+    textAlign: "center",
+    marginBottom: 12,
+    fontSize: 16,
+    color: "#666",
+  },
+  emailText: {
+    textAlign: "center",
+    marginBottom: 16,
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#2196f3",
   },
 });
