@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { StyleSheet, View } from "react-native";
+import React, { useState, useRef } from "react";
+import { StyleSheet, View, TextInput as RNTextInput } from "react-native";
 import { Button, Text, TextInput, HelperText, useTheme } from "react-native-paper";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -24,12 +24,15 @@ export default function RegisterScreen() {
       password: "",
     },
   });
+  
   const [error, setError] = useState<string | undefined>(undefined);
   const [successMessage, setSuccessMessage] = useState<string | undefined>(undefined);
   const [showPinVerification, setShowPinVerification] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState<string>("");
   const [verificationPin, setVerificationPin] = useState<string>("");
+  const [pinDigits, setPinDigits] = useState<string[]>(["", "", "", "", "", ""]);
   const [isVerifying, setIsVerifying] = useState(false);
+  const pinRefs = useRef<(RNTextInput | null)[]>([]);
   const theme = useTheme();
 
   const handleRegister = async ({
@@ -48,7 +51,9 @@ export default function RegisterScreen() {
       }      const response = await axios.post(`${apiUrl}/register`, {
         email,
         password,
-      });      console.log("Registro exitoso:", response.data);
+      });
+      
+      console.log("Registro exitoso:", response.data);
 
       // Mostrar mensaje de éxito y activar verificación por PIN
       setSuccessMessage(response.data.message);
@@ -115,6 +120,31 @@ export default function RegisterScreen() {
       }
     } finally {
       setIsVerifying(false);
+    }
+  };
+
+  const handlePinDigitChange = (index: number, value: string) => {
+    // Solo permitir números
+    if (value && !/^\d$/.test(value)) return;
+
+    const newPinDigits = [...pinDigits];
+    newPinDigits[index] = value;
+    setPinDigits(newPinDigits);
+
+    // Actualizar el PIN completo
+    const fullPin = newPinDigits.join("");
+    setVerificationPin(fullPin);
+
+    // Si se ingresó un dígito, mover al siguiente campo
+    if (value && index < 5) {
+      pinRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handlePinKeyPress = (index: number, key: string) => {
+    // Si es backspace y el campo actual está vacío, mover al anterior
+    if (key === 'Backspace' && !pinDigits[index] && index > 0) {
+      pinRefs.current[index - 1]?.focus();
     }
   };
   return (
@@ -196,20 +226,29 @@ export default function RegisterScreen() {
           <Text style={styles.instructions}>
             Por favor ingresa el código para completar tu registro:
           </Text>
-          
-          {error && <Text style={styles.error}>{error}</Text>}
+            {error && <Text style={styles.error}>{error}</Text>}
           {successMessage && <Text style={styles.success}>{successMessage}</Text>}
           
-          <TextInput
-            label="Código de verificación (6 dígitos)"
-            mode="outlined"
-            style={styles.input}
-            value={verificationPin}
-            onChangeText={setVerificationPin}
-            keyboardType="numeric"
-            maxLength={6}
-            placeholder="123456"
-          />
+          {/* PIN Input con cuadritos separados */}
+          <View style={styles.pinContainer}>
+            {pinDigits.map((digit, index) => (
+              <RNTextInput
+                key={index}
+                ref={(ref) => (pinRefs.current[index] = ref)}
+                style={[
+                  styles.pinInput,
+                  digit ? styles.pinInputFilled : styles.pinInputEmpty
+                ]}
+                value={digit}
+                onChangeText={(value) => handlePinDigitChange(index, value)}
+                onKeyPress={({ nativeEvent }) => handlePinKeyPress(index, nativeEvent.key)}
+                keyboardType="numeric"
+                maxLength={1}
+                textAlign="center"
+                selectTextOnFocus
+              />
+            ))}
+          </View>
 
           <Button
             mode="contained"
@@ -220,14 +259,14 @@ export default function RegisterScreen() {
           >
             Verificar
           </Button>
-          
-          <Button
+            <Button
             mode="text"
             onPress={() => {
               setShowPinVerification(false);
               setSuccessMessage(undefined);
               setError(undefined);
               setVerificationPin("");
+              setPinDigits(["", "", "", "", "", ""]);
             }}
             style={styles.goBackButton}
           >
@@ -263,7 +302,8 @@ const styles = StyleSheet.create({
     color: "red",
     textAlign: "center",
     marginBottom: 16,
-  },  success: {
+  },
+  success: {
     color: "green",
     textAlign: "center",
     marginBottom: 16,
@@ -280,5 +320,29 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
     color: "#2196f3",
+  },
+  pinContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 24,
+    paddingHorizontal: 20,
+  },
+  pinInput: {
+    width: 45,
+    height: 50,
+    borderWidth: 2,
+    borderRadius: 8,
+    fontSize: 18,
+    fontWeight: "bold",
+    backgroundColor: "#fff",
+  },
+  pinInputEmpty: {
+    borderColor: "#ccc",
+    color: "#333",
+  },
+  pinInputFilled: {
+    borderColor: "#2196f3",
+    color: "#2196f3",
+    backgroundColor: "#f0f8ff",
   },
 });
