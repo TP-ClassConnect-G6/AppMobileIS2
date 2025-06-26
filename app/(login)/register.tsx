@@ -24,14 +24,16 @@ export default function RegisterScreen() {
       password: "",
     },
   });
-  
   const [error, setError] = useState<string | undefined>(undefined);
   const [successMessage, setSuccessMessage] = useState<string | undefined>(undefined);
   const [showPinVerification, setShowPinVerification] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState<string>("");
+  const [registeredPassword, setRegisteredPassword] = useState<string>("");
   const [verificationPin, setVerificationPin] = useState<string>("");
   const [pinDigits, setPinDigits] = useState<string[]>(["", "", "", "", "", ""]);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isPinDisabled, setIsPinDisabled] = useState(false);
+  const [isRequestingNewPin, setIsRequestingNewPin] = useState(false);
   const pinRefs = useRef<(RNTextInput | null)[]>([]);
   const theme = useTheme();
 
@@ -54,10 +56,10 @@ export default function RegisterScreen() {
       });
       
       console.log("Registro exitoso:", response.data);
-
       // Mostrar mensaje de éxito y activar verificación por PIN
       setSuccessMessage(response.data.message);
       setRegisteredEmail(email);
+      setRegisteredPassword(password);
       setShowPinVerification(true);
 
     } catch (e) {
@@ -112,6 +114,9 @@ export default function RegisterScreen() {
           setTimeout(() => {
             router.push("/(login)");
           }, 3000);
+        } else if (e.response?.status === 500 || e.response?.status === 401) {
+          setError("El PIN ha expirado o es incorrecto. Solicita un nuevo código de verificación.");
+          setIsPinDisabled(true);
         } else if (e.response?.status === 404) {
           setError("Usuario no encontrado");
         } else if (e.code === "ECONNREFUSED") {
@@ -128,7 +133,49 @@ export default function RegisterScreen() {
     }
   };
 
+  const handleRequestNewPin = async () => {
+    setError(undefined);
+    setSuccessMessage(undefined);
+    setIsRequestingNewPin(true);
+
+    try {
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      if (!apiUrl) {
+        throw new Error("API URL is not defined in .env");
+      }
+
+      const response = await axios.post(`${apiUrl}/register`, {
+        email: registeredEmail,
+        password: registeredPassword,
+      });
+
+      console.log("Nuevo PIN solicitado:", response.data);
+      setSuccessMessage("Se ha enviado un nuevo código de verificación a tu email.");
+      setIsPinDisabled(false);
+      setVerificationPin("");
+      setPinDigits(["", "", "", "", "", ""]);
+
+    } catch (e) {
+      if (axios.isAxiosError(e)) {
+        if (e.response?.status === 409) {
+          setError("El usuario ya está registrado.");
+        } else if (e.code === "ECONNREFUSED") {
+          setError("No se pudo conectar al servidor. Verifica tu conexión.");
+        } else {
+          setError(e.response?.data?.error || "Error al solicitar nuevo PIN");
+        }
+      } else {
+        console.error("Error desconocido:", e);
+        setError(e instanceof Error ? e.message : "Something went wrong");
+      }
+    } finally {
+      setIsRequestingNewPin(false);
+    }
+  };
   const handlePinDigitChange = (index: number, value: string) => {
+    // No permitir cambios si el PIN está deshabilitado
+    if (isPinDisabled) return;
+    
     // Solo permitir números
     if (value && !/^\d$/.test(value)) return;
 
@@ -145,8 +192,10 @@ export default function RegisterScreen() {
       pinRefs.current[index + 1]?.focus();
     }
   };
-
   const handlePinKeyPress = (index: number, key: string) => {
+    // No permitir navegación si el PIN está deshabilitado
+    if (isPinDisabled) return;
+    
     // Si es backspace y el campo actual está vacío, mover al anterior
     if (key === 'Backspace' && !pinDigits[index] && index > 0) {
       pinRefs.current[index - 1]?.focus();
@@ -233,8 +282,7 @@ export default function RegisterScreen() {
           </Text>
             {error && <Text style={styles.error}>{error}</Text>}
           {successMessage && <Text style={styles.success}>{successMessage}</Text>}
-          
-          {/* PIN Input con cuadritos separados */}
+            {/* PIN Input con cuadritos separados */}
           <View style={styles.pinContainer}>
             {pinDigits.map((digit, index) => (
               <RNTextInput
@@ -242,7 +290,8 @@ export default function RegisterScreen() {
                 ref={(ref) => (pinRefs.current[index] = ref)}
                 style={[
                   styles.pinInput,
-                  digit ? styles.pinInputFilled : styles.pinInputEmpty
+                  digit ? styles.pinInputFilled : styles.pinInputEmpty,
+                  isPinDisabled && styles.pinInputDisabled
                 ]}
                 value={digit}
                 onChangeText={(value) => handlePinDigitChange(index, value)}
@@ -251,20 +300,33 @@ export default function RegisterScreen() {
                 maxLength={1}
                 textAlign="center"
                 selectTextOnFocus
+                editable={!isPinDisabled}
               />
             ))}
           </View>
 
-          <Button
-            mode="contained"
-            onPress={handlePinVerification}
-            loading={isVerifying}
-            disabled={isVerifying || verificationPin.length !== 6}
-            style={styles.button}
-          >
-            Verificar
-          </Button>
+          {!isPinDisabled ? (
             <Button
+              mode="contained"
+              onPress={handlePinVerification}
+              loading={isVerifying}
+              disabled={isVerifying || verificationPin.length !== 6}
+              style={styles.button}
+            >
+              Verificar
+            </Button>
+          ) : (
+            <Button
+              mode="contained"
+              onPress={handleRequestNewPin}
+              loading={isRequestingNewPin}
+              disabled={isRequestingNewPin}
+              style={styles.button}
+            >
+              Solicitar nuevo PIN
+            </Button>
+          )}
+          <Button
             mode="text"
             onPress={() => {
               setShowPinVerification(false);
@@ -272,6 +334,9 @@ export default function RegisterScreen() {
               setError(undefined);
               setVerificationPin("");
               setPinDigits(["", "", "", "", "", ""]);
+              setIsPinDisabled(false);
+              setRegisteredEmail("");
+              setRegisteredPassword("");
             }}
             style={styles.goBackButton}
           >
@@ -344,10 +409,14 @@ const styles = StyleSheet.create({
   pinInputEmpty: {
     borderColor: "#ccc",
     color: "#333",
-  },
-  pinInputFilled: {
+  },  pinInputFilled: {
     borderColor: "#2196f3",
     color: "#2196f3",
     backgroundColor: "#f0f8ff",
+  },
+  pinInputDisabled: {
+    borderColor: "#e0e0e0",
+    color: "#999",
+    backgroundColor: "#f5f5f5",
   },
 });
