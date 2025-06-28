@@ -1,10 +1,10 @@
 import React, { useState } from "react";
-import { StyleSheet, View, ScrollView, ActivityIndicator, Alert } from "react-native";
-import { Modal, Portal, Text, Title, Button, Divider, Card } from "react-native-paper";
+import { StyleSheet, View, ScrollView, ActivityIndicator, Alert, Platform } from "react-native";
+import { Modal, Portal, Text, Title, Button, Divider, Card, TextInput } from "react-native-paper";
 import { useQuery } from "@tanstack/react-query";
 import { client, courseClient } from "@/lib/http";
 import { useSession } from "@/contexts/session";
-import axios from "axios";
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 // Tipos para el perfil de usuario
 type UserProfile = {
@@ -32,12 +32,8 @@ type CourseStats = {
 };
 
 // Función para obtener estadísticas de desempeño estudiantil
-const fetchCourseStats = async (courseId: string, token: string): Promise<CourseStats> => {
+const fetchCourseStats = async (courseId: string, token: string, startDate: string, endDate: string): Promise<CourseStats> => {
   try {
-    // Usar fechas por defecto para el filtro obligatorio
-    const startDate = "2024-06-21";
-    const endDate = "2026-06-23";
-    
     const response = await courseClient.get(`/stats/${courseId}?start=${startDate}&end=${endDate}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -80,14 +76,25 @@ type CourseStatsModalProps = {
 const CourseStatsModal = ({ visible, onDismiss, courseId, courseName }: CourseStatsModalProps) => {
   const { session } = useSession();
 
+  // Estados para los filtros de fecha
+  const [startDate, setStartDate] = useState(new Date('2024-06-21'));
+  const [endDate, setEndDate] = useState(new Date('2026-06-23'));
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
+
+  // Función para formatear fecha a string YYYY-MM-DD
+  const formatDateToString = (date: Date): string => {
+    return date.toISOString().split('T')[0];
+  };
+
   // Consulta para obtener las estadísticas del curso
   const { data: stats, isLoading, error, refetch } = useQuery({
-    queryKey: ['courseStats', courseId],
+    queryKey: ['courseStats', courseId, formatDateToString(startDate), formatDateToString(endDate)],
     queryFn: () => {
       if (!courseId || !session?.token) {
         throw new Error('No courseId or token provided');
       }
-      return fetchCourseStats(courseId, session.token);
+      return fetchCourseStats(courseId, session.token, formatDateToString(startDate), formatDateToString(endDate));
     },
     enabled: !!courseId && !!session?.token && visible,
     staleTime: 60000,
@@ -110,6 +117,19 @@ const CourseStatsModal = ({ visible, onDismiss, courseId, courseName }: CourseSt
     setTimeout(handleError, 100);
   }
 
+  // Funciones para manejar los cambios de fecha
+  const onStartDateChange = (event: any, selectedDate?: Date) => {
+    const currentDate = selectedDate || startDate;
+    setShowStartPicker(Platform.OS === 'ios');
+    setStartDate(currentDate);
+  };
+
+  const onEndDateChange = (event: any, selectedDate?: Date) => {
+    const currentDate = selectedDate || endDate;
+    setShowEndPicker(Platform.OS === 'ios');
+    setEndDate(currentDate);
+  };
+
   return (
     <Portal>
       <Modal
@@ -122,6 +142,48 @@ const CourseStatsModal = ({ visible, onDismiss, courseId, courseName }: CourseSt
           {courseName && (
             <Text style={styles.courseName}>{courseName}</Text>
           )}
+          
+          {/* Filtros de fecha */}
+          <Card style={styles.filtersCard}>
+            <Card.Content>
+              <Title style={styles.filtersTitle}>Filtros de Fecha</Title>
+              
+              <View style={styles.dateFilterContainer}>
+                <View style={styles.dateInputContainer}>
+                  <Text style={styles.dateLabel}>Fecha de inicio:</Text>
+                  <Button
+                    mode="outlined"
+                    onPress={() => setShowStartPicker(true)}
+                    style={styles.dateButton}
+                    icon="calendar"
+                  >
+                    {formatDateToString(startDate)}
+                  </Button>
+                </View>
+                
+                <View style={styles.dateInputContainer}>
+                  <Text style={styles.dateLabel}>Fecha de fin:</Text>
+                  <Button
+                    mode="outlined"
+                    onPress={() => setShowEndPicker(true)}
+                    style={styles.dateButton}
+                    icon="calendar"
+                  >
+                    {formatDateToString(endDate)}
+                  </Button>
+                </View>
+              </View>
+              
+              <Button
+                mode="contained"
+                onPress={() => refetch()}
+                style={styles.applyFiltersButton}
+                icon="refresh"
+              >
+                Aplicar Filtros
+              </Button>
+            </Card.Content>
+          </Card>
           
           <Divider style={styles.divider} />
 
@@ -204,6 +266,29 @@ const CourseStatsModal = ({ visible, onDismiss, courseId, courseName }: CourseSt
             </View>
           ) : (
             <Text style={styles.noDataText}>No hay estadísticas disponibles</Text>
+          )}
+
+          {/* Date Pickers */}
+          {showStartPicker && (
+            <DateTimePicker
+              testID="startDatePicker"
+              value={startDate}
+              mode="date"
+              is24Hour={true}
+              display="default"
+              onChange={onStartDateChange}
+            />
+          )}
+          
+          {showEndPicker && (
+            <DateTimePicker
+              testID="endDatePicker"
+              value={endDate}
+              mode="date"
+              is24Hour={true}
+              display="default"
+              onChange={onEndDateChange}
+            />
           )}
 
           <Button 
@@ -334,6 +419,37 @@ const styles = StyleSheet.create({
     color: '#666',
     fontStyle: 'italic',
     padding: 20,
+  },
+  filtersCard: {
+    marginBottom: 15,
+    backgroundColor: '#f8f9fa',
+  },
+  filtersTitle: {
+    fontSize: 16,
+    marginBottom: 10,
+    color: '#1976D2',
+  },
+  dateFilterContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 15,
+  },
+  dateInputContainer: {
+    flex: 1,
+    marginHorizontal: 5,
+  },
+  dateLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 5,
+    color: '#333',
+  },
+  dateButton: {
+    marginBottom: 10,
+  },
+  applyFiltersButton: {
+    marginTop: 10,
+    backgroundColor: '#1976D2',
   },
   closeButton: {
     marginTop: 20,
