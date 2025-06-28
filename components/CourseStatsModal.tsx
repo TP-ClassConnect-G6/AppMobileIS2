@@ -151,7 +151,7 @@ const CourseStatsModal = ({ visible, onDismiss, courseId, courseName }: CourseSt
                   <View style={styles.statItem}>
                     <Text style={styles.statLabel}>Promedio de calificaciones:</Text>
                     <Text style={styles.statValue}>
-                      {stats.averageScore.toFixed(2)}
+                      {stats.averageScore.toFixed(2)}/100
                     </Text>
                   </View>
                   <View style={styles.statItem}>
@@ -196,7 +196,7 @@ const CourseStatsModal = ({ visible, onDismiss, courseId, courseName }: CourseSt
                   {stats.trends.exams.map((trend, index) => (
                     <View key={index} style={styles.statItem}>
                       <Text style={styles.statLabel}>{trend.date}:</Text>
-                      <Text style={styles.statValue}>{trend.value.toFixed(2)} promedio</Text>
+                      <Text style={styles.statValue}>{trend.value.toFixed(2)}/100 promedio</Text>
                     </View>
                   ))}
                 </Card.Content>
