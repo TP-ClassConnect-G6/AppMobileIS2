@@ -390,12 +390,14 @@ const CourseStatsModal = ({ visible, onDismiss, courseId, courseName }: CourseSt
               background-color: #f9f9f9;
               border-radius: 8px;
               border-left: 4px solid #2196f3;
+              page-break-inside: avoid;
             }
             .section-title {
               color: #2196f3;
               font-size: 20px;
               font-weight: bold;
               margin: 0 0 15px 0;
+              page-break-after: avoid;
             }
             .stats-grid {
               display: grid;
@@ -426,6 +428,7 @@ const CourseStatsModal = ({ visible, onDismiss, courseId, courseName }: CourseSt
               margin-bottom: 15px;
               border-radius: 8px;
               border: 1px solid #e0e0e0;
+              page-break-inside: avoid;
             }
             .trend-date {
               font-weight: bold;
