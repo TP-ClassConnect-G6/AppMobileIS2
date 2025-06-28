@@ -3,6 +3,7 @@ import React from "react";
 import { Platform } from "react-native";
 
 import { HapticTab } from "@/components/HapticTab";
+import { Ionicons } from '@expo/vector-icons';
 import { IconSymbol } from "@/components/ui/IconSymbol";
 import TabBarBackground from "@/components/ui/TabBarBackground";
 import { Colors } from "@/constants/Colors";
@@ -166,7 +167,7 @@ export default function TabLayout() {
         options={{
           title: "Asistencia",
           tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="message.circle.fill" color={color} />
+            <Ionicons name="chatbubble-ellipses" size={28} color={color} />
           ),
         }}
       />

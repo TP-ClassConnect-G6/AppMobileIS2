@@ -14,7 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { IconSymbol } from '@/components/ui/IconSymbol';
+import { Ionicons } from '@expo/vector-icons';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Colors } from '@/constants/Colors';
 import QuickSuggestions from '@/components/QuickSuggestions';
@@ -216,8 +216,8 @@ export default function ChatAsistencia() {
                 onPress={() => handleSendMessage()}
                 disabled={!inputText.trim() || isLoading}
               >
-                <IconSymbol 
-                  name="arrow.up" 
+                <Ionicons 
+                  name="send" 
                   size={20} 
                   color="#FFFFFF" 
                 />

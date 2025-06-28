@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Colors } from '@/constants/Colors';
-import { IconSymbol } from '@/components/ui/IconSymbol';
+import { Ionicons } from '@expo/vector-icons';
 
 interface FeaturedQuestionsProps {
   onQuestionPress: (question: string) => void;
@@ -15,7 +15,7 @@ const featuredQuestions = [
     title: 'Crear Tarea',
     question: '¿Cómo crear una tarea?',
     message: 'Quiero saber cómo crear una tarea paso a paso',
-    icon: 'checklist',
+    icon: 'checkmark-circle-outline',
     color: '#2196F3',
   },
   {
@@ -23,7 +23,7 @@ const featuredQuestions = [
     title: 'Crear Curso',
     question: '¿Cómo crear un curso?',
     message: 'Necesito ayuda para crear un curso nuevo en la aplicación',
-    icon: 'book',
+    icon: 'book-outline',
     color: '#4CAF50',
   },
   {
@@ -31,7 +31,7 @@ const featuredQuestions = [
     title: 'Crear Examen',
     question: '¿Cómo crear un examen?',
     message: 'Explícame cómo crear un examen para mis estudiantes',
-    icon: 'doc.text',
+    icon: 'document-text-outline',
     color: '#FF9800',
   },
   {
@@ -39,7 +39,7 @@ const featuredQuestions = [
     title: 'Inscribirse',
     question: '¿Cómo inscribirse a un curso?',
     message: 'Quiero saber cómo inscribirme a un curso como estudiante',
-    icon: 'person.badge.plus',
+    icon: 'person-add-outline',
     color: '#9C27B0',
   },
 ];
@@ -77,7 +77,7 @@ export default function FeaturedQuestions({ onQuestionPress, visible }: Featured
               styles.iconContainer,
               { backgroundColor: item.color + '20' }
             ]}>
-              <IconSymbol 
+              <Ionicons 
                 name={item.icon as any} 
                 size={24} 
                 color={item.color} 

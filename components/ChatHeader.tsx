@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { IconSymbol } from '@/components/ui/IconSymbol';
+import { Ionicons } from '@expo/vector-icons';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Colors } from '@/constants/Colors';
 
@@ -50,8 +50,8 @@ export default function ChatHeader({
           ]}
           disabled={isSyncing}
         >
-          <IconSymbol 
-            name={isSyncing ? "arrow.circlepath" : "arrow.clockwise"} 
+          <Ionicons 
+            name={isSyncing ? "sync" : "refresh"} 
             size={18} 
             color={Colors[colorScheme ?? 'light'].tint} 
           />
@@ -64,8 +64,8 @@ export default function ChatHeader({
             { backgroundColor: Colors[colorScheme ?? 'light'].tint + '20' }
           ]}
         >
-          <IconSymbol 
-            name="trash" 
+          <Ionicons 
+            name="trash-outline" 
             size={18} 
             color={Colors[colorScheme ?? 'light'].tint} 
           />

@@ -71,6 +71,7 @@ class ChatServiceImpl implements ChatService {
 
   async getChatHistory(chatId: string, token: string): Promise<ChatMessage[]> {
     try {
+        console.log('CHAT ID:', chatId);
       const response = await chatClient.get(`/chat/${chatId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -86,7 +87,7 @@ class ChatServiceImpl implements ChatService {
         timestamp: new Date(msg.timestamp),
       })) || [];
     } catch (error) {
-      console.error('Error obteniendo historial:', error);
+      //console.error('Error obteniendo historial:', error);
       return [];
     }
   }
