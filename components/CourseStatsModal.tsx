@@ -311,6 +311,33 @@ const CourseStatsModal = ({ visible, onDismiss, courseId, courseName }: CourseSt
       // Preparar estadísticas generales (si están disponibles)
       let generalStatsHtml = '';
       if (stats) {
+        // Preparar desglose por estudiante
+        const studentBreakdownEntries = Object.entries(stats.studentBreakdown);
+        let studentBreakdownHtml = '';
+        
+        if (studentBreakdownEntries.length > 0) {
+          const studentPromises = studentBreakdownEntries.map(async ([studentId, completion]) => {
+            let studentName = studentId;
+            try {
+              const userProfile = await fetchUserProfile(studentId, session.token);
+              studentName = userProfile.name || userProfile.user_id;
+            } catch (profileError) {
+              console.warn('No se pudo obtener el perfil del estudiante:', profileError);
+              studentName = studentId.substring(0, 8) + '...';
+            }
+            
+            return `
+              <div class="student-item">
+                <div class="student-name">${studentName}</div>
+                <div class="student-completion">${completion} tareas completadas</div>
+              </div>
+            `;
+          });
+
+          const studentBreakdownArray = await Promise.all(studentPromises);
+          studentBreakdownHtml = studentBreakdownArray.join('');
+        }
+
         generalStatsHtml = `
           <div class="section">
             <h2 class="section-title">📊 Resumen General</h2>
@@ -332,6 +359,14 @@ const CourseStatsModal = ({ visible, onDismiss, courseId, courseName }: CourseSt
                 <div class="stat-value">${stats.averageTaskCompletion.toFixed(2)}</div>
               </div>
             </div>
+            ${studentBreakdownEntries.length > 0 ? `
+            <div class="student-breakdown">
+              <h3 class="breakdown-title">👥 Desglose por Estudiante</h3>
+              <div class="students-list">
+                ${studentBreakdownHtml}
+              </div>
+            </div>
+            ` : ''}
           </div>
         `;
       }
@@ -421,6 +456,43 @@ const CourseStatsModal = ({ visible, onDismiss, courseId, courseName }: CourseSt
               color: #333;
               font-size: 16px;
               font-weight: 600;
+            }
+            .student-breakdown {
+              margin-top: 25px;
+              padding-top: 20px;
+              border-top: 1px solid #e0e0e0;
+            }
+            .breakdown-title {
+              color: #2196f3;
+              font-size: 18px;
+              font-weight: bold;
+              margin: 0 0 15px 0;
+            }
+            .students-list {
+              display: grid;
+              grid-template-columns: 1fr;
+              gap: 10px;
+            }
+            .student-item {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              padding: 12px 15px;
+              background-color: white;
+              border: 1px solid #e0e0e0;
+              border-radius: 6px;
+              border-left: 3px solid #4CAF50;
+              page-break-inside: avoid;
+            }
+            .student-name {
+              font-weight: 600;
+              color: #333;
+              font-size: 14px;
+            }
+            .student-completion {
+              color: #4CAF50;
+              font-weight: 600;
+              font-size: 14px;
             }
             .trend-item {
               background-color: white;
