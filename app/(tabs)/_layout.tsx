@@ -28,147 +28,114 @@ export default function TabLayout() {
         }),
       }}
     >
+      {/* Home - Pantalla principal */}
       <Tabs.Screen
         name="index"
         options={{
-          title: "Home",
+          title: "Inicio",
           tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="house.circle.fill" color={color} />
+            <Ionicons name="home" size={24} color={color} />
           ),
         }}
       />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: "Explore",
-          tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="paperplane.fill" color={color} />
-          ),
-          href: null, // Ocultar la tab de Explore
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: "Perfil",
-          tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="person.fill" color={color} />
-          ),
-        }}
-      />
+      
+      {/* Cursos - Lista y gestión de cursos */}
       <Tabs.Screen
         name="course-list"
         options={{
           title: "Cursos",
           tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="book.fill" color={color} />
+            <Ionicons name="book" size={24} color={color} />
           ),
         }}
-      />      <Tabs.Screen
+      />
+      
+      {/* Actividades - Tareas, exámenes, asignaciones */}
+      <Tabs.Screen
+        name="mis-cursos"
+        options={{
+          title: isTeacher ? "Gestión" : "Actividades",
+          tabBarIcon: ({ color }: { color: string }) => (
+            <Ionicons name={isTeacher ? "create" : "list"} size={24} color={color} />
+          ),
+        }}
+      />
+      
+      {/* Chat - Asistencia AI */}
+      <Tabs.Screen
+        name="chat-asistencia"
+        options={{
+          title: "Asistente",
+          tabBarIcon: ({ color }: { color: string }) => (
+            <Ionicons name="chatbubble-ellipses" size={24} color={color} />
+          ),
+        }}
+      />
+      
+      {/* Perfil - Configuración y perfil */}
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: "Perfil",
+          tabBarIcon: ({ color }: { color: string }) => (
+            <Ionicons name="person" size={24} color={color} />
+          ),
+        }}
+      />
+
+      {/* Pantallas ocultas - accesibles desde las pantallas principales */}
+      <Tabs.Screen
+        name="explore"
+        options={{
+          href: null, // Ocultar tab
+        }}
+      />
+      <Tabs.Screen
         name="favorites"
         options={{
-          title: "Favoritos",
-          tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="star.circle.fill" color={color} />
-          ),
-          href: !isTeacher ? "/favorites" : null, // Solo mostrar para estudiantes
+          href: null, // Ocultar tab
         }}
       />
       <Tabs.Screen
         name="create-course"
         options={{
-          title: "Crear Curso",
-          tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="book-plus.fill" color={color} />
-          ),
-          href: isTeacher ? "/create-course" : null,
+          href: null, // Ocultar tab
         }}
       />
       <Tabs.Screen
         name="create-exam"
         options={{
-          title: "Crear Examen",
-          tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="doc.text.fill" color={color} />
-          ),
-          href: isTeacher ? "/create-exam" : null,
+          href: null, // Ocultar tab
         }}
       />
       <Tabs.Screen
         name="create-task"
         options={{
-          title: "Crear Tarea",
-          tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="checklist.fill" color={color} />
-          ),
-          href: isTeacher ? "/create-task" : null,
+          href: null, // Ocultar tab
         }}
       />
       <Tabs.Screen
         name="teacher-assignments"
         options={{
-          title: "Mis Asignaciones",
-          tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="briefcase.fill" color={color} />
-          ),
-          href: isTeacher ? "/teacher-assignments" : null, // Solo mostrar para docentes
-        }}
-      />
-      <Tabs.Screen
-        name="mis-cursos"
-        options={{
-          title: "Mis Cursos",
-          tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="backpack.circle.fill" color={color} />
-          ),
-          href: session?.userType === 'student' ? "/mis-cursos" : null, // Solo mostrar para estudiantes
-        }}
-      />      <Tabs.Screen
-        name="student-assignments"
-        options={{
-          title: "Mis Tareas/Exámenes",
-          tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="clipboard.fill" color={color} />
-          ),
-          href: session?.userType === 'student' ? "/student-assignments" as any : null, // Solo mostrar para estudiantes
+          href: null, // Ocultar tab
         }}
       />
       <Tabs.Screen
         name="mis-feedbacks"
         options={{
-          title: "Mis Feedbacks",
-          tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="chat.bubble.fill" color={color} />
-          ),
-          href: session?.userType === 'student' ? "/mis-feedbacks" as any : null, // Solo mostrar para estudiantes
+          href: null, // Ocultar tab
         }}
       />
       <Tabs.Screen
         name="teacher-feedbacks"
         options={{
-          title: "Feedbacks",
-          tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="teacher.feedback.fill" color={color} />
-          ),
-          href: isTeacher ? "/teacher-feedbacks" as any : null, // Solo mostrar para teachers
+          href: null, // Ocultar tab
         }}
       />
       <Tabs.Screen
         name="notification-settings"
         options={{
-          title: "Notificaciones",
-          tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="bell.fill" color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="chat-asistencia"
-        options={{
-          title: "Asistencia",
-          tabBarIcon: ({ color }: { color: string }) => (
-            <Ionicons name="chatbubble-ellipses" size={28} color={color} />
-          ),
+          href: null, // Ocultar tab
         }}
       />
     </Tabs>
