@@ -112,6 +112,7 @@ const CourseStatsModal = ({ visible, onDismiss, courseId, courseName }: CourseSt
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
   const [studentId, setStudentId] = useState(''); // Filtro opcional por estudiante
+  const [selectedStudentName, setSelectedStudentName] = useState(''); // Nombre del estudiante seleccionado
   const [showStudentMenu, setShowStudentMenu] = useState(false); // Estado para mostrar el menú desplegable
 
   // Función para formatear fecha a string YYYY-MM-DD
@@ -240,25 +241,28 @@ const CourseStatsModal = ({ visible, onDismiss, courseId, courseName }: CourseSt
                       icon="account"
                       contentStyle={styles.dropdownButtonContent}
                     >
-                      {studentId ? `Estudiante: ${studentId}` : 'Seleccionar estudiante'}
+                      {studentId ? `${selectedStudentName || 'Cargando...'}` : 'Seleccionar estudiante'}
                     </Button>
                   }
                 >
                   <Menu.Item
                     onPress={() => {
                       setStudentId('');
+                      setSelectedStudentName('');
                       setShowStudentMenu(false);
                     }}
                     title="Todos los estudiantes"
                   />
                   {courseStudents.map((userId) => (
-                    <Menu.Item
+                    <StudentMenuItem
                       key={userId}
-                      onPress={() => {
-                        setStudentId(userId);
+                      userId={userId}
+                      token={session?.token || ''}
+                      onSelect={(id, name) => {
+                        setStudentId(id);
+                        setSelectedStudentName(name);
                         setShowStudentMenu(false);
                       }}
-                      title={userId}
                     />
                   ))}
                 </Menu>
@@ -391,6 +395,37 @@ const CourseStatsModal = ({ visible, onDismiss, courseId, courseName }: CourseSt
         </ScrollView>
       </Modal>
     </Portal>
+  );
+};
+
+// Componente para mostrar un elemento del menú de estudiantes con su nombre
+type StudentMenuItemProps = {
+  userId: string;
+  token: string;
+  onSelect: (userId: string, name: string) => void;
+};
+
+const StudentMenuItem = ({ userId, token, onSelect }: StudentMenuItemProps) => {
+  const { data: userProfile, isLoading, error } = useQuery({
+    queryKey: ['userProfile', userId],
+    queryFn: () => fetchUserProfile(userId, token),
+    enabled: !!userId && !!token,
+    staleTime: 300000, // 5 minutos de cache
+    retry: 1,
+  });
+
+  const getStudentName = () => {
+    if (isLoading) return 'Cargando...';
+    if (error) return `Usuario (${userId.substring(0, 8)}...)`;
+    return userProfile?.name || 'Usuario desconocido';
+  };
+
+  return (
+    <Menu.Item
+      onPress={() => onSelect(userId, userProfile?.name || userId)}
+      title={getStudentName()}
+      disabled={isLoading}
+    />
   );
 };
 
