@@ -32,9 +32,13 @@ type CourseStats = {
 };
 
 // Función para obtener estadísticas de desempeño estudiantil
-const fetchCourseStats = async (courseId: string, token: string, startDate: string, endDate: string): Promise<CourseStats> => {
+const fetchCourseStats = async (courseId: string, token: string, startDate: string, endDate: string, studentId?: string): Promise<CourseStats> => {
   try {
-    const response = await courseClient.get(`/stats/${courseId}?start=${startDate}&end=${endDate}`, {
+    let url = `/stats/${courseId}?start=${startDate}&end=${endDate}`;
+    if (studentId && studentId.trim()) {
+      url += `&studentId=${studentId}`;
+    }
+    const response = await courseClient.get(url, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
@@ -81,6 +85,7 @@ const CourseStatsModal = ({ visible, onDismiss, courseId, courseName }: CourseSt
   const [endDate, setEndDate] = useState(new Date());
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
+  const [studentId, setStudentId] = useState(''); // Filtro opcional por estudiante
 
   // Función para formatear fecha a string YYYY-MM-DD
   const formatDateToString = (date: Date): string => {
@@ -89,12 +94,12 @@ const CourseStatsModal = ({ visible, onDismiss, courseId, courseName }: CourseSt
 
   // Consulta para obtener las estadísticas del curso
   const { data: stats, isLoading, error, refetch } = useQuery({
-    queryKey: ['courseStats', courseId, formatDateToString(startDate), formatDateToString(endDate)],
+    queryKey: ['courseStats', courseId, formatDateToString(startDate), formatDateToString(endDate), studentId],
     queryFn: () => {
       if (!courseId || !session?.token) {
         throw new Error('No courseId or token provided');
       }
-      return fetchCourseStats(courseId, session.token, formatDateToString(startDate), formatDateToString(endDate));
+      return fetchCourseStats(courseId, session.token, formatDateToString(startDate), formatDateToString(endDate), studentId);
     },
     enabled: !!courseId && !!session?.token && visible,
     staleTime: 60000,
@@ -146,7 +151,7 @@ const CourseStatsModal = ({ visible, onDismiss, courseId, courseName }: CourseSt
           {/* Filtros de fecha */}
           <Card style={styles.filtersCard}>
             <Card.Content>
-              <Title style={styles.filtersTitle}>Filtros de Fecha</Title>
+              <Title style={styles.filtersTitle}>Filtros</Title>
               
               <View style={styles.dateFilterContainer}>
                 <View style={styles.dateInputContainer}>
@@ -172,6 +177,19 @@ const CourseStatsModal = ({ visible, onDismiss, courseId, courseName }: CourseSt
                     {formatDateToString(endDate)}
                   </Button>
                 </View>
+              </View>
+              
+              {/* Filtro por estudiante */}
+              <View style={styles.studentFilterContainer}>
+                <Text style={styles.dateLabel}>Filtrar por estudiante (opcional):</Text>
+                <TextInput
+                  mode="outlined"
+                  placeholder="Ingrese el ID del estudiante"
+                  value={studentId}
+                  onChangeText={setStudentId}
+                  style={styles.studentInput}
+                  left={<TextInput.Icon icon="account" />}
+                />
               </View>
               
               <Button
@@ -446,6 +464,12 @@ const styles = StyleSheet.create({
   },
   dateButton: {
     marginBottom: 10,
+  },
+  studentFilterContainer: {
+    marginBottom: 15,
+  },
+  studentInput: {
+    marginTop: 5,
   },
   applyFiltersButton: {
     marginTop: 10,
