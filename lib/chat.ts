@@ -1,5 +1,16 @@
 import { chatClient } from './http';
 
+/**
+ * Chat Service para el sistema de asistencia
+ * 
+ * IMPORTANTE: Este servicio maneja chats por usuario individual.
+ * Cada usuario tiene su propio chatId único que se almacena localmente 
+ * usando la clave "chat_assistant_data_{userId}" en el storage.
+ * 
+ * Al cambiar de usuario, se debe limpiar el estado del chat actual
+ * y cargar/crear un nuevo chatId específico para el nuevo usuario.
+ */
+
 export interface ChatMessage {
   id: string;
   text: string;

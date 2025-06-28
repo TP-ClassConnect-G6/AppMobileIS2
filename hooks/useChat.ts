@@ -10,7 +10,7 @@ import {
 import { useSession } from '@/contexts/session';
 import { getItemAsync, setItemAsync, deleteItemAsync } from '@/lib/storage';
 
-const CHAT_STORAGE_KEY = 'chat_assistant_data';
+const getChatStorageKey = (userId: string) => `chat_assistant_data_${userId}`;
 
 interface UseChatReturn {
   messages: ChatMessage[];
@@ -30,12 +30,16 @@ export function useChat(): UseChatReturn {
   const [chatId, setChatId] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const { session } = useSession();
 
   // Cargar datos del chat guardados
   const loadChatData = useCallback(async () => {
+    if (!session?.userId) return;
+    
     try {
-      const savedData = await getItemAsync(CHAT_STORAGE_KEY);
+      const chatStorageKey = getChatStorageKey(session.userId);
+      const savedData = await getItemAsync(chatStorageKey);
       if (savedData) {
         const { chatId: savedChatId, messages: savedMessages } = JSON.parse(savedData);
         setChatId(savedChatId);
@@ -51,25 +55,28 @@ export function useChat(): UseChatReturn {
     } catch (error) {
       console.error('Error cargando datos del chat:', error);
     }
-  }, []);
+  }, [session?.userId]);
 
   // Guardar datos del chat
   const saveChatData = useCallback(async (chatId: string, messages: ChatMessage[]) => {
+    if (!session?.userId) return;
+    
     try {
+      const chatStorageKey = getChatStorageKey(session.userId);
       const dataToSave = {
         chatId,
         messages,
         lastUpdated: new Date().toISOString(),
       };
-      await setItemAsync(CHAT_STORAGE_KEY, JSON.stringify(dataToSave));
+      await setItemAsync(chatStorageKey, JSON.stringify(dataToSave));
     } catch (error) {
       console.error('Error guardando datos del chat:', error);
     }
-  }, []);
+  }, [session?.userId]);
 
   // Inicializar chat
   const initializeChat = useCallback(async () => {
-    if (!session?.token) {
+    if (!session?.token || !session?.userId) {
       setError(predefinedMessages.noSession);
       return;
     }
@@ -85,7 +92,8 @@ export function useChat(): UseChatReturn {
       let currentChatId = chatId;
       
       // Verificar si tenemos un chatId después de cargar datos
-      const savedData = await getItemAsync(CHAT_STORAGE_KEY);
+      const chatStorageKey = getChatStorageKey(session.userId);
+      const savedData = await getItemAsync(chatStorageKey);
       if (savedData) {
         const { chatId: savedChatId } = JSON.parse(savedData);
         currentChatId = savedChatId;
@@ -136,7 +144,7 @@ export function useChat(): UseChatReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [session?.token, chatId, loadChatData, saveChatData, messages]);
+  }, [session?.token, session?.userId, chatId, loadChatData, saveChatData, messages]);
 
   // Enviar mensaje
   const sendMessage = useCallback(async (messageText?: string) => {
@@ -206,8 +214,11 @@ export function useChat(): UseChatReturn {
 
   // Limpiar chat
   const clearChat = useCallback(async () => {
+    if (!session?.userId) return;
+    
     try {
-      await deleteItemAsync(CHAT_STORAGE_KEY);
+      const chatStorageKey = getChatStorageKey(session.userId);
+      await deleteItemAsync(chatStorageKey);
       setMessages([]);
       setChatId(null);
       setError(null);
@@ -218,14 +229,36 @@ export function useChat(): UseChatReturn {
     } catch (error) {
       console.error('Error limpiando chat:', error);
     }
-  }, [initializeChat]);
+  }, [session?.userId, initializeChat]);
 
   // Inicializar cuando cambie la sesión
   useEffect(() => {
-    if (session?.token && !isInitialized) {
+    // Si cambia el usuario, limpiar estado anterior
+    if (session?.userId && session.userId !== currentUserId) {
+      setMessages([]);
+      setChatId(null);
+      setError(null);
+      setIsInitialized(false);
+      setIsLoading(false);
+      setIsSyncing(false);
+      setCurrentUserId(session.userId);
+    }
+    
+    if (session?.token && session?.userId && !isInitialized) {
       initializeChat();
     }
-  }, [session?.token, isInitialized, initializeChat]);
+    
+    // Si se cierra sesión, limpiar estado
+    if (!session?.token || !session?.userId) {
+      setMessages([]);
+      setChatId(null);
+      setError(null);
+      setIsInitialized(false);
+      setIsLoading(false);
+      setIsSyncing(false);
+      setCurrentUserId(null);
+    }
+  }, [session?.token, session?.userId, isInitialized, initializeChat, currentUserId]);
 
   // Guardar datos cuando cambien los mensajes
   useEffect(() => {
