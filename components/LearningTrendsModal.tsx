@@ -18,7 +18,7 @@ type LearningTrends = {
     to: string;
   };
   trends: {
-    tasks: Array<{ date: string; createdTasks: number }>;
+    tasks: Array<{ date: string; createdTasks: number; averageTaskCompletion: number }>;
     exams: Array<{ date: string; averageScore: number }>;
   };
   anomalies: {
@@ -221,6 +221,26 @@ const LearningTrendsModal = ({ visible, onDismiss, courseId, courseName }: Learn
     };
   };
 
+  const prepareTaskCompletionChartData = () => {
+    if (!trends?.trends?.tasks || trends.trends.tasks.length === 0) {
+      return {
+        labels: ['Sin datos'],
+        datasets: [{
+          data: [0],
+          color: () => '#4CAF50',
+        }]
+      };
+    }
+
+    return {
+      labels: trends.trends.tasks.map(item => item.date),
+      datasets: [{
+        data: trends.trends.tasks.map(item => Math.round(item.averageTaskCompletion * 100) / 100),
+        color: () => '#4CAF50',
+      }]
+    };
+  };
+
   const prepareExamsChartData = () => {
     if (!trends?.trends?.exams || trends.trends.exams.length === 0) {
       return {
@@ -383,7 +403,7 @@ const LearningTrendsModal = ({ visible, onDismiss, courseId, courseName }: Learn
               {/* Gráfico de Tareas */}
               <Card style={styles.trendsCard}>
                 <Card.Content>
-                  <Title style={styles.cardTitle}>Tendencias de Tareas</Title>
+                  <Title style={styles.cardTitle}>Tareas Creadas</Title>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                     <BarChart
                       data={prepareTasksChartData()}
@@ -393,6 +413,28 @@ const LearningTrendsModal = ({ visible, onDismiss, courseId, courseName }: Learn
                       style={styles.chart}
                       yAxisLabel=""
                       yAxisSuffix=" tareas"
+                      showValuesOnTopOfBars
+                    />
+                  </ScrollView>
+                </Card.Content>
+              </Card>
+
+              {/* Gráfico de Finalización de Tareas */}
+              <Card style={styles.trendsCard}>
+                <Card.Content>
+                  <Title style={styles.cardTitle}>Promedio de Finalización de Tareas</Title>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <BarChart
+                      data={prepareTaskCompletionChartData()}
+                      width={Math.max(screenWidth - 80, 300)}
+                      height={220}
+                      chartConfig={{
+                        ...chartConfig,
+                        color: (opacity = 1) => `rgba(76, 175, 80, ${opacity})`,
+                      }}
+                      style={styles.chart}
+                      yAxisLabel=""
+                      yAxisSuffix=""
                       showValuesOnTopOfBars
                     />
                   </ScrollView>
