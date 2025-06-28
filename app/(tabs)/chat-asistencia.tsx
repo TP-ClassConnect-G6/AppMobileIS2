@@ -18,6 +18,7 @@ import { IconSymbol } from '@/components/ui/IconSymbol';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Colors } from '@/constants/Colors';
 import QuickSuggestions from '@/components/QuickSuggestions';
+import FeaturedQuestions from '@/components/FeaturedQuestions';
 import ChatHeader from '@/components/ChatHeader';
 import MessageStatus from '@/components/MessageStatus';
 import SyncStatusToast from '@/components/SyncStatusToast';
@@ -162,11 +163,19 @@ export default function ChatAsistencia() {
               style={styles.messagesList}
               onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
               showsVerticalScrollIndicator={false}
+              ListHeaderComponent={
+                messages.length <= 1 && !isLoading ? (
+                  <FeaturedQuestions 
+                    onQuestionPress={handleSuggestionPress}
+                    visible={true}
+                  />
+                ) : null
+              }
             />
 
             <QuickSuggestions 
               onSuggestionPress={handleSuggestionPress}
-              visible={messages.length <= 1 && !isLoading}
+              visible={messages.length > 1 && !isLoading}
             />
 
             {isLoading && (
