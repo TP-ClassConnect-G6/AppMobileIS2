@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/ThemedText';
@@ -17,6 +18,7 @@ import { IconSymbol } from '@/components/ui/IconSymbol';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Colors } from '@/constants/Colors';
 import QuickSuggestions from '@/components/QuickSuggestions';
+import ChatHeader from '@/components/ChatHeader';
 import { ChatMessage, predefinedMessages } from '@/lib/chat';
 import { useChat } from '@/hooks/useChat';
 
@@ -33,6 +35,24 @@ export default function ChatAsistencia() {
 
   const handleSuggestionPress = (suggestion: string) => {
     sendMessage(suggestion);
+  };
+
+  const handleClearChat = () => {
+    Alert.alert(
+      'Limpiar Chat',
+      '¿Estás seguro de que quieres borrar toda la conversación y empezar un nuevo chat?',
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Limpiar',
+          style: 'destructive',
+          onPress: clearChat,
+        },
+      ]
+    );
   };
 
   const renderMessage = ({ item }: { item: ChatMessage }) => {
@@ -72,21 +92,12 @@ export default function ChatAsistencia() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ThemedView style={styles.header}>
-        <View style={styles.headerContent}>
-          <View>
-            <ThemedText type="title">Chat de Asistencia</ThemedText>
-            <ThemedText type="default" style={styles.subtitle}>
-              Pregúntame cualquier cosa sobre la aplicación
-            </ThemedText>
-          </View>
-          <TouchableOpacity 
-            onPress={clearChat}
-            style={[styles.clearButton, { backgroundColor: Colors[colorScheme ?? 'light'].tint + '20' }]}
-          >
-            <IconSymbol name="trash" size={20} color={Colors[colorScheme ?? 'light'].tint} />
-          </TouchableOpacity>
-        </View>
+      <ThemedView style={styles.headerWrapper}>
+        <ChatHeader 
+          onClearChat={handleClearChat}
+          isOnline={isInitialized && !error}
+          messagesCount={messages.length}
+        />
       </ThemedView>
 
       {error && (
@@ -101,66 +112,77 @@ export default function ChatAsistencia() {
         style={styles.chatContainer}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          renderItem={renderMessage}
-          keyExtractor={(item) => item.id}
-          style={styles.messagesList}
-          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-          showsVerticalScrollIndicator={false}
-        />
-
-        <QuickSuggestions 
-          onSuggestionPress={handleSuggestionPress}
-          visible={messages.length <= 1 && !isLoading}
-        />
-
-        {isLoading && (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color={Colors[colorScheme ?? 'light'].tint} />
-            <Text style={[styles.loadingText, { color: Colors[colorScheme ?? 'light'].text }]}>
-              {predefinedMessages.loading}
+        {!isInitialized ? (
+          <View style={styles.initializingContainer}>
+            <ActivityIndicator size="large" color={Colors[colorScheme ?? 'light'].tint} />
+            <Text style={[styles.initializingText, { color: Colors[colorScheme ?? 'light'].text }]}>
+              Inicializando chat...
             </Text>
           </View>
-        )}
-
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={[
-              styles.textInput,
-              { 
-                color: Colors[colorScheme ?? 'light'].text,
-                borderColor: Colors[colorScheme ?? 'light'].tint,
-                backgroundColor: Colors[colorScheme ?? 'light'].background
-              }
-            ]}
-            value={inputText}
-            onChangeText={setInputText}
-            placeholder="Escribe tu mensaje..."
-            placeholderTextColor={Colors[colorScheme ?? 'light'].text + '80'}
-            multiline
-            maxLength={500}
-          />
-          <TouchableOpacity
-            style={[
-              styles.sendButton,
-              { 
-                backgroundColor: inputText.trim() 
-                  ? Colors[colorScheme ?? 'light'].tint 
-                  : Colors[colorScheme ?? 'light'].text + '40'
-              }
-            ]}
-            onPress={() => handleSendMessage()}
-            disabled={!inputText.trim() || isLoading}
-          >
-            <IconSymbol 
-              name="arrow.up" 
-              size={20} 
-              color="#FFFFFF" 
+        ) : (
+          <>
+            <FlatList
+              ref={flatListRef}
+              data={messages}
+              renderItem={renderMessage}
+              keyExtractor={(item) => item.id}
+              style={styles.messagesList}
+              onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+              showsVerticalScrollIndicator={false}
             />
-          </TouchableOpacity>
-        </View>
+
+            <QuickSuggestions 
+              onSuggestionPress={handleSuggestionPress}
+              visible={messages.length <= 1 && !isLoading}
+            />
+
+            {isLoading && (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color={Colors[colorScheme ?? 'light'].tint} />
+                <Text style={[styles.loadingText, { color: Colors[colorScheme ?? 'light'].text }]}>
+                  {predefinedMessages.loading}
+                </Text>
+              </View>
+            )}
+
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={[
+                  styles.textInput,
+                  { 
+                    color: Colors[colorScheme ?? 'light'].text,
+                    borderColor: Colors[colorScheme ?? 'light'].tint,
+                    backgroundColor: Colors[colorScheme ?? 'light'].background
+                  }
+                ]}
+                value={inputText}
+                onChangeText={setInputText}
+                placeholder="Escribe tu mensaje..."
+                placeholderTextColor={Colors[colorScheme ?? 'light'].text + '80'}
+                multiline
+                maxLength={500}
+              />
+              <TouchableOpacity
+                style={[
+                  styles.sendButton,
+                  { 
+                    backgroundColor: inputText.trim() 
+                      ? Colors[colorScheme ?? 'light'].tint 
+                      : Colors[colorScheme ?? 'light'].text + '40'
+                  }
+                ]}
+                onPress={() => handleSendMessage()}
+                disabled={!inputText.trim() || isLoading}
+              >
+                <IconSymbol 
+                  name="arrow.up" 
+                  size={20} 
+                  color="#FFFFFF" 
+                />
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -169,6 +191,10 @@ export default function ChatAsistencia() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  headerWrapper: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
   },
   header: {
     padding: 20,
@@ -198,6 +224,17 @@ const styles = StyleSheet.create({
   },
   chatContainer: {
     flex: 1,
+  },
+  initializingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  initializingText: {
+    marginTop: 16,
+    fontSize: 16,
+    opacity: 0.7,
   },
   messagesList: {
     flex: 1,

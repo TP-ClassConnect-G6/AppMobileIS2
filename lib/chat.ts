@@ -36,7 +36,7 @@ class ChatServiceImpl implements ChatService {
 
   async sendMessage(chatId: string, message: string, token: string): Promise<string> {
     try {
-      const response = await chatClient.post(`/chat/${chatId}/message`, {
+      const response = await chatClient.post(`/chat/${chatId}`, {
         message: message.trim(),
       }, {
         headers: {
@@ -45,7 +45,7 @@ class ChatServiceImpl implements ChatService {
         },
       });
 
-      return response.data.response || 'Lo siento, no pude procesar tu mensaje.';
+      return response.data.content || response.data.response || 'Lo siento, no pude procesar tu mensaje.';
     } catch (error) {
       console.error('Error enviando mensaje:', error);
       throw new Error('No se pudo enviar el mensaje');

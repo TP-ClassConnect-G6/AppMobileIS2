@@ -17,27 +17,37 @@ const suggestions = [
   {
     id: '2',
     text: '¿Cómo subir una tarea?',
-    message: 'Necesito ayuda para subir una tarea'
+    message: 'Necesito ayuda para subir una tarea como estudiante'
   },
   {
     id: '3',
-    text: '¿Cómo ver mis calificaciones?',
-    message: 'Quiero ver mis calificaciones y feedbacks'
+    text: '¿Ver mis calificaciones?',
+    message: 'Quiero ver mis calificaciones y feedbacks recibidos'
   },
   {
     id: '4',
-    text: '¿Cómo configurar notificaciones?',
-    message: 'Ayúdame a configurar las notificaciones'
+    text: '¿Configurar notificaciones?',
+    message: 'Ayúdame a configurar las notificaciones de la aplicación'
   },
   {
     id: '5',
-    text: '¿Problemas técnicos?',
-    message: 'Tengo problemas técnicos con la aplicación'
+    text: '¿Problemas con la app?',
+    message: 'Tengo problemas técnicos con la aplicación, ¿puedes ayudarme?'
   },
   {
     id: '6',
-    text: '¿Cómo cambiar mi perfil?',
+    text: '¿Actualizar perfil?',
     message: 'Quiero actualizar mi información de perfil'
+  },
+  {
+    id: '7',
+    text: '¿Cómo funcionan los exámenes?',
+    message: 'Explícame cómo funcionan los exámenes en la plataforma'
+  },
+  {
+    id: '8',
+    text: '¿Gestionar cursos?',
+    message: 'Como profesor, ¿cómo puedo gestionar mejor mis cursos?'
   }
 ];
 
