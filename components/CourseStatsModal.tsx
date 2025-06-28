@@ -36,7 +36,7 @@ type CourseStats = {
   averageTaskCompletion: number;
   studentBreakdown: Record<string, number>;
   trends: {
-    tasks: Array<{ date: string; createdTasks: number }>;
+    tasks: Array<{ date: string; createdTasks: number; averageTaskCompletion: number }>;
     exams: Array<{ date: string; averageScore: number }>;
   };
 };
@@ -367,9 +367,15 @@ const CourseStatsModal = ({ visible, onDismiss, courseId, courseName }: CourseSt
                   <Title style={styles.cardTitle}>Tendencias</Title>
                   <Text style={styles.sectionSubtitle}>Tareas por mes:</Text>
                   {stats.trends.tasks.map((trend, index) => (
-                    <View key={index} style={styles.statItem}>
-                      <Text style={styles.statLabel}>{trend.date}:</Text>
-                      <Text style={styles.statValue}>{trend.createdTasks} tareas</Text>
+                    <View key={index}>
+                      <View style={styles.statItem}>
+                        <Text style={styles.statLabel}>{trend.date} - Tareas creadas:</Text>
+                        <Text style={styles.statValue}>{trend.createdTasks}</Text>
+                      </View>
+                      <View style={styles.statItem}>
+                        <Text style={styles.statLabel}>{trend.date} - Promedio completadas:</Text>
+                        <Text style={styles.statValue}>{trend.averageTaskCompletion.toFixed(2)}</Text>
+                      </View>
                     </View>
                   ))}
                   
