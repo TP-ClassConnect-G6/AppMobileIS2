@@ -12,6 +12,7 @@ import TeacherTasksModal from "./TeacherTasksModal";
 import AuxiliarTeachersModal from "./AuxiliarTeachersModal";
 import CourseForumModal from "./CourseForumModal";
 import CourseModulesModal from "./CourseModulesModal";
+import CourseStatsModal from "./CourseStatsModal";
 import { useSession } from "@/contexts/session";
 import jwtDecode from "jwt-decode";
 
@@ -64,6 +65,23 @@ type ForumResponse = {
   forums: Forum[];
 };
 
+// Tipos para las estadísticas de desempeño estudiantil
+type CourseStats = {
+  courseId: string;
+  period: {
+    start: string;
+    end: string;
+  };
+  averageScore: number;
+  totalTasks: number;
+  averageTaskCompletion: number;
+  studentBreakdown: Record<string, number>;
+  trends: {
+    tasks: Array<{ date: string; value: number }>;
+    exams: Array<{ date: string; value: number }>;
+  };
+};
+
 // Función para obtener los detalles de un curso específico
 const fetchCourseDetail = async (courseId: string): Promise<CourseDetail> => {
   try {
@@ -90,6 +108,23 @@ const fetchCourseDetail = async (courseId: string): Promise<CourseDetail> => {
   }
 };
 
+// Función para obtener estadísticas de desempeño estudiantil
+const fetchCourseStats = async (courseId: string, token: string, startDate: string, endDate: string): Promise<CourseStats> => {
+  try {
+    const response = await courseClient.get(`/courses/stats/${courseId}?start=${startDate}&end=${endDate}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    console.log("Course stats response:", response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error al obtener estadísticas del curso:', error);
+    throw error;
+  }
+};
+
 // Props para el componente modal
 type CourseDetailModalProps = {
   visible: boolean;
@@ -106,6 +141,7 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
   const [auxiliarTeachersModalVisible, setAuxiliarTeachersModalVisible] = useState(false);
   const [forumModalVisible, setForumModalVisible] = useState(false);
   const [modulesModalVisible, setModulesModalVisible] = useState(false);
+  const [statsModalVisible, setStatsModalVisible] = useState(false);
   const [isEnrolled, setIsEnrolled] = useState(false);
   const [isTeacherAssigned, setIsTeacherAssigned] = useState(false);
   const [isAuxiliar, setIsAuxiliar] = useState(false);
@@ -577,6 +613,18 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                           Organización de Módulos y Recursos
                         </Button>
                       )}
+
+                      {/* Botón para estadísticas de desempeño estudiantil, solo para profesor asignado */}
+                      {isTeacherAssigned && (
+                        <Button 
+                          mode="contained" 
+                          style={[styles.examButton, {backgroundColor: '#4CAF50'}]} 
+                          onPress={() => setStatsModalVisible(true)}
+                          icon="chart-line"
+                        >
+                          Estadísticas de desempeño estudiantil
+                        </Button>
+                      )}
                     </>
                   ) : null }
                   <Button 
@@ -694,6 +742,13 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
       <CourseModulesModal
         visible={modulesModalVisible}
         onDismiss={() => setModulesModalVisible(false)}
+        courseId={courseId}
+        courseName={courseDetail?.course_name || null}
+      />
+      
+      <CourseStatsModal
+        visible={statsModalVisible}
+        onDismiss={() => setStatsModalVisible(false)}
         courseId={courseId}
         courseName={courseDetail?.course_name || null}
       />
