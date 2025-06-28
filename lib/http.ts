@@ -16,6 +16,10 @@ export const forumClient = axios.create({
   baseURL: "https://apigatewayis2-production.up.railway.app/forum",
 });
 
+export const chatClient = axios.create({
+  baseURL: "https://apigatewayis2-production.up.railway.app/ia",
+});
+
 // https://axios-http.com/docs/interceptors
 //
 // client.interceptors.request.use(

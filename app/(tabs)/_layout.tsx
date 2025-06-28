@@ -161,6 +161,15 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="chat-asistencia"
+        options={{
+          title: "Asistencia",
+          tabBarIcon: ({ color }: { color: string }) => (
+            <IconSymbol size={28} name="message.circle.fill" color={color} />
+          ),
+        }}
+      />
     </Tabs>
   );
 }
