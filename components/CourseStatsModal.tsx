@@ -2,8 +2,17 @@ import React, { useState } from "react";
 import { StyleSheet, View, ScrollView, ActivityIndicator, Alert } from "react-native";
 import { Modal, Portal, Text, Title, Button, Divider, Card } from "react-native-paper";
 import { useQuery } from "@tanstack/react-query";
-import { courseClient } from "@/lib/http";
+import { client, courseClient } from "@/lib/http";
 import { useSession } from "@/contexts/session";
+import axios from "axios";
+
+// Tipos para el perfil de usuario
+type UserProfile = {
+  user_id: string;
+  user_type: string;
+  name: string;
+  bio: string;
+};
 
 // Tipos para las estadísticas de desempeño estudiantil
 type CourseStats = {
@@ -39,6 +48,23 @@ const fetchCourseStats = async (courseId: string, token: string): Promise<Course
     return response.data;
   } catch (error) {
     console.error('Error al obtener estadísticas del curso:', error);
+    throw error;
+  }
+};
+
+// Función para obtener el perfil de un usuario
+const fetchUserProfile = async (userId: string, token: string): Promise<UserProfile> => {
+  try {
+    const response = await client.get(`/profile/${userId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    console.log("User profile response:", response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error al obtener perfil del usuario:', error);
     throw error;
   }
 };
@@ -145,10 +171,12 @@ const CourseStatsModal = ({ visible, onDismiss, courseId, courseName }: CourseSt
                 <Card.Content>
                   <Title style={styles.cardTitle}>Desglose por Estudiante</Title>
                   {Object.entries(stats.studentBreakdown).map(([studentId, completion]) => (
-                    <View key={studentId} style={styles.statItem}>
-                      <Text style={styles.statLabel}>Estudiante:</Text>
-                      <Text style={styles.statValue}>{completion} tareas completadas</Text>
-                    </View>
+                    <StudentItem
+                      key={studentId}
+                      studentId={studentId}
+                      completion={completion}
+                      token={session?.token || ''}
+                    />
                   ))}
                 </Card.Content>
               </Card>
@@ -188,6 +216,38 @@ const CourseStatsModal = ({ visible, onDismiss, courseId, courseName }: CourseSt
         </ScrollView>
       </Modal>
     </Portal>
+  );
+};
+
+// Componente para mostrar información de un estudiante con su nombre
+type StudentItemProps = {
+  studentId: string;
+  completion: number;
+  token: string;
+};
+
+const StudentItem = ({ studentId, completion, token }: StudentItemProps) => {
+  const { data: userProfile, isLoading, error } = useQuery({
+    queryKey: ['userProfile', studentId],
+    queryFn: () => fetchUserProfile(studentId, token),
+    enabled: !!studentId && !!token,
+    staleTime: 300000, // 5 minutos de cache
+    retry: 1,
+  });
+
+  const getStudentName = () => {
+    if (isLoading) return 'Cargando...';
+    if (error) return `Usuario (${studentId.substring(0, 8)}...)`;
+    return userProfile?.name || 'Usuario desconocido';
+  };
+
+  return (
+    <View style={styles.statItem}>
+      <Text style={styles.statLabel}>
+        {getStudentName()}:
+      </Text>
+      <Text style={styles.statValue}>{completion} tareas completadas</Text>
+    </View>
   );
 };
 
