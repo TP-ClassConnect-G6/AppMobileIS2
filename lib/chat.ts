@@ -11,11 +11,14 @@ export interface ChatService {
   createChat: (token: string) => Promise<string>;
   sendMessage: (chatId: string, message: string, token: string) => Promise<string>;
   getChatHistory: (chatId: string, token: string) => Promise<ChatMessage[]>;
+  testConnection: (token: string) => Promise<boolean>;
 }
 
 class ChatServiceImpl implements ChatService {
   async createChat(token: string): Promise<string> {
     try {
+      console.log('Creando nuevo chat...');
+      
       const response = await chatClient.post('/chat', {}, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -23,19 +26,27 @@ class ChatServiceImpl implements ChatService {
         },
       });
 
+      console.log('Chat creado exitosamente:', response.data);
+
       if (!response.data.chat_id) {
         throw new Error('No se recibió chat_id del servidor');
       }
 
       return response.data.chat_id;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creando chat:', error);
+      if (error.response) {
+        console.error('Error response:', error.response.data);
+        console.error('Error status:', error.response.status);
+      }
       throw new Error('No se pudo crear el chat');
     }
   }
 
   async sendMessage(chatId: string, message: string, token: string): Promise<string> {
     try {
+      console.log('Enviando mensaje al chat:', { chatId, message: message.trim() });
+      
       const response = await chatClient.post(`/chat/${chatId}`, {
         message: message.trim(),
       }, {
@@ -45,9 +56,15 @@ class ChatServiceImpl implements ChatService {
         },
       });
 
+      console.log('Respuesta del servidor:', response.data);
+      
       return response.data.content || response.data.response || 'Lo siento, no pude procesar tu mensaje.';
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error enviando mensaje:', error);
+      if (error.response) {
+        console.error('Error response:', error.response.data);
+        console.error('Error status:', error.response.status);
+      }
       throw new Error('No se pudo enviar el mensaje');
     }
   }
@@ -71,6 +88,22 @@ class ChatServiceImpl implements ChatService {
     } catch (error) {
       console.error('Error obteniendo historial:', error);
       return [];
+    }
+  }
+
+  // Método para probar la conectividad
+  async testConnection(token: string): Promise<boolean> {
+    try {
+      console.log('Probando conectividad del chat...');
+      
+      // Intentar crear un chat de prueba
+      const testChatId = await this.createChat(token);
+      console.log('Conectividad exitosa, chat de prueba creado:', testChatId);
+      
+      return true;
+    } catch (error) {
+      console.error('Error de conectividad:', error);
+      return false;
     }
   }
 }

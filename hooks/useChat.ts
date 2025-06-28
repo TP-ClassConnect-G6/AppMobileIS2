@@ -78,8 +78,17 @@ export function useChat(): UseChatReturn {
       // Intentar cargar datos guardados primero
       await loadChatData();
 
-      // Si no hay chatId guardado o es muy antiguo, crear uno nuevo
-      if (!chatId) {
+      // Si no hay chatId guardado después de cargar datos, crear uno nuevo
+      let currentChatId = chatId;
+      
+      // Verificar si tenemos un chatId después de cargar datos
+      const savedData = await getItemAsync(CHAT_STORAGE_KEY);
+      if (savedData) {
+        const { chatId: savedChatId } = JSON.parse(savedData);
+        currentChatId = savedChatId;
+      }
+
+      if (!currentChatId) {
         const newChatId = await chatService.createChat(session.token);
         setChatId(newChatId);
         
