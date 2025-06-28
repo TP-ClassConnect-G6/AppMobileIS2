@@ -108,22 +108,15 @@ export function useChat(): UseChatReturn {
             setMessages(serverHistory);
             await saveChatData(currentChatId, serverHistory);
           } else {
-            // Si no hay historial en servidor pero sí chatId, mantener mensajes locales
-            // y agregar mensaje de bienvenida si no hay mensajes
-            if (messages.length === 0) {
-              const welcomeMessage = formatChatMessage(predefinedMessages.welcome, false);
-              setMessages([welcomeMessage]);
-              await saveChatData(currentChatId, [welcomeMessage]);
-            }
+            // Si no hay historial en servidor pero sí chatId, no agregar mensaje automáticamente
+            // El usuario puede empezar a escribir cuando quiera
+            console.log('Chat existente sin historial en servidor');
           }
         } catch (error) {
           console.error('Error cargando historial del servidor:', error);
-          // Si falla cargar del servidor, usar datos locales o crear mensaje de bienvenida
-          if (messages.length === 0) {
-            const welcomeMessage = formatChatMessage(predefinedMessages.welcome, false);
-            setMessages([welcomeMessage]);
-            await saveChatData(currentChatId, [welcomeMessage]);
-          }
+          // Si falla cargar del servidor pero ya hay mensajes locales, mantenerlos
+          // Si no hay mensajes, dejar el chat vacío para que el usuario escriba
+          console.log('Error cargando historial, manteniendo estado actual');
         }
       } else {
         // Si no hay chatId guardado, crear uno nuevo
@@ -219,17 +212,27 @@ export function useChat(): UseChatReturn {
     try {
       const chatStorageKey = getChatStorageKey(session.userId);
       await deleteItemAsync(chatStorageKey);
+      
+      // Limpiar estados pero mantener inicializado para que el input esté visible
       setMessages([]);
       setChatId(null);
       setError(null);
-      setIsInitialized(false);
+      // NO cambiar isInitialized - mantener el input visible
+      setIsLoading(false);
+      setIsSyncing(false);
       
-      // Reinicializar
-      await initializeChat();
+      // Crear nuevo chatId pero sin mensaje de bienvenida automático
+      if (session?.token) {
+        const newChatId = await chatService.createChat(session.token);
+        setChatId(newChatId);
+        
+        // Guardar solo el chatId sin mensajes
+        await saveChatData(newChatId, []);
+      }
     } catch (error) {
       console.error('Error limpiando chat:', error);
     }
-  }, [session?.userId, initializeChat]);
+  }, [session?.userId, session?.token, saveChatData]);
 
   // Inicializar cuando cambie la sesión
   useEffect(() => {

@@ -65,6 +65,7 @@ export default function ChatAsistencia() {
           style: 'destructive',
           onPress: async () => {
             await clearChat();
+            setInputText(''); // Limpiar el input text también
             showChatCleared();
           },
         },
@@ -116,7 +117,7 @@ export default function ChatAsistencia() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <ThemedView style={styles.headerWrapper}>
         <ChatHeader 
           onClearChat={handleClearChat}
@@ -145,6 +146,7 @@ export default function ChatAsistencia() {
       <KeyboardAvoidingView 
         style={styles.chatContainer}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         {!isInitialized ? (
           <View style={styles.initializingContainer}>
@@ -186,46 +188,53 @@ export default function ChatAsistencia() {
                 </Text>
               </View>
             )}
-
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={[
-                  styles.textInput,
-                  { 
-                    color: Colors[colorScheme ?? 'light'].text,
-                    borderColor: Colors[colorScheme ?? 'light'].tint,
-                    backgroundColor: Colors[colorScheme ?? 'light'].background
-                  }
-                ]}
-                value={inputText}
-                onChangeText={setInputText}
-                placeholder="Escribe tu mensaje..."
-                placeholderTextColor={Colors[colorScheme ?? 'light'].text + '80'}
-                multiline
-                maxLength={500}
-              />
-              <TouchableOpacity
-                style={[
-                  styles.sendButton,
-                  { 
-                    backgroundColor: inputText.trim() 
-                      ? Colors[colorScheme ?? 'light'].tint 
-                      : Colors[colorScheme ?? 'light'].text + '40'
-                  }
-                ]}
-                onPress={() => handleSendMessage()}
-                disabled={!inputText.trim() || isLoading}
-              >
-                <Ionicons 
-                  name="send" 
-                  size={20} 
-                  color="#FFFFFF" 
-                />
-              </TouchableOpacity>
-            </View>
           </>
         )}
       </KeyboardAvoidingView>
+
+      {isInitialized && (
+        <SafeAreaView edges={['bottom']} style={{ backgroundColor: Colors[colorScheme ?? 'light'].background }}>
+          <View style={[
+            styles.inputContainer,
+            { backgroundColor: Colors[colorScheme ?? 'light'].background }
+          ]}>
+            <TextInput
+              style={[
+                styles.textInput,
+                { 
+                  color: Colors[colorScheme ?? 'light'].text,
+                  borderColor: Colors[colorScheme ?? 'light'].tint,
+                  backgroundColor: Colors[colorScheme ?? 'light'].background
+                }
+              ]}
+              value={inputText}
+              onChangeText={setInputText}
+              placeholder="Escribe tu mensaje..."
+              placeholderTextColor={Colors[colorScheme ?? 'light'].text + '80'}
+              multiline
+              maxLength={500}
+            />
+            <TouchableOpacity
+              style={[
+                styles.sendButton,
+                { 
+                  backgroundColor: inputText.trim() 
+                    ? Colors[colorScheme ?? 'light'].tint 
+                    : Colors[colorScheme ?? 'light'].text + '40'
+                }
+              ]}
+              onPress={() => handleSendMessage()}
+              disabled={!inputText.trim() || isLoading}
+            >
+              <Ionicons 
+                name="send" 
+                size={20} 
+                color="#FFFFFF" 
+              />
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      )}
     </SafeAreaView>
   );
 }
@@ -281,6 +290,7 @@ const styles = StyleSheet.create({
   messagesList: {
     flex: 1,
     paddingHorizontal: 15,
+    paddingBottom: 10,
   },
   messageContainer: {
     marginVertical: 5,
@@ -325,6 +335,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     padding: 15,
     alignItems: 'flex-end',
+    backgroundColor: 'transparent',
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
   },
   textInput: {
     flex: 1,
