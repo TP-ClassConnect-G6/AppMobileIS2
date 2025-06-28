@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { StyleSheet, View, ScrollView, ActivityIndicator, Alert, Platform } from "react-native";
-import { Modal, Portal, Text, Title, Button, Divider, Card, TextInput } from "react-native-paper";
+import { Modal, Portal, Text, Title, Button, Divider, Card, TextInput, Menu } from "react-native-paper";
 import { useQuery } from "@tanstack/react-query";
 import { client, courseClient } from "@/lib/http";
 import { useSession } from "@/contexts/session";
@@ -12,6 +12,15 @@ type UserProfile = {
   user_type: string;
   name: string;
   bio: string;
+};
+
+// Tipos para las registraciones del curso
+type CourseRegistration = {
+  registration_id: string;
+  course_id: string;
+  user_id: string;
+  registration_date: string;
+  registration_status: string;
 };
 
 // Tipos para las estadísticas de desempeño estudiantil
@@ -69,6 +78,23 @@ const fetchUserProfile = async (userId: string, token: string): Promise<UserProf
   }
 };
 
+// Función para obtener las registraciones de cursos
+const fetchCourseRegistrations = async (token: string): Promise<CourseRegistration[]> => {
+  try {
+    const response = await courseClient.get('/courses/registrations', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    console.log("Course registrations response:", response.data);
+    return response.data.response || [];
+  } catch (error) {
+    console.error('Error al obtener registraciones del curso:', error);
+    throw error;
+  }
+};
+
 // Props para el componente modal
 type CourseStatsModalProps = {
   visible: boolean;
@@ -86,11 +112,32 @@ const CourseStatsModal = ({ visible, onDismiss, courseId, courseName }: CourseSt
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
   const [studentId, setStudentId] = useState(''); // Filtro opcional por estudiante
+  const [showStudentMenu, setShowStudentMenu] = useState(false); // Estado para mostrar el menú desplegable
 
   // Función para formatear fecha a string YYYY-MM-DD
   const formatDateToString = (date: Date): string => {
     return date.toISOString().split('T')[0];
   };
+
+  // Consulta para obtener las registraciones del curso
+  const { data: registrations } = useQuery({
+    queryKey: ['courseRegistrations'],
+    queryFn: () => {
+      if (!session?.token) {
+        throw new Error('No token provided');
+      }
+      return fetchCourseRegistrations(session.token);
+    },
+    enabled: !!session?.token && visible,
+    staleTime: 300000, // 5 minutos de cache
+  });
+
+  // Filtrar estudiantes por el curso actual
+  const courseStudents = registrations
+    ? registrations
+        .filter(reg => reg.course_id === courseId && reg.registration_status === 'active')
+        .map(reg => reg.user_id)
+    : [];
 
   // Consulta para obtener las estadísticas del curso
   const { data: stats, isLoading, error, refetch } = useQuery({
@@ -182,14 +229,39 @@ const CourseStatsModal = ({ visible, onDismiss, courseId, courseName }: CourseSt
               {/* Filtro por estudiante */}
               <View style={styles.studentFilterContainer}>
                 <Text style={styles.dateLabel}>Filtrar por estudiante (opcional):</Text>
-                <TextInput
-                  mode="outlined"
-                  placeholder="Ingrese el ID del estudiante"
-                  value={studentId}
-                  onChangeText={setStudentId}
-                  style={styles.studentInput}
-                  left={<TextInput.Icon icon="account" />}
-                />
+                <Menu
+                  visible={showStudentMenu}
+                  onDismiss={() => setShowStudentMenu(false)}
+                  anchor={
+                    <Button
+                      mode="outlined"
+                      onPress={() => setShowStudentMenu(true)}
+                      style={styles.studentDropdownButton}
+                      icon="account"
+                      contentStyle={styles.dropdownButtonContent}
+                    >
+                      {studentId ? `Estudiante: ${studentId}` : 'Seleccionar estudiante'}
+                    </Button>
+                  }
+                >
+                  <Menu.Item
+                    onPress={() => {
+                      setStudentId('');
+                      setShowStudentMenu(false);
+                    }}
+                    title="Todos los estudiantes"
+                  />
+                  {courseStudents.map((userId) => (
+                    <Menu.Item
+                      key={userId}
+                      onPress={() => {
+                        setStudentId(userId);
+                        setShowStudentMenu(false);
+                      }}
+                      title={userId}
+                    />
+                  ))}
+                </Menu>
               </View>
               
               <Button
@@ -468,8 +540,12 @@ const styles = StyleSheet.create({
   studentFilterContainer: {
     marginBottom: 15,
   },
-  studentInput: {
+  studentDropdownButton: {
     marginTop: 5,
+    justifyContent: 'flex-start',
+  },
+  dropdownButtonContent: {
+    justifyContent: 'flex-start',
   },
   applyFiltersButton: {
     marginTop: 10,
