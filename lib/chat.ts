@@ -90,10 +90,10 @@ class ChatServiceImpl implements ChatService {
         },
       });
 
-      // Mapear la respuesta del servidor al formato de ChatMessage
+      // Mapear la respuesta del servidor al formato de ChatMessage y procesar markdown
       return response.data.messages?.map((msg: any, index: number) => ({
         id: `${msg.role}-${msg.timestamp}-${index}`,
-        text: msg.content || '',
+        text: msg.role === 'assistant' ? processMarkdownToPlainText(msg.content || '') : (msg.content || ''),
         isUser: msg.role === 'user',
         timestamp: new Date(msg.timestamp),
       })) || [];
@@ -158,4 +158,40 @@ export const validateMessage = (message: string): { isValid: boolean; error?: st
   }
   
   return { isValid: true };
+};
+
+// Helper para procesar markdown y convertirlo a texto plano
+export const processMarkdownToPlainText = (text: string): string => {
+  return text
+    // Eliminar títulos (# ## ###)
+    .replace(/^#{1,6}\s+/gm, '')
+    // Eliminar negritas (**texto** o __texto__)
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/__(.*?)__/g, '$1')
+    // Eliminar cursivas (*texto* o _texto_) - mejorado para evitar conflictos
+    .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '$1')
+    .replace(/(?<!_)_([^_\n]+)_(?!_)/g, '$1')
+    // Eliminar código inline (`código`)
+    .replace(/`([^`]+)`/g, '$1')
+    // Procesar listas con asterisco (* texto)
+    .replace(/^[\s]*\*\s+/gm, '• ')
+    // Procesar listas con guión (- texto)  
+    .replace(/^[\s]*-\s+/gm, '• ')
+    // Procesar listas con más (+)
+    .replace(/^[\s]*\+\s+/gm, '• ')
+    // Procesar listas numeradas (1. texto)
+    .replace(/^[\s]*\d+\.\s+/gm, '• ')
+    // Eliminar enlaces [texto](url)
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    // Eliminar código de bloque (```código```)
+    .replace(/```[\s\S]*?```/g, '')
+    // Procesar comillas específicas
+    .replace(/"/g, '"')
+    .replace(/"/g, '"')
+    .replace(/'/g, "'")
+    .replace(/'/g, "'")
+    // Limpiar saltos de línea múltiples
+    .replace(/\n{3,}/g, '\n\n')
+    // Trim espacios
+    .trim();
 };

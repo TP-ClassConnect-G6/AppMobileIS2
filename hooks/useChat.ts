@@ -5,7 +5,8 @@ import {
   ChatMessage, 
   formatChatMessage, 
   predefinedMessages, 
-  validateMessage 
+  validateMessage,
+  processMarkdownToPlainText
 } from '@/lib/chat';
 import { useSession } from '@/contexts/session';
 import { getItemAsync, setItemAsync, deleteItemAsync } from '@/lib/storage';
@@ -165,7 +166,9 @@ export function useChat(): UseChatReturn {
 
     try {
       const response = await chatService.sendMessage(chatId, textToSend, session.token);
-      const assistantMessage = formatChatMessage(response, false);
+      // Procesar la respuesta para eliminar formato markdown
+      const processedResponse = processMarkdownToPlainText(response);
+      const assistantMessage = formatChatMessage(processedResponse, false);
       const finalMessages = [...newMessages, assistantMessage];
       
       setMessages(finalMessages);
