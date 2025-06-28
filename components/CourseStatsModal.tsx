@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { client, courseClient } from "@/lib/http";
 import { useSession } from "@/contexts/session";
 import DateTimePicker from '@react-native-community/datetimepicker';
+import LearningTrendsModal from './LearningTrendsModal';
 
 // Tipos para el perfil de usuario
 type UserProfile = {
@@ -119,6 +120,9 @@ const CourseStatsModal = ({ visible, onDismiss, courseId, courseName }: CourseSt
   const [appliedStartDate, setAppliedStartDate] = useState(new Date());
   const [appliedEndDate, setAppliedEndDate] = useState(new Date());
   const [appliedStudentId, setAppliedStudentId] = useState('');
+
+  // Estado para el modal de tendencias de aprendizaje
+  const [learningTrendsModalVisible, setLearningTrendsModalVisible] = useState(false);
 
   // Función para formatear fecha a string YYYY-MM-DD
   const formatDateToString = (date: Date): string => {
@@ -288,6 +292,15 @@ const CourseStatsModal = ({ visible, onDismiss, courseId, courseName }: CourseSt
               >
                 Aplicar Filtros
               </Button>
+              
+              <Button
+                mode="outlined"
+                onPress={() => setLearningTrendsModalVisible(true)}
+                style={styles.trendsButton}
+                icon="trending-up"
+              >
+                Ver Tendencias de Aprendizaje
+              </Button>
             </Card.Content>
           </Card>
           
@@ -406,6 +419,14 @@ const CourseStatsModal = ({ visible, onDismiss, courseId, courseName }: CourseSt
           </Button>
         </ScrollView>
       </Modal>
+      
+      {/* Modal de Tendencias de Aprendizaje */}
+      <LearningTrendsModal
+        visible={learningTrendsModalVisible}
+        onDismiss={() => setLearningTrendsModalVisible(false)}
+        courseId={courseId}
+        courseName={courseName}
+      />
     </Portal>
   );
 };
@@ -597,6 +618,10 @@ const styles = StyleSheet.create({
   applyFiltersButton: {
     marginTop: 10,
     backgroundColor: '#1976D2',
+  },
+  trendsButton: {
+    marginTop: 10,
+    borderColor: '#FF6B35',
   },
   closeButton: {
     marginTop: 20,

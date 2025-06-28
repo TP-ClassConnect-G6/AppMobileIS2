@@ -13,7 +13,6 @@ import AuxiliarTeachersModal from "./AuxiliarTeachersModal";
 import CourseForumModal from "./CourseForumModal";
 import CourseModulesModal from "./CourseModulesModal";
 import CourseStatsModal from "./CourseStatsModal";
-import LearningTrendsModal from "./LearningTrendsModal";
 import { useSession } from "@/contexts/session";
 import jwtDecode from "jwt-decode";
 
@@ -143,7 +142,6 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
   const [forumModalVisible, setForumModalVisible] = useState(false);
   const [modulesModalVisible, setModulesModalVisible] = useState(false);
   const [statsModalVisible, setStatsModalVisible] = useState(false);
-  const [learningTrendsModalVisible, setLearningTrendsModalVisible] = useState(false);
   const [isEnrolled, setIsEnrolled] = useState(false);
   const [isTeacherAssigned, setIsTeacherAssigned] = useState(false);
   const [isAuxiliar, setIsAuxiliar] = useState(false);
@@ -627,18 +625,6 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
                           Estadísticas de desempeño estudiantil
                         </Button>
                       )}
-
-                      {/* Botón para tendencias de aprendizaje, solo para profesor asignado */}
-                      {isTeacherAssigned && (
-                        <Button 
-                          mode="contained" 
-                          style={[styles.examButton, {backgroundColor: '#FF6B35'}]} 
-                          onPress={() => setLearningTrendsModalVisible(true)}
-                          icon="trending-up"
-                        >
-                          Tendencias de Aprendizaje
-                        </Button>
-                      )}
                     </>
                   ) : null }
                   <Button 
@@ -763,13 +749,6 @@ const CourseDetailModal = ({ visible, onDismiss, courseId }: CourseDetailModalPr
       <CourseStatsModal
         visible={statsModalVisible}
         onDismiss={() => setStatsModalVisible(false)}
-        courseId={courseId}
-        courseName={courseDetail?.course_name || null}
-      />
-      
-      <LearningTrendsModal
-        visible={learningTrendsModalVisible}
-        onDismiss={() => setLearningTrendsModalVisible(false)}
         courseId={courseId}
         courseName={courseDetail?.course_name || null}
       />
