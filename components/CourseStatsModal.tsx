@@ -115,6 +115,11 @@ const CourseStatsModal = ({ visible, onDismiss, courseId, courseName }: CourseSt
   const [selectedStudentName, setSelectedStudentName] = useState(''); // Nombre del estudiante seleccionado
   const [showStudentMenu, setShowStudentMenu] = useState(false); // Estado para mostrar el menú desplegable
 
+  // Estados para los filtros aplicados (que se usan en la query)
+  const [appliedStartDate, setAppliedStartDate] = useState(new Date());
+  const [appliedEndDate, setAppliedEndDate] = useState(new Date());
+  const [appliedStudentId, setAppliedStudentId] = useState('');
+
   // Función para formatear fecha a string YYYY-MM-DD
   const formatDateToString = (date: Date): string => {
     return date.toISOString().split('T')[0];
@@ -142,12 +147,12 @@ const CourseStatsModal = ({ visible, onDismiss, courseId, courseName }: CourseSt
 
   // Consulta para obtener las estadísticas del curso
   const { data: stats, isLoading, error, refetch } = useQuery({
-    queryKey: ['courseStats', courseId, formatDateToString(startDate), formatDateToString(endDate), studentId],
+    queryKey: ['courseStats', courseId, formatDateToString(appliedStartDate), formatDateToString(appliedEndDate), appliedStudentId],
     queryFn: () => {
       if (!courseId || !session?.token) {
         throw new Error('No courseId or token provided');
       }
-      return fetchCourseStats(courseId, session.token, formatDateToString(startDate), formatDateToString(endDate), studentId);
+      return fetchCourseStats(courseId, session.token, formatDateToString(appliedStartDate), formatDateToString(appliedEndDate), appliedStudentId);
     },
     enabled: !!courseId && !!session?.token && visible,
     staleTime: 60000,
@@ -181,6 +186,13 @@ const CourseStatsModal = ({ visible, onDismiss, courseId, courseName }: CourseSt
     const currentDate = selectedDate || endDate;
     setShowEndPicker(Platform.OS === 'ios');
     setEndDate(currentDate);
+  };
+
+  // Función para aplicar los filtros
+  const applyFilters = () => {
+    setAppliedStartDate(startDate);
+    setAppliedEndDate(endDate);
+    setAppliedStudentId(studentId);
   };
 
   return (
@@ -270,7 +282,7 @@ const CourseStatsModal = ({ visible, onDismiss, courseId, courseName }: CourseSt
               
               <Button
                 mode="contained"
-                onPress={() => refetch()}
+                onPress={applyFilters}
                 style={styles.applyFiltersButton}
                 icon="refresh"
               >
