@@ -71,7 +71,7 @@ class ChatServiceImpl implements ChatService {
 
   async getChatHistory(chatId: string, token: string): Promise<ChatMessage[]> {
     try {
-      const response = await chatClient.get(`/chat/${chatId}/history`, {
+      const response = await chatClient.get(`/chat/${chatId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -80,10 +80,10 @@ class ChatServiceImpl implements ChatService {
 
       // Mapear la respuesta del servidor al formato de ChatMessage
       return response.data.messages?.map((msg: any, index: number) => ({
-        id: msg.id || index.toString(),
-        text: msg.content || msg.text || '',
+        id: `${msg.role}-${msg.timestamp}-${index}`,
+        text: msg.content || '',
         isUser: msg.role === 'user',
-        timestamp: new Date(msg.timestamp || Date.now()),
+        timestamp: new Date(msg.timestamp),
       })) || [];
     } catch (error) {
       console.error('Error obteniendo historial:', error);

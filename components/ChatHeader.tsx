@@ -6,11 +6,19 @@ import { Colors } from '@/constants/Colors';
 
 interface ChatHeaderProps {
   onClearChat: () => void;
+  onRefreshHistory: () => void;
   isOnline: boolean;
   messagesCount: number;
+  isSyncing: boolean;
 }
 
-export default function ChatHeader({ onClearChat, isOnline, messagesCount }: ChatHeaderProps) {
+export default function ChatHeader({ 
+  onClearChat, 
+  onRefreshHistory, 
+  isOnline, 
+  messagesCount, 
+  isSyncing 
+}: ChatHeaderProps) {
   const colorScheme = useColorScheme();
 
   return (
@@ -27,25 +35,42 @@ export default function ChatHeader({ onClearChat, isOnline, messagesCount }: Cha
         </View>
         <Text style={[styles.subtitle, { color: Colors[colorScheme ?? 'light'].text }]}>
           {isOnline 
-            ? `${messagesCount} mensajes • En línea` 
+            ? `${messagesCount} mensajes • ${isSyncing ? 'Sincronizando...' : 'En línea'}` 
             : 'Sin conexión'
           }
         </Text>
       </View>
       
-      <TouchableOpacity 
-        onPress={onClearChat}
-        style={[
-          styles.clearButton, 
-          { backgroundColor: Colors[colorScheme ?? 'light'].tint + '20' }
-        ]}
-      >
-        <IconSymbol 
-          name="trash" 
-          size={20} 
-          color={Colors[colorScheme ?? 'light'].tint} 
-        />
-      </TouchableOpacity>
+      <View style={styles.buttonsContainer}>
+        <TouchableOpacity 
+          onPress={onRefreshHistory}
+          style={[
+            styles.actionButton, 
+            { backgroundColor: Colors[colorScheme ?? 'light'].tint + '20' }
+          ]}
+          disabled={isSyncing}
+        >
+          <IconSymbol 
+            name={isSyncing ? "arrow.circlepath" : "arrow.clockwise"} 
+            size={18} 
+            color={Colors[colorScheme ?? 'light'].tint} 
+          />
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          onPress={onClearChat}
+          style={[
+            styles.actionButton, 
+            { backgroundColor: Colors[colorScheme ?? 'light'].tint + '20' }
+          ]}
+        >
+          <IconSymbol 
+            name="trash" 
+            size={18} 
+            color={Colors[colorScheme ?? 'light'].tint} 
+          />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -79,6 +104,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     opacity: 0.7,
     marginTop: 4,
+  },
+  buttonsContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  actionButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   clearButton: {
     width: 40,

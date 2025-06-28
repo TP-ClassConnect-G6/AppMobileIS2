@@ -18,7 +18,9 @@ interface UseChatReturn {
   error: string | null;
   sendMessage: (messageText?: string) => Promise<void>;
   clearChat: () => void;
+  refreshHistory: () => Promise<void>;
   isInitialized: boolean;
+  isSyncing: boolean;
 }
 
 export function useChat(): UseChatReturn {
@@ -27,6 +29,7 @@ export function useChat(): UseChatReturn {
   const [error, setError] = useState<string | null>(null);
   const [chatId, setChatId] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const { session } = useSession();
 
   // Cargar datos del chat guardados
@@ -86,9 +89,36 @@ export function useChat(): UseChatReturn {
       if (savedData) {
         const { chatId: savedChatId } = JSON.parse(savedData);
         currentChatId = savedChatId;
+        setChatId(savedChatId);
       }
 
-      if (!currentChatId) {
+      if (currentChatId) {
+        // Si hay chatId, cargar historial del servidor
+        try {
+          const serverHistory = await chatService.getChatHistory(currentChatId, session.token);
+          if (serverHistory.length > 0) {
+            setMessages(serverHistory);
+            await saveChatData(currentChatId, serverHistory);
+          } else {
+            // Si no hay historial en servidor pero sí chatId, mantener mensajes locales
+            // y agregar mensaje de bienvenida si no hay mensajes
+            if (messages.length === 0) {
+              const welcomeMessage = formatChatMessage(predefinedMessages.welcome, false);
+              setMessages([welcomeMessage]);
+              await saveChatData(currentChatId, [welcomeMessage]);
+            }
+          }
+        } catch (error) {
+          console.error('Error cargando historial del servidor:', error);
+          // Si falla cargar del servidor, usar datos locales o crear mensaje de bienvenida
+          if (messages.length === 0) {
+            const welcomeMessage = formatChatMessage(predefinedMessages.welcome, false);
+            setMessages([welcomeMessage]);
+            await saveChatData(currentChatId, [welcomeMessage]);
+          }
+        }
+      } else {
+        // Si no hay chatId guardado, crear uno nuevo
         const newChatId = await chatService.createChat(session.token);
         setChatId(newChatId);
         
@@ -106,7 +136,7 @@ export function useChat(): UseChatReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [session?.token, chatId, loadChatData, saveChatData]);
+  }, [session?.token, chatId, loadChatData, saveChatData, messages]);
 
   // Enviar mensaje
   const sendMessage = useCallback(async (messageText?: string) => {
@@ -151,6 +181,29 @@ export function useChat(): UseChatReturn {
     }
   }, [session?.token, chatId, messages, saveChatData]);
 
+  // Refrescar historial manualmente
+  const refreshHistory = useCallback(async () => {
+    if (!session?.token || !chatId) {
+      return;
+    }
+
+    try {
+      setIsSyncing(true);
+      setError(null);
+      
+      const serverHistory = await chatService.getChatHistory(chatId, session.token);
+      if (serverHistory.length > 0) {
+        setMessages(serverHistory);
+        await saveChatData(chatId, serverHistory);
+      }
+    } catch (error) {
+      console.error('Error refrescando historial:', error);
+      setError('Error al sincronizar historial');
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [session?.token, chatId, saveChatData]);
+
   // Limpiar chat
   const clearChat = useCallback(async () => {
     try {
@@ -187,6 +240,8 @@ export function useChat(): UseChatReturn {
     error,
     sendMessage,
     clearChat,
+    refreshHistory,
     isInitialized,
+    isSyncing,
   };
 }

@@ -19,12 +19,25 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { Colors } from '@/constants/Colors';
 import QuickSuggestions from '@/components/QuickSuggestions';
 import ChatHeader from '@/components/ChatHeader';
+import MessageStatus from '@/components/MessageStatus';
+import SyncStatusToast from '@/components/SyncStatusToast';
 import { ChatMessage, predefinedMessages } from '@/lib/chat';
 import { useChat } from '@/hooks/useChat';
+import { useSyncToast } from '@/hooks/useSyncToast';
 
 export default function ChatAsistencia() {
   const [inputText, setInputText] = useState('');
-  const { messages, isLoading, error, sendMessage, clearChat, isInitialized } = useChat();
+  const { 
+    messages, 
+    isLoading, 
+    error, 
+    sendMessage, 
+    clearChat, 
+    refreshHistory,
+    isInitialized,
+    isSyncing 
+  } = useChat();
+  const { toast, hideToast, showSyncSuccess, showSyncError, showChatCleared } = useSyncToast();
   const colorScheme = useColorScheme();
   const flatListRef = useRef<FlatList>(null);
 
@@ -49,10 +62,22 @@ export default function ChatAsistencia() {
         {
           text: 'Limpiar',
           style: 'destructive',
-          onPress: clearChat,
+          onPress: async () => {
+            await clearChat();
+            showChatCleared();
+          },
         },
       ]
     );
+  };
+
+  const handleRefreshHistory = async () => {
+    try {
+      await refreshHistory();
+      showSyncSuccess(messages.length);
+    } catch (error) {
+      showSyncError();
+    }
   };
 
   const renderMessage = ({ item }: { item: ChatMessage }) => {
@@ -79,12 +104,11 @@ export default function ChatAsistencia() {
           ]}>
             {item.text}
           </Text>
-          <Text style={[
-            styles.timestamp,
-            { color: isUser ? '#FFFFFF99' : Colors[colorScheme ?? 'light'].text + '80' }
-          ]}>
-            {item.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          </Text>
+          <MessageStatus 
+            isUser={isUser}
+            timestamp={item.timestamp}
+            status={isLoading && item.id === messages[messages.length - 1]?.id ? 'sending' : 'sent'}
+          />
         </View>
       </View>
     );
@@ -95,10 +119,19 @@ export default function ChatAsistencia() {
       <ThemedView style={styles.headerWrapper}>
         <ChatHeader 
           onClearChat={handleClearChat}
+          onRefreshHistory={handleRefreshHistory}
           isOnline={isInitialized && !error}
           messagesCount={messages.length}
+          isSyncing={isSyncing}
         />
       </ThemedView>
+
+      <SyncStatusToast 
+        visible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+        onHide={hideToast}
+      />
 
       {error && (
         <View style={[styles.errorContainer, { backgroundColor: '#ffebee' }]}>
