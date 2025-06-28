@@ -77,8 +77,8 @@ const CourseStatsModal = ({ visible, onDismiss, courseId, courseName }: CourseSt
   const { session } = useSession();
 
   // Estados para los filtros de fecha
-  const [startDate, setStartDate] = useState(new Date('2024-06-21'));
-  const [endDate, setEndDate] = useState(new Date('2026-06-23'));
+  const [startDate, setStartDate] = useState(new Date());
+  const [endDate, setEndDate] = useState(new Date());
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
 
