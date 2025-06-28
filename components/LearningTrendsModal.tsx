@@ -18,8 +18,8 @@ type LearningTrends = {
     to: string;
   };
   trends: {
-    tasks: Array<{ date: string; count: number }>;
-    exams: Array<{ date: string; avg: number }>;
+    tasks: Array<{ date: string; createdTasks: number }>;
+    exams: Array<{ date: string; averageScore: number }>;
   };
   anomalies: {
     tasks: Array<any>;
@@ -215,7 +215,7 @@ const LearningTrendsModal = ({ visible, onDismiss, courseId, courseName }: Learn
     return {
       labels: trends.trends.tasks.map(item => item.date),
       datasets: [{
-        data: trends.trends.tasks.map(item => item.count),
+        data: trends.trends.tasks.map(item => item.createdTasks),
         color: () => '#1976D2',
       }]
     };
@@ -235,7 +235,7 @@ const LearningTrendsModal = ({ visible, onDismiss, courseId, courseName }: Learn
     return {
       labels: trends.trends.exams.map(item => item.date),
       datasets: [{
-        data: trends.trends.exams.map(item => Math.round(item.avg * 100) / 100),
+        data: trends.trends.exams.map(item => Math.round(item.averageScore * 100) / 100),
         color: () => '#FF6B35',
       }]
     };
