@@ -36,8 +36,8 @@ type CourseStats = {
   averageTaskCompletion: number;
   studentBreakdown: Record<string, number>;
   trends: {
-    tasks: Array<{ date: string; value: number }>;
-    exams: Array<{ date: string; value: number }>;
+    tasks: Array<{ date: string; createdTasks: number }>;
+    exams: Array<{ date: string; averageScore: number }>;
   };
 };
 
@@ -369,7 +369,7 @@ const CourseStatsModal = ({ visible, onDismiss, courseId, courseName }: CourseSt
                   {stats.trends.tasks.map((trend, index) => (
                     <View key={index} style={styles.statItem}>
                       <Text style={styles.statLabel}>{trend.date}:</Text>
-                      <Text style={styles.statValue}>{trend.value} tareas</Text>
+                      <Text style={styles.statValue}>{trend.createdTasks} tareas</Text>
                     </View>
                   ))}
                   
@@ -377,7 +377,7 @@ const CourseStatsModal = ({ visible, onDismiss, courseId, courseName }: CourseSt
                   {stats.trends.exams.map((trend, index) => (
                     <View key={index} style={styles.statItem}>
                       <Text style={styles.statLabel}>{trend.date}:</Text>
-                      <Text style={styles.statValue}>{trend.value.toFixed(2)}/100 promedio</Text>
+                      <Text style={styles.statValue}>{trend.averageScore.toFixed(2)}/100 promedio</Text>
                     </View>
                   ))}
                 </Card.Content>
