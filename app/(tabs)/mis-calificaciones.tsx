@@ -33,6 +33,23 @@ type StudentSubmission = {
   feedback?: string;
 };
 
+// Tipo para los detalles del examen
+type ExamDetails = {
+  id: string;
+  title: string;
+  description: string;
+  course_id: string;
+  date: string;
+  duration: number;
+  location: string;
+  owner: string;
+  additional_info: any;
+  published: boolean;
+  created_at: string;
+  updated_at: string;
+  is_active: boolean;
+};
+
 export default function MisCalificaciones() {
   const { session } = useSession();
   const colorScheme = useColorScheme();
@@ -40,6 +57,7 @@ export default function MisCalificaciones() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedSegment, setSelectedSegment] = useState('all');
+  const [examDetails, setExamDetails] = useState<Record<string, ExamDetails>>({});
 
   useEffect(() => {
     if (session?.userId && session?.userType === 'student') {
@@ -83,6 +101,9 @@ export default function MisCalificaciones() {
       ) : [];
 
       setSubmissions(graded);
+      
+      // Obtener detalles de los exámenes
+      await fetchExamDetails(graded);
     } catch (error) {
       console.error('Error fetching submissions:', error);
       Alert.alert('Error', 'No se pudieron cargar las calificaciones');
@@ -95,6 +116,45 @@ export default function MisCalificaciones() {
 
   const onRefresh = () => {
     fetchSubmissions(true);
+  };
+
+  // Función para obtener detalles de los exámenes
+  const fetchExamDetails = async (submissions: StudentSubmission[]) => {
+    if (!session?.token) return;
+
+    const examIds = submissions
+      .filter(submission => submission.exam_id)
+      .map(submission => submission.exam_id!)
+      .filter((id, index, arr) => arr.indexOf(id) === index); // Eliminar duplicados
+
+    const examDetailsPromises = examIds.map(async (examId) => {
+      try {
+        const response = await axios.get(
+          `https://apigatewayis2-production.up.railway.app/courses/exams/${examId}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${session.token}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+        return { id: examId, details: response.data };
+      } catch (error) {
+        console.error(`Error fetching exam ${examId}:`, error);
+        return null;
+      }
+    });
+
+    const examResults = await Promise.all(examDetailsPromises);
+    const examDetailsMap: Record<string, ExamDetails> = {};
+    
+    examResults.forEach(result => {
+      if (result) {
+        examDetailsMap[result.id] = result.details;
+      }
+    });
+
+    setExamDetails(examDetailsMap);
   };
 
   // Función para formatear fechas
@@ -156,6 +216,22 @@ export default function MisCalificaciones() {
     return submission.exam_id ? 'Examen' : 'Tarea';
   };
 
+  // Función para obtener el título de la entrega
+  const getSubmissionTitle = (submission: StudentSubmission) => {
+    if (submission.exam_id && examDetails[submission.exam_id]) {
+      return examDetails[submission.exam_id].title;
+    }
+    return getSubmissionType(submission);
+  };
+
+  // Función para obtener la descripción de la entrega
+  const getSubmissionDescription = (submission: StudentSubmission) => {
+    if (submission.exam_id && examDetails[submission.exam_id]) {
+      return examDetails[submission.exam_id].description;
+    }
+    return null;
+  };
+
   // Función para filtrar entregas según el segmento seleccionado
   const getFilteredSubmissions = () => {
     if (selectedSegment === 'exams') {
@@ -175,6 +251,8 @@ export default function MisCalificaciones() {
 
     const parsedAnswers = parseAnswers(submission.answers || '');
     const submissionType = getSubmissionType(submission);
+    const submissionTitle = getSubmissionTitle(submission);
+    const submissionDescription = getSubmissionDescription(submission);
     
     return (
       <Card key={submission.id} style={styles.submissionCard}>
@@ -189,12 +267,19 @@ export default function MisCalificaciones() {
                   color={submission.exam_id ? "#ff9800" : "#4caf50"} 
                   style={styles.typeIcon}
                 />
-                <Text style={[
-                  styles.submissionType,
-                  submission.exam_id ? styles.submissionTypeExam : styles.submissionTypeTask
-                ]}>
-                  {submissionType}
-                </Text>
+                <View style={styles.titleContainer}>
+                  <Text style={[
+                    styles.submissionType,
+                    submission.exam_id ? styles.submissionTypeExam : styles.submissionTypeTask
+                  ]}>
+                    {submissionTitle}
+                  </Text>
+                  {submissionDescription && (
+                    <Text style={styles.submissionDescription}>
+                      {submissionDescription}
+                    </Text>
+                  )}
+                </View>
               </View>
               <Text style={styles.submissionDate}>
                 Entregada: {formatDate(submission.submitted_at)}
@@ -437,15 +522,25 @@ const styles = StyleSheet.create({
   },
   typeIconContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   typeIcon: {
     marginRight: 8,
+    marginTop: 2,
+  },
+  titleContainer: {
+    flex: 1,
   },
   submissionType: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#2196f3',
+  },
+  submissionDescription: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 2,
+    fontStyle: 'italic',
   },
   submissionDate: {
     fontSize: 12,
