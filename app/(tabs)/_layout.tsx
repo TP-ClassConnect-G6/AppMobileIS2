@@ -3,7 +3,7 @@ import React from "react";
 import { Platform } from "react-native";
 
 import { HapticTab } from "@/components/HapticTab";
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { IconSymbol } from "@/components/ui/IconSymbol";
 import TabBarBackground from "@/components/ui/TabBarBackground";
 import { Colors } from "@/constants/Colors";
@@ -33,7 +33,7 @@ export default function TabLayout() {
         options={{
           title: "Home",
           tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="house.circle.fill" color={color} />
+            <MaterialCommunityIcons name="home" size={28} color={color} />
           ),
         }}
       />
@@ -42,7 +42,7 @@ export default function TabLayout() {
         options={{
           title: "Explore",
           tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="paperplane.fill" color={color} />
+            <MaterialCommunityIcons name="send" size={28} color={color} />
           ),
           href: null, // Ocultar la tab de Explore
         }}
@@ -52,7 +52,7 @@ export default function TabLayout() {
         options={{
           title: "Perfil",
           tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="person.fill" color={color} />
+            <MaterialCommunityIcons name="account" size={28} color={color} />
           ),
         }}
       />
@@ -61,7 +61,7 @@ export default function TabLayout() {
         options={{
           title: "Cursos",
           tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="book.fill" color={color} />
+            <MaterialCommunityIcons name="book-open" size={28} color={color} />
           ),
         }}
       />      <Tabs.Screen
@@ -69,7 +69,7 @@ export default function TabLayout() {
         options={{
           title: "Favoritos",
           tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="star.circle.fill" color={color} />
+            <MaterialCommunityIcons name="star" size={28} color={color} />
           ),
           href: !isTeacher ? "/favorites" : null, // Solo mostrar para estudiantes
         }}
@@ -79,7 +79,7 @@ export default function TabLayout() {
         options={{
           title: "Crear Curso",
           tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="book-plus.fill" color={color} />
+            <MaterialCommunityIcons name="book-plus" size={28} color={color} />
           ),
           href: isTeacher ? "/create-course" : null,
         }}
@@ -89,7 +89,7 @@ export default function TabLayout() {
         options={{
           title: "Crear Examen",
           tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="doc.text.fill" color={color} />
+            <MaterialCommunityIcons name="file-document-edit" size={28} color={color} />
           ),
           href: isTeacher ? "/create-exam" : null,
         }}
@@ -99,7 +99,7 @@ export default function TabLayout() {
         options={{
           title: "Crear Tarea",
           tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="checklist.fill" color={color} />
+            <MaterialCommunityIcons name="clipboard-check" size={28} color={color} />
           ),
           href: isTeacher ? "/create-task" : null,
         }}
@@ -109,7 +109,7 @@ export default function TabLayout() {
         options={{
           title: "Mis Asignaciones",
           tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="briefcase.fill" color={color} />
+            <MaterialCommunityIcons name="briefcase" size={28} color={color} />
           ),
           href: isTeacher ? "/teacher-assignments" : null, // Solo mostrar para docentes
         }}
@@ -119,7 +119,7 @@ export default function TabLayout() {
         options={{
           title: "Mis Cursos",
           tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="backpack.circle.fill" color={color} />
+            <MaterialCommunityIcons name="school" size={28} color={color} />
           ),
           href: session?.userType === 'student' ? "/mis-cursos" : null, // Solo mostrar para estudiantes
         }}
@@ -128,7 +128,7 @@ export default function TabLayout() {
         options={{
           title: "Mis Tareas/Exámenes",
           tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="clipboard.fill" color={color} />
+            <MaterialCommunityIcons name="clipboard-text" size={28} color={color} />
           ),
           href: session?.userType === 'student' ? "/student-assignments" as any : null, // Solo mostrar para estudiantes
         }}
@@ -138,7 +138,7 @@ export default function TabLayout() {
         options={{
           title: "Mis Feedbacks",
           tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="chat.bubble.fill" color={color} />
+            <MaterialCommunityIcons name="comment-text" size={28} color={color} />
           ),
           href: session?.userType === 'student' ? "/mis-feedbacks" as any : null, // Solo mostrar para estudiantes
         }}
@@ -148,7 +148,7 @@ export default function TabLayout() {
         options={{
           title: "Mis Calificaciones",
           tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="trophy.fill" color={color} />
+            <MaterialCommunityIcons name="trophy" size={28} color={color} />
           ),
           href: session?.userType === 'student' ? "/mis-calificaciones" as any : null, // Solo mostrar para estudiantes
         }}
@@ -158,7 +158,7 @@ export default function TabLayout() {
         options={{
           title: "Feedbacks",
           tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="teacher.feedback.fill" color={color} />
+            <MaterialCommunityIcons name="comment-text-multiple" size={28} color={color} />
           ),
           href: isTeacher ? "/teacher-feedbacks" as any : null, // Solo mostrar para teachers
         }}
@@ -168,7 +168,7 @@ export default function TabLayout() {
         options={{
           title: "Notificaciones",
           tabBarIcon: ({ color }: { color: string }) => (
-            <IconSymbol size={28} name="bell.fill" color={color} />
+            <MaterialCommunityIcons name="bell" size={28} color={color} />
           ),
         }}
       />
