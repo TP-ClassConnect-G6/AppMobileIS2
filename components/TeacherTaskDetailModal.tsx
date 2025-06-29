@@ -713,9 +713,11 @@ const TeacherTaskDetailModal = ({ visible, onDismiss, taskId, onTaskDeleted }: T
                           {/* Botones de feedback */}
                           <View style={styles.feedbackButtonsContainer}>
                             <Button
-                              mode="outlined"
+                              mode="contained"
                               onPress={() => handleGenerateAIFeedback(submission.id)}
                               style={[styles.feedbackButton, styles.aiButton]}
+                              buttonColor="#9c27b0"
+                              textColor="white"
                               loading={aiLoading[submission.id]}
                               disabled={aiLoading[submission.id] || feedbackLoading[submission.id]}
                               icon="robot"
@@ -725,9 +727,11 @@ const TeacherTaskDetailModal = ({ visible, onDismiss, taskId, onTaskDeleted }: T
                             </Button>
 
                             <Button
-                              mode="outlined"
+                              mode="contained"
                               onPress={() => handleSendFeedback(submission.id)}
                               style={[styles.feedbackButton, styles.sendButton]}
+                              buttonColor="#2196f3"
+                              textColor="white"
                               loading={feedbackLoading[submission.id]}
                               disabled={feedbackLoading[submission.id] || !!feedbackErrors[submission.id] || aiLoading[submission.id]}
                               icon="comment-text"
@@ -1015,21 +1019,18 @@ const styles = StyleSheet.create({
     minHeight: 80,
   },
   feedbackButtonsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
     gap: 12,
     marginTop: 8,
   },
   feedbackButton: {
-    flex: 1,
+    width: '100%',
   },
   aiButton: {
-    borderColor: '#ff9800',
-    backgroundColor: '#fff3e0',
+    // Removed custom styling since we use buttonColor prop
   },
   sendButton: {
-    borderColor: '#2196f3',
-    backgroundColor: '#e3f2fd',
+    // Removed custom styling since we use buttonColor prop
   },
 });
 
