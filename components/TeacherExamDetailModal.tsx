@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { StyleSheet, View, ScrollView, Alert } from "react-native";
-import { Modal, Portal, Text, Title, Button, Divider, ActivityIndicator, Chip, Card } from "react-native-paper";
+import { Modal, Portal, Text, Title, Button, Divider, ActivityIndicator, Chip, Card, TextInput } from "react-native-paper";
+import { useForm, Controller } from 'react-hook-form';
 import { courseClient } from "@/lib/http";
 import { useSession } from "@/contexts/session";
 import { format } from "date-fns";
@@ -18,6 +19,17 @@ type ExamSubmission = {
   is_late: boolean;
   file_urls: string[];
   is_active: boolean;
+  score?: number;
+  feedback?: string;
+};
+
+// Tipo para el formulario de calificación y feedback
+type GradingFormData = {
+  [submissionId: string]: string;
+};
+
+type FeedbackFormData = {
+  [submissionId: string]: string;
 };
 
 // Tipo para información del estudiante
@@ -70,6 +82,17 @@ const TeacherExamDetailModal = ({ visible, onDismiss, examId, onExamDeleted }: T
   const [examData, setExamData] = useState<ExamDetailResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [studentsInfo, setStudentsInfo] = useState<{ [key: string]: StudentInfo }>({});
+  const [gradingLoading, setGradingLoading] = useState<{ [key: string]: boolean }>({});
+  const [feedbackLoading, setFeedbackLoading] = useState<{ [key: string]: boolean }>({});
+  
+  const { control, handleSubmit, formState: { errors }, setValue, watch, reset } = useForm<GradingFormData>();
+  const { 
+    control: feedbackControl, 
+    formState: { errors: feedbackErrors }, 
+    setValue: setFeedbackValue, 
+    watch: watchFeedback, 
+    reset: resetFeedback 
+  } = useForm<FeedbackFormData>();
 
   // Fetch exam details when modal opens
   useEffect(() => {
@@ -131,6 +154,20 @@ const TeacherExamDetailModal = ({ visible, onDismiss, examId, onExamDeleted }: T
       if (studentIds.length > 0) {
         await fetchStudentsInfo(studentIds);
       }
+
+      // Inicializar scores y feedback existentes
+      const existingScores: GradingFormData = {};
+      const existingFeedback: FeedbackFormData = {};
+      submissions.forEach((submission: ExamSubmission) => {
+        if (submission.score !== undefined) {
+          existingScores[submission.id] = submission.score.toString();
+        }
+        if (submission.feedback) {
+          existingFeedback[submission.id] = submission.feedback;
+        }
+      });
+      reset(existingScores);
+      resetFeedback(existingFeedback);
     } catch (error) {
       console.error("Error fetching exam details:", error);
       Alert.alert("Error", "No se pudieron cargar los detalles del examen");
@@ -176,6 +213,115 @@ const TeacherExamDetailModal = ({ visible, onDismiss, examId, onExamDeleted }: T
         }
       ]
     );
+  };
+
+  // Función para calificar una entrega de examen
+  const handleGradeSubmission = async (submissionId: string) => {
+    const currentValues = watch();
+    const score = currentValues[submissionId];
+    
+    if (!score || !session?.token) {
+      Alert.alert("Error", "Por favor ingresa una calificación válida");
+      return;
+    }
+
+    const numericScore = parseInt(score);
+    if (isNaN(numericScore) || numericScore < 0 || numericScore > 100) {
+      Alert.alert("Error", "La calificación debe ser un número entre 0 y 100");
+      return;
+    }
+
+    try {
+      setGradingLoading(prev => ({ ...prev, [submissionId]: true }));
+      
+      const response = await axios.post(
+        `https://apigatewayis2-production.up.railway.app/courses/submissions/${submissionId}/score`,
+        { score: numericScore },
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      // Actualizar el examen con la nueva calificación
+      if (examData?.examWithSubmission?.submissions) {
+        const updatedSubmissions = examData.examWithSubmission.submissions.map(submission => 
+          submission.id === submissionId 
+            ? { ...submission, score: numericScore }
+            : submission
+        );
+        
+        setExamData(prev => prev ? {
+          ...prev,
+          examWithSubmission: {
+            ...prev.examWithSubmission,
+            submissions: updatedSubmissions
+          }
+        } : null);
+      }
+
+      // Limpiar el input de calificación
+      setValue(submissionId, '');
+      
+      Alert.alert("Éxito", "Calificación guardada correctamente");
+    } catch (error) {
+      console.error("Error grading submission:", error);
+      Alert.alert("Error", "No se pudo guardar la calificación");
+    } finally {
+      setGradingLoading(prev => ({ ...prev, [submissionId]: false }));
+    }
+  };
+
+  // Función para enviar feedback
+  const handleSendFeedback = async (submissionId: string) => {
+    const currentFeedback = watchFeedback();
+    const feedback = currentFeedback[submissionId];
+    
+    if (!feedback?.trim() || !session?.token) {
+      Alert.alert("Error", "Por favor ingresa un feedback válido");
+      return;
+    }
+
+    try {
+      setFeedbackLoading(prev => ({ ...prev, [submissionId]: true }));
+      
+      const response = await axios.post(
+        `https://apigatewayis2-production.up.railway.app/courses/submissions/${submissionId}/feedback`,
+        { feedback: feedback.trim() },
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      // Actualizar el examen con el nuevo feedback
+      if (examData?.examWithSubmission?.submissions) {
+        const updatedSubmissions = examData.examWithSubmission.submissions.map(submission => 
+          submission.id === submissionId 
+            ? { ...submission, feedback: feedback.trim() }
+            : submission
+        );
+        
+        setExamData(prev => prev ? {
+          ...prev,
+          examWithSubmission: {
+            ...prev.examWithSubmission,
+            submissions: updatedSubmissions
+          }
+        } : null);
+      }
+      
+      Alert.alert("Éxito", "Feedback guardado correctamente");
+    } catch (error) {
+      console.error("Error sending feedback:", error);
+      Alert.alert("Error", "No se pudo guardar el feedback");
+    } finally {
+      setFeedbackLoading(prev => ({ ...prev, [submissionId]: false }));
+    }
   };
 
   // Función para formatear fechas
@@ -391,6 +537,146 @@ const TeacherExamDetailModal = ({ visible, onDismiss, examId, onExamDeleted }: T
                           ))}
                         </View>
                       )}
+
+                      {/* Sección de calificación */}
+                      <View style={styles.gradingContainer}>
+                        <View style={styles.gradingHeader}>
+                          <Text style={styles.gradingTitle}>Calificación</Text>
+                          {submission.score !== undefined && (
+                            <Chip 
+                              mode="flat" 
+                              style={[styles.scoreChip, { backgroundColor: submission.score >= 60 ? '#4caf50' : '#f44336' }]}
+                              textStyle={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}
+                            >
+                              {submission.score}/100
+                            </Chip>
+                          )}
+                        </View>
+                        
+                        <View style={styles.gradingInputContainer}>
+                          <Controller
+                            control={control}
+                            name={submission.id}
+                            defaultValue={submission.score?.toString() || ''}
+                            rules={{
+                              required: 'La puntuación es requerida',
+                              pattern: {
+                                value: /^([0-9]|[1-9][0-9]|100)$/,
+                                message: 'Debe ser un número entre 0 y 100'
+                              },
+                              min: {
+                                value: 0,
+                                message: 'La puntuación mínima es 0'
+                              },
+                              max: {
+                                value: 100,
+                                message: 'La puntuación máxima es 100'
+                              }
+                            }}
+                            render={({ field: { onChange, onBlur, value } }) => (
+                              <TextInput
+                                style={styles.scoreInput}
+                                mode="outlined"
+                                label="Puntuación (0-100)"
+                                onBlur={onBlur}
+                                onChangeText={(text) => {
+                                  // Solo permitir números de 0-100
+                                  const numericValue = text.replace(/[^0-9]/g, '');
+                                  const numberValue = parseInt(numericValue);
+                                  
+                                  if (numericValue === '' || (numberValue >= 0 && numberValue <= 100)) {
+                                    onChange(numericValue);
+                                  }
+                                }}
+                                value={value}
+                                keyboardType="numeric"
+                                maxLength={3}
+                                disabled={gradingLoading[submission.id]}
+                                error={!!errors[submission.id]}
+                              />
+                            )}
+                          />
+                          <Button
+                            mode="contained"
+                            onPress={() => handleGradeSubmission(submission.id)}
+                            style={styles.gradeButton}
+                            loading={gradingLoading[submission.id]}
+                            disabled={gradingLoading[submission.id] || !!errors[submission.id]}
+                            icon="check"
+                          >
+                            {submission.score !== undefined ? 'Actualizar' : 'Calificar'}
+                          </Button>
+                        </View>
+                        
+                        {/* Error message */}
+                        {errors[submission.id] && (
+                          <Text style={styles.errorText}>
+                            {errors[submission.id]?.message}
+                          </Text>
+                        )}
+
+                        {/* Sección de feedback */}
+                        <View style={styles.feedbackSection}>
+                          <Text style={styles.feedbackTitle}>Feedback para el estudiante</Text>
+                          
+                          {/* Mostrar feedback existente si existe */}
+                          {submission.feedback && (
+                            <View style={styles.existingFeedback}>
+                              <Text style={styles.existingFeedbackLabel}>Feedback actual:</Text>
+                              <Text style={styles.existingFeedbackText}>{submission.feedback}</Text>
+                            </View>
+                          )}
+
+                          <Controller
+                            control={feedbackControl}
+                            name={submission.id}
+                            defaultValue={submission.feedback || ''}
+                            rules={{
+                              minLength: {
+                                value: 10,
+                                message: 'El feedback debe tener al menos 10 caracteres'
+                              },
+                              maxLength: {
+                                value: 500,
+                                message: 'El feedback no puede exceder 500 caracteres'
+                              }
+                            }}
+                            render={({ field: { onChange, onBlur, value } }) => (
+                              <TextInput
+                                style={styles.feedbackInput}
+                                mode="outlined"
+                                label="Escribe tu feedback..."
+                                placeholder="Proporciona comentarios constructivos sobre la entrega del estudiante"
+                                onBlur={onBlur}
+                                onChangeText={onChange}
+                                value={value}
+                                multiline
+                                numberOfLines={4}
+                                disabled={feedbackLoading[submission.id]}
+                                error={!!feedbackErrors[submission.id]}
+                              />
+                            )}
+                          />
+
+                          {/* Error message para feedback */}
+                          {feedbackErrors[submission.id] && (
+                            <Text style={styles.errorText}>
+                              {feedbackErrors[submission.id]?.message}
+                            </Text>
+                          )}
+
+                          <Button
+                            mode="outlined"
+                            onPress={() => handleSendFeedback(submission.id)}
+                            style={styles.feedbackButton}
+                            loading={feedbackLoading[submission.id]}
+                            disabled={feedbackLoading[submission.id] || !!feedbackErrors[submission.id]}
+                            icon="comment-text"
+                          >
+                            {submission.feedback ? 'Actualizar Feedback' : 'Enviar Feedback'}
+                          </Button>
+                        </View>
+                      </View>
                     </Card.Content>
                   </Card>
                 );
@@ -589,6 +875,86 @@ const styles = StyleSheet.create({
   deleteButton: {
     flex: 1,
     backgroundColor: '#f44336',
+  },
+  gradingContainer: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  gradingHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  gradingTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#2196f3',
+  },
+  scoreChip: {
+    marginLeft: 8,
+  },
+  gradingInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  scoreInput: {
+    flex: 1,
+    height: 45,
+  },
+  gradeButton: {
+    minWidth: 100,
+  },
+  errorText: {
+    color: '#f44336',
+    fontSize: 12,
+    marginTop: 4,
+    marginLeft: 4,
+  },
+  feedbackSection: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: '#f0f8ff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#b3d9ff',
+  },
+  feedbackTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#1976d2',
+    marginBottom: 12,
+  },
+  existingFeedback: {
+    marginBottom: 12,
+    padding: 8,
+    backgroundColor: '#e8f5e8',
+    borderRadius: 6,
+    borderLeftWidth: 4,
+    borderLeftColor: '#4caf50',
+  },
+  existingFeedbackLabel: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#2e7d32',
+    marginBottom: 4,
+  },
+  existingFeedbackText: {
+    fontSize: 13,
+    color: '#2e7d32',
+    lineHeight: 18,
+  },
+  feedbackInput: {
+    marginBottom: 8,
+    minHeight: 80,
+  },
+  feedbackButton: {
+    marginTop: 8,
   },
 });
 
