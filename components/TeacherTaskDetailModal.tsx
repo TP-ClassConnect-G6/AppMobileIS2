@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { StyleSheet, View, ScrollView, Alert } from "react-native";
 import { Modal, Portal, Text, Title, Button, Divider, ActivityIndicator, List, Chip, Card, TextInput } from "react-native-paper";
 import { useForm, Controller } from 'react-hook-form';
-import { courseClient } from "@/lib/http";
+import { client, courseClient } from "@/lib/http";
 import { useSession } from "@/contexts/session";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -107,7 +107,7 @@ const TeacherTaskDetailModal = ({ visible, onDismiss, taskId, onTaskDeleted }: T
     if (!session?.token) return null;
     
     try {
-      const response = await axios.get(`https://usuariosis2-production.up.railway.app/profile/${studentId}`, {
+      const response = await client.get(`/profile/${studentId}`, {
         headers: {
           'Authorization': `Bearer ${session.token}`
         }
