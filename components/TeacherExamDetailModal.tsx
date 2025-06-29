@@ -2,12 +2,11 @@ import React, { useState, useEffect } from "react";
 import { StyleSheet, View, ScrollView, Alert } from "react-native";
 import { Modal, Portal, Text, Title, Button, Divider, ActivityIndicator, Chip, Card, TextInput } from "react-native-paper";
 import { useForm, Controller } from 'react-hook-form';
-import { courseClient } from "@/lib/http";
+import { client, courseClient, chatClient } from "@/lib/http";
 import { useSession } from "@/contexts/session";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import axios from 'axios';
 
 // Tipos para la respuesta de detalles de examen (similar a tarea)
 type ExamSubmission = {
@@ -107,7 +106,7 @@ const TeacherExamDetailModal = ({ visible, onDismiss, examId, onExamDeleted }: T
     if (!session?.token) return null;
     
     try {
-      const response = await axios.get(`https://usuariosis2-production.up.railway.app/profile/${studentId}`, {
+      const response = await client.get(`profile/${studentId}`, {
         headers: {
           'Authorization': `Bearer ${session.token}`
         }
@@ -235,8 +234,8 @@ const TeacherExamDetailModal = ({ visible, onDismiss, examId, onExamDeleted }: T
     try {
       setGradingLoading(prev => ({ ...prev, [submissionId]: true }));
       
-      const response = await axios.post(
-        `https://apigatewayis2-production.up.railway.app/courses/submissions/${submissionId}/score`,
+      const response = await courseClient.post(
+        `/submissions/${submissionId}/score`,
         { score: numericScore },
         {
           headers: {
@@ -288,8 +287,8 @@ const TeacherExamDetailModal = ({ visible, onDismiss, examId, onExamDeleted }: T
     try {
       setFeedbackLoading(prev => ({ ...prev, [submissionId]: true }));
       
-      const response = await axios.post(
-        `https://apigatewayis2-production.up.railway.app/courses/submissions/${submissionId}/feedback`,
+      const response = await courseClient.post(
+        `/submissions/${submissionId}/feedback`,
         { feedback: feedback.trim() },
         {
           headers: {
@@ -343,8 +342,8 @@ const TeacherExamDetailModal = ({ visible, onDismiss, examId, onExamDeleted }: T
     try {
       setAiLoading(prev => ({ ...prev, [submissionId]: true }));
       
-      const response = await axios.post(
-        'https://apigatewayis2-production.up.railway.app/ia/custom_inference',
+      const response = await chatClient.post(
+        '/custom_inference',
         {
           system_message: "Destacar aspectos positivos y negativos conciso.",
           user_message: currentText.trim()
