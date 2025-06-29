@@ -3,6 +3,7 @@ import { StyleSheet, View, ScrollView, Alert } from "react-native";
 import { Modal, Portal, Text, Title, Button, Divider, ActivityIndicator, List, Chip, Card, TextInput } from "react-native-paper";
 import { useForm, Controller } from 'react-hook-form';
 import { client, courseClient, chatClient } from "@/lib/http";
+import { processMarkdownToPlainText } from "@/lib/chat";
 import { useSession } from "@/contexts/session";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -356,8 +357,9 @@ const TeacherTaskDetailModal = ({ visible, onDismiss, taskId, onTaskDeleted }: T
       );
 
       if (response.data?.ia_response) {
-        // Actualizar el valor del feedback con la respuesta de la IA
-        setFeedbackValue(submissionId, response.data.ia_response);
+        // Convertir markdown a texto plano y actualizar el valor del feedback
+        const plainTextResponse = processMarkdownToPlainText(response.data.ia_response);
+        setFeedbackValue(submissionId, plainTextResponse);
       } else {
         Alert.alert("Error", "No se pudo generar el feedback con IA");
       }
