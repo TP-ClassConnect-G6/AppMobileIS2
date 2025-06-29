@@ -159,14 +159,16 @@ const TeacherExamDetailModal = ({ visible, onDismiss, examId, onExamDeleted }: T
       // Inicializar scores y feedback existentes
       const existingScores: GradingFormData = {};
       const existingFeedback: FeedbackFormData = {};
-      submissions.forEach((submission: ExamSubmission) => {
-        if (submission.score !== undefined) {
-          existingScores[submission.id] = submission.score.toString();
-        }
-        if (submission.feedback) {
-          existingFeedback[submission.id] = submission.feedback;
-        }
-      });
+      if (submissions && submissions.length > 0) {
+        submissions.forEach((submission: ExamSubmission) => {
+          if (submission.score !== undefined) {
+            existingScores[submission.id] = submission.score.toString();
+          }
+          if (submission.feedback) {
+            existingFeedback[submission.id] = submission.feedback;
+          }
+        });
+      }
       reset(existingScores);
       resetFeedback(existingFeedback);
     } catch (error) {
@@ -427,7 +429,7 @@ const TeacherExamDetailModal = ({ visible, onDismiss, examId, onExamDeleted }: T
     return date < new Date();
   };
 
-  if (!examData) {
+  if (!examData || !examData.examWithSubmission || !examData.examWithSubmission.exam) {
     return (
       <Portal>
         <Modal visible={visible} onDismiss={onDismiss} contentContainerStyle={styles.modalContainer}>
@@ -442,8 +444,8 @@ const TeacherExamDetailModal = ({ visible, onDismiss, examId, onExamDeleted }: T
     );
   }
 
-  const { exam, submissions } = examData.examWithSubmission;
-  const questions = exam.extra_conditions?.questions ? parseQuestions(exam.extra_conditions.questions) : [];
+  const { exam, submissions } = examData.examWithSubmission || { exam: null, submissions: [] };
+  const questions = exam?.extra_conditions?.questions ? parseQuestions(exam.extra_conditions.questions) : [];
 
   return (
     <Portal>
@@ -524,10 +526,10 @@ const TeacherExamDetailModal = ({ visible, onDismiss, examId, onExamDeleted }: T
           {/* Entregas */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>
-              Entregas ({submissions.length})
+              Entregas ({submissions?.length || 0})
             </Text>
             
-            {submissions.length === 0 ? (
+            {!submissions || submissions.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <MaterialCommunityIcons name="file-document-outline" size={48} color="#999" />
                 <Text style={styles.emptyText}>No hay entregas aún</Text>
@@ -577,7 +579,7 @@ const TeacherExamDetailModal = ({ visible, onDismiss, examId, onExamDeleted }: T
                       )}
 
                       {/* Archivos adjuntos */}
-                      {submission.file_urls.length > 0 && (
+                      {submission.file_urls && submission.file_urls.length > 0 && (
                         <View style={styles.filesContainer}>
                           <Text style={styles.filesTitle}>Archivos adjuntos:</Text>
                           {submission.file_urls.map((url, fileIndex) => (
