@@ -4,9 +4,7 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="25738c90-8bba-4cd3-8613-a2541fcd564d" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/components/TeacherExamDetailModal.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/TeacherExamDetailModal.tsx" afterDir="false" />
-    </list>
+    <list default="true" id="25738c90-8bba-4cd3-8613-a2541fcd564d" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
