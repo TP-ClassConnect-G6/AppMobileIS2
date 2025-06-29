@@ -50,6 +50,23 @@ type ExamDetails = {
   is_active: boolean;
 };
 
+// Tipo para los detalles de la tarea
+type TaskDetails = {
+  id: string;
+  title: string;
+  description: string;
+  course_id: string;
+  due_date: string;
+  owner: string;
+  instructions: string;
+  extra_conditions: any;
+  published: boolean;
+  created_at: string;
+  updated_at: string;
+  is_active: boolean;
+  module_id: string | null;
+};
+
 export default function MisCalificaciones() {
   const { session } = useSession();
   const colorScheme = useColorScheme();
@@ -58,6 +75,7 @@ export default function MisCalificaciones() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedSegment, setSelectedSegment] = useState('all');
   const [examDetails, setExamDetails] = useState<Record<string, ExamDetails>>({});
+  const [taskDetails, setTaskDetails] = useState<Record<string, TaskDetails>>({});
 
   useEffect(() => {
     if (session?.userId && session?.userType === 'student') {
@@ -102,8 +120,9 @@ export default function MisCalificaciones() {
 
       setSubmissions(graded);
       
-      // Obtener detalles de los exámenes
+      // Obtener detalles de los exámenes y tareas
       await fetchExamDetails(graded);
+      await fetchTaskDetails(graded);
     } catch (error) {
       console.error('Error fetching submissions:', error);
       Alert.alert('Error', 'No se pudieron cargar las calificaciones');
@@ -155,6 +174,45 @@ export default function MisCalificaciones() {
     });
 
     setExamDetails(examDetailsMap);
+  };
+
+  // Función para obtener detalles de las tareas
+  const fetchTaskDetails = async (submissions: StudentSubmission[]) => {
+    if (!session?.token) return;
+
+    const taskIds = submissions
+      .filter(submission => submission.task_id)
+      .map(submission => submission.task_id!)
+      .filter((id, index, arr) => arr.indexOf(id) === index); // Eliminar duplicados
+
+    const taskDetailsPromises = taskIds.map(async (taskId) => {
+      try {
+        const response = await axios.get(
+          `https://apigatewayis2-production.up.railway.app/courses/tasks/${taskId}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${session.token}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+        return { id: taskId, details: response.data };
+      } catch (error) {
+        console.error(`Error fetching task ${taskId}:`, error);
+        return null;
+      }
+    });
+
+    const taskResults = await Promise.all(taskDetailsPromises);
+    const taskDetailsMap: Record<string, TaskDetails> = {};
+    
+    taskResults.forEach(result => {
+      if (result) {
+        taskDetailsMap[result.id] = result.details;
+      }
+    });
+
+    setTaskDetails(taskDetailsMap);
   };
 
   // Función para formatear fechas
@@ -221,6 +279,9 @@ export default function MisCalificaciones() {
     if (submission.exam_id && examDetails[submission.exam_id]) {
       return examDetails[submission.exam_id].title;
     }
+    if (submission.task_id && taskDetails[submission.task_id]) {
+      return taskDetails[submission.task_id].title;
+    }
     return getSubmissionType(submission);
   };
 
@@ -228,6 +289,9 @@ export default function MisCalificaciones() {
   const getSubmissionDescription = (submission: StudentSubmission) => {
     if (submission.exam_id && examDetails[submission.exam_id]) {
       return examDetails[submission.exam_id].description;
+    }
+    if (submission.task_id && taskDetails[submission.task_id]) {
+      return taskDetails[submission.task_id].description;
     }
     return null;
   };
