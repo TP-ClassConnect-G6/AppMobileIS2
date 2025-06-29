@@ -7,7 +7,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Card, Text, Chip, ActivityIndicator, Divider } from 'react-native-paper';
+import { Card, Text, Chip, ActivityIndicator, Divider, SegmentedButtons } from 'react-native-paper';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useSession } from '@/contexts/session';
@@ -39,6 +39,7 @@ export default function MisCalificaciones() {
   const [submissions, setSubmissions] = useState<StudentSubmission[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedSegment, setSelectedSegment] = useState('all');
 
   useEffect(() => {
     if (session?.userId && session?.userType === 'student') {
@@ -155,6 +156,117 @@ export default function MisCalificaciones() {
     return submission.exam_id ? 'Examen' : 'Tarea';
   };
 
+  // Función para filtrar entregas según el segmento seleccionado
+  const getFilteredSubmissions = () => {
+    if (selectedSegment === 'exams') {
+      return submissions.filter(submission => submission.exam_id);
+    } else if (selectedSegment === 'tasks') {
+      return submissions.filter(submission => submission.task_id);
+    }
+    return submissions; // 'all'
+  };
+
+  // Función para renderizar una entrega
+  const renderSubmission = (submission: StudentSubmission) => {
+    if (!submission || !submission.id) {
+      console.warn('Invalid submission:', submission);
+      return null;
+    }
+
+    const parsedAnswers = parseAnswers(submission.answers || '');
+    const submissionType = getSubmissionType(submission);
+    
+    return (
+      <Card key={submission.id} style={styles.submissionCard}>
+        <Card.Content>
+          {/* Header con estado */}
+          <View style={styles.submissionHeader}>
+            <View style={styles.submissionTitleContainer}>
+              <View style={styles.typeIconContainer}>
+                <MaterialCommunityIcons 
+                  name={submission.exam_id ? "school" : "clipboard-text"} 
+                  size={20} 
+                  color={submission.exam_id ? "#ff9800" : "#4caf50"} 
+                  style={styles.typeIcon}
+                />
+                <Text style={[
+                  styles.submissionType,
+                  submission.exam_id ? styles.submissionTypeExam : styles.submissionTypeTask
+                ]}>
+                  {submissionType}
+                </Text>
+              </View>
+              <Text style={styles.submissionDate}>
+                Entregada: {formatDate(submission.submitted_at)}
+              </Text>
+            </View>
+            <View style={styles.statusContainer}>
+              {submission.is_late && (
+                <Chip mode="flat" style={styles.lateChip} textStyle={{ color: 'white', fontSize: 10 }}>
+                  Tardía
+                </Chip>
+              )}
+            </View>
+          </View>
+
+          {/* Calificación */}
+          {submission.score !== undefined && (
+            <View style={styles.gradeContainer}>
+              <Text style={styles.gradeLabel}>Calificación:</Text>
+              <Chip 
+                mode="flat" 
+                style={[
+                  styles.gradeChip, 
+                  { backgroundColor: submission.score >= 60 ? '#4caf50' : '#f44336' }
+                ]}
+                textStyle={{ color: 'white', fontSize: 14, fontWeight: 'bold' }}
+              >
+                {submission.score}/100
+              </Chip>
+            </View>
+          )}
+
+          {/* Feedback del profesor */}
+          {submission.feedback && (
+            <View style={styles.feedbackContainer}>
+              <Text style={styles.feedbackLabel}>Feedback del profesor:</Text>
+              <View style={styles.feedbackBox}>
+                <Text style={styles.feedbackText}>{submission.feedback}</Text>
+              </View>
+            </View>
+          )}
+
+          <Divider style={styles.divider} />
+
+          {/* Respuestas del estudiante */}
+          <View style={styles.answersContainer}>
+            <Text style={styles.answersTitle}>Mis respuestas:</Text>
+            {Array.isArray(parsedAnswers) && parsedAnswers.length > 0 ? (
+              parsedAnswers.map((item, answerIndex) => (
+                <View key={answerIndex} style={styles.answerItem}>
+                  <Text style={styles.answerQuestion}>P{answerIndex + 1}: {item?.question || 'Pregunta sin texto'}</Text>
+                  <Text style={styles.answerText}>R: {item?.answer || 'Sin respuesta'}</Text>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.answerText}>{submission.answers || 'Sin respuestas'}</Text>
+            )}
+          </View>
+
+          {/* Archivos adjuntos */}
+          {Array.isArray(submission.file_urls) && submission.file_urls.length > 0 && (
+            <View style={styles.filesContainer}>
+              <Text style={styles.filesTitle}>Archivos adjuntos:</Text>
+              {submission.file_urls.map((url, fileIndex) => (
+                <Text key={fileIndex} style={styles.fileUrl}>{url}</Text>
+              ))}
+            </View>
+          )}
+        </Card.Content>
+      </Card>
+    );
+  };
+
   if (session?.userType !== 'student') {
     return (
       <SafeAreaView style={styles.container}>
@@ -215,92 +327,39 @@ export default function MisCalificaciones() {
             </Text>
           </View>
         ) : (
-          submissions.map((submission, index) => {
-              if (!submission || !submission.id) {
-                console.warn('Invalid submission:', submission);
-                return null;
-              }
+          <View>
+            {/* SegmentedButtons para filtrar por tipo */}
+            <View style={styles.segmentContainer}>
+              <SegmentedButtons
+                value={selectedSegment}
+                onValueChange={setSelectedSegment}
+                buttons={[
+                  {
+                    value: 'all',
+                    label: `Todas (${submissions.length})`,
+                    icon: 'format-list-bulleted',
+                  },
+                  {
+                    value: 'exams',
+                    label: `Exámenes (${submissions.filter(s => s.exam_id).length})`,
+                    icon: 'school',
+                  },
+                  {
+                    value: 'tasks',
+                    label: `Tareas (${submissions.filter(s => s.task_id).length})`,
+                    icon: 'clipboard-text',
+                  },
+                ]}
+                style={styles.segmentedButtons}
+                density="medium"
+              />
+            </View>
 
-              const parsedAnswers = parseAnswers(submission.answers || '');
-              const submissionType = getSubmissionType(submission);
-              
-              return (
-                <Card key={submission.id} style={styles.submissionCard}>
-                  <Card.Content>
-                    {/* Header con tipo y estado */}
-                    <View style={styles.submissionHeader}>
-                      <View style={styles.submissionTitleContainer}>
-                        <Text style={styles.submissionType}>{submissionType}</Text>
-                        <Text style={styles.submissionDate}>
-                          Entregada: {formatDate(submission.submitted_at)}
-                        </Text>
-                      </View>
-                      <View style={styles.statusContainer}>
-                        {submission.is_late && (
-                          <Chip mode="flat" style={styles.lateChip} textStyle={{ color: 'white', fontSize: 10 }}>
-                            Tardía
-                          </Chip>
-                        )}
-                      </View>
-                    </View>
-
-                    {/* Calificación */}
-                    {submission.score !== undefined && (
-                      <View style={styles.gradeContainer}>
-                        <Text style={styles.gradeLabel}>Calificación:</Text>
-                        <Chip 
-                          mode="flat" 
-                          style={[
-                            styles.gradeChip, 
-                            { backgroundColor: submission.score >= 60 ? '#4caf50' : '#f44336' }
-                          ]}
-                          textStyle={{ color: 'white', fontSize: 14, fontWeight: 'bold' }}
-                        >
-                          {submission.score}/100
-                        </Chip>
-                      </View>
-                    )}
-
-                    {/* Feedback del profesor */}
-                    {submission.feedback && (
-                      <View style={styles.feedbackContainer}>
-                        <Text style={styles.feedbackLabel}>Feedback del profesor:</Text>
-                        <View style={styles.feedbackBox}>
-                          <Text style={styles.feedbackText}>{submission.feedback}</Text>
-                        </View>
-                      </View>
-                    )}
-
-                    <Divider style={styles.divider} />
-
-                    {/* Respuestas del estudiante */}
-                    <View style={styles.answersContainer}>
-                      <Text style={styles.answersTitle}>Mis respuestas:</Text>
-                      {Array.isArray(parsedAnswers) && parsedAnswers.length > 0 ? (
-                        parsedAnswers.map((item, answerIndex) => (
-                          <View key={answerIndex} style={styles.answerItem}>
-                            <Text style={styles.answerQuestion}>P{answerIndex + 1}: {item?.question || 'Pregunta sin texto'}</Text>
-                            <Text style={styles.answerText}>R: {item?.answer || 'Sin respuesta'}</Text>
-                          </View>
-                        ))
-                      ) : (
-                        <Text style={styles.answerText}>{submission.answers || 'Sin respuestas'}</Text>
-                      )}
-                    </View>
-
-                    {/* Archivos adjuntos */}
-                    {Array.isArray(submission.file_urls) && submission.file_urls.length > 0 && (
-                      <View style={styles.filesContainer}>
-                        <Text style={styles.filesTitle}>Archivos adjuntos:</Text>
-                        {submission.file_urls.map((url, fileIndex) => (
-                          <Text key={fileIndex} style={styles.fileUrl}>{url}</Text>
-                        ))}
-                      </View>
-                    )}
-                  </Card.Content>
-                </Card>
-              );
-            }).filter(Boolean) // Filtrar elementos null
+            {/* Lista de entregas filtradas */}
+            <View style={styles.submissionsContainer}>
+              {getFilteredSubmissions().map(renderSubmission).filter(Boolean)}
+            </View>
+          </View>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -375,6 +434,13 @@ const styles = StyleSheet.create({
   },
   submissionTitleContainer: {
     flex: 1,
+  },
+  typeIconContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  typeIcon: {
+    marginRight: 8,
   },
   submissionType: {
     fontSize: 18,
@@ -470,5 +536,26 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#1976d2',
     textDecorationLine: 'underline',
+  },
+  // Estilos para los tipos de entrega
+  submissionTypeExam: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#ff9800',
+  },
+  submissionTypeTask: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#4caf50',
+  },
+  // Estilos para SegmentedButtons
+  segmentContainer: {
+    marginBottom: 20,
+  },
+  segmentedButtons: {
+    marginHorizontal: 0,
+  },
+  submissionsContainer: {
+    marginTop: 10,
   },
 });
