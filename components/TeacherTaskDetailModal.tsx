@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { StyleSheet, View, ScrollView, Alert } from "react-native";
 import { Modal, Portal, Text, Title, Button, Divider, ActivityIndicator, List, Chip, Card, TextInput } from "react-native-paper";
+import { useForm, Controller } from 'react-hook-form';
 import { courseClient } from "@/lib/http";
 import { useSession } from "@/contexts/session";
 import { format } from "date-fns";
@@ -20,6 +21,11 @@ type TaskSubmission = {
   is_active: boolean;
   score?: number;
   feedback?: string;
+};
+
+// Tipo para el formulario de calificación
+type GradingFormData = {
+  [submissionId: string]: string;
 };
 
 // Tipo para información del estudiante
@@ -72,8 +78,9 @@ const TeacherTaskDetailModal = ({ visible, onDismiss, taskId, onTaskDeleted }: T
   const [taskData, setTaskData] = useState<TaskDetailResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [studentsInfo, setStudentsInfo] = useState<{ [key: string]: StudentInfo }>({});
-  const [gradingScores, setGradingScores] = useState<{ [key: string]: string }>({});
   const [gradingLoading, setGradingLoading] = useState<{ [key: string]: boolean }>({});
+  
+  const { control, handleSubmit, formState: { errors }, setValue, watch, reset } = useForm<GradingFormData>();
 
   // Fetch task details when modal opens
   useEffect(() => {
@@ -136,13 +143,13 @@ const TeacherTaskDetailModal = ({ visible, onDismiss, taskId, onTaskDeleted }: T
       }
 
       // Inicializar scores existentes en el estado de calificación
-      const existingScores: { [key: string]: string } = {};
+      const existingScores: GradingFormData = {};
       submissions.forEach((submission: TaskSubmission) => {
         if (submission.score !== undefined) {
           existingScores[submission.id] = submission.score.toString();
         }
       });
-      setGradingScores(existingScores);
+      reset(existingScores);
     } catch (error) {
       console.error("Error fetching task details:", error);
       Alert.alert("Error", "No se pudieron cargar los detalles de la tarea");
@@ -192,7 +199,8 @@ const TeacherTaskDetailModal = ({ visible, onDismiss, taskId, onTaskDeleted }: T
 
   // Función para calificar una entrega
   const handleGradeSubmission = async (submissionId: string) => {
-    const score = gradingScores[submissionId];
+    const currentValues = watch();
+    const score = currentValues[submissionId];
     
     if (!score || !session?.token) {
       Alert.alert("Error", "Por favor ingresa una calificación válida");
@@ -237,7 +245,7 @@ const TeacherTaskDetailModal = ({ visible, onDismiss, taskId, onTaskDeleted }: T
       }
 
       // Limpiar el input de calificación
-      setGradingScores(prev => ({ ...prev, [submissionId]: '' }));
+      setValue(submissionId, '');
       
       Alert.alert("Éxito", "Calificación guardada correctamente");
     } catch (error) {
@@ -478,27 +486,66 @@ const TeacherTaskDetailModal = ({ visible, onDismiss, taskId, onTaskDeleted }: T
                         </View>
                         
                         <View style={styles.gradingInputContainer}>
-                          <TextInput
-                            style={styles.scoreInput}
-                            mode="outlined"
-                            label="Puntuación (0-100)"
-                            value={gradingScores[submission.id] || (submission.score?.toString() || '')}
-                            onChangeText={(text) => setGradingScores(prev => ({ ...prev, [submission.id]: text }))}
-                            keyboardType="numeric"
-                            maxLength={3}
-                            disabled={gradingLoading[submission.id]}
+                          <Controller
+                            control={control}
+                            name={submission.id}
+                            defaultValue={submission.score?.toString() || ''}
+                            rules={{
+                              required: 'La puntuación es requerida',
+                              pattern: {
+                                value: /^([0-9]|[1-9][0-9]|100)$/,
+                                message: 'Debe ser un número entre 0 y 100'
+                              },
+                              min: {
+                                value: 0,
+                                message: 'La puntuación mínima es 0'
+                              },
+                              max: {
+                                value: 100,
+                                message: 'La puntuación máxima es 100'
+                              }
+                            }}
+                            render={({ field: { onChange, onBlur, value } }) => (
+                              <TextInput
+                                style={styles.scoreInput}
+                                mode="outlined"
+                                label="Puntuación (0-100)"
+                                onBlur={onBlur}
+                                onChangeText={(text) => {
+                                  // Solo permitir números de 0-100
+                                  const numericValue = text.replace(/[^0-9]/g, '');
+                                  const numberValue = parseInt(numericValue);
+                                  
+                                  if (numericValue === '' || (numberValue >= 0 && numberValue <= 100)) {
+                                    onChange(numericValue);
+                                  }
+                                }}
+                                value={value}
+                                keyboardType="numeric"
+                                maxLength={3}
+                                disabled={gradingLoading[submission.id]}
+                                error={!!errors[submission.id]}
+                              />
+                            )}
                           />
                           <Button
                             mode="contained"
                             onPress={() => handleGradeSubmission(submission.id)}
                             style={styles.gradeButton}
                             loading={gradingLoading[submission.id]}
-                            disabled={gradingLoading[submission.id] || !gradingScores[submission.id]?.trim()}
+                            disabled={gradingLoading[submission.id] || !!errors[submission.id]}
                             icon="check"
                           >
                             {submission.score !== undefined ? 'Actualizar' : 'Calificar'}
                           </Button>
                         </View>
+                        
+                        {/* Error message */}
+                        {errors[submission.id] && (
+                          <Text style={styles.errorText}>
+                            {errors[submission.id]?.message}
+                          </Text>
+                        )}
                       </View>
                     </Card.Content>
                   </Card>
@@ -732,6 +779,12 @@ const styles = StyleSheet.create({
   },
   gradeButton: {
     minWidth: 100,
+  },
+  errorText: {
+    color: '#f44336',
+    fontSize: 12,
+    marginTop: 4,
+    marginLeft: 4,
   },
 });
 
