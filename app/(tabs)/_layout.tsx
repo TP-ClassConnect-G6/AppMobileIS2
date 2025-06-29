@@ -144,6 +144,16 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="mis-calificaciones"
+        options={{
+          title: "Mis Calificaciones",
+          tabBarIcon: ({ color }: { color: string }) => (
+            <IconSymbol size={28} name="trophy.fill" color={color} />
+          ),
+          href: session?.userType === 'student' ? "/mis-calificaciones" as any : null, // Solo mostrar para estudiantes
+        }}
+      />
+      <Tabs.Screen
         name="teacher-feedbacks"
         options={{
           title: "Feedbacks",
