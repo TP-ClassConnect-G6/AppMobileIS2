@@ -23,8 +23,12 @@ type TaskSubmission = {
   feedback?: string;
 };
 
-// Tipo para el formulario de calificación
+// Tipo para el formulario de calificación y feedback
 type GradingFormData = {
+  [submissionId: string]: string;
+};
+
+type FeedbackFormData = {
   [submissionId: string]: string;
 };
 
@@ -79,8 +83,16 @@ const TeacherTaskDetailModal = ({ visible, onDismiss, taskId, onTaskDeleted }: T
   const [loading, setLoading] = useState(false);
   const [studentsInfo, setStudentsInfo] = useState<{ [key: string]: StudentInfo }>({});
   const [gradingLoading, setGradingLoading] = useState<{ [key: string]: boolean }>({});
+  const [feedbackLoading, setFeedbackLoading] = useState<{ [key: string]: boolean }>({});
   
   const { control, handleSubmit, formState: { errors }, setValue, watch, reset } = useForm<GradingFormData>();
+  const { 
+    control: feedbackControl, 
+    formState: { errors: feedbackErrors }, 
+    setValue: setFeedbackValue, 
+    watch: watchFeedback, 
+    reset: resetFeedback 
+  } = useForm<FeedbackFormData>();
 
   // Fetch task details when modal opens
   useEffect(() => {
@@ -142,14 +154,19 @@ const TeacherTaskDetailModal = ({ visible, onDismiss, taskId, onTaskDeleted }: T
         await fetchStudentsInfo(studentIds);
       }
 
-      // Inicializar scores existentes en el estado de calificación
+      // Inicializar scores y feedback existentes
       const existingScores: GradingFormData = {};
+      const existingFeedback: FeedbackFormData = {};
       submissions.forEach((submission: TaskSubmission) => {
         if (submission.score !== undefined) {
           existingScores[submission.id] = submission.score.toString();
         }
+        if (submission.feedback) {
+          existingFeedback[submission.id] = submission.feedback;
+        }
       });
       reset(existingScores);
+      resetFeedback(existingFeedback);
     } catch (error) {
       console.error("Error fetching task details:", error);
       Alert.alert("Error", "No se pudieron cargar los detalles de la tarea");
@@ -253,6 +270,56 @@ const TeacherTaskDetailModal = ({ visible, onDismiss, taskId, onTaskDeleted }: T
       Alert.alert("Error", "No se pudo guardar la calificación");
     } finally {
       setGradingLoading(prev => ({ ...prev, [submissionId]: false }));
+    }
+  };
+
+  // Función para enviar feedback
+  const handleSendFeedback = async (submissionId: string) => {
+    const currentFeedback = watchFeedback();
+    const feedback = currentFeedback[submissionId];
+    
+    if (!feedback?.trim() || !session?.token) {
+      Alert.alert("Error", "Por favor ingresa un feedback válido");
+      return;
+    }
+
+    try {
+      setFeedbackLoading(prev => ({ ...prev, [submissionId]: true }));
+      
+      const response = await axios.post(
+        `https://apigatewayis2-production.up.railway.app/courses/submissions/${submissionId}/feedback`,
+        { feedback: feedback.trim() },
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      // Actualizar la tarea con el nuevo feedback
+      if (taskData?.taskWithSubmission?.submissions) {
+        const updatedSubmissions = taskData.taskWithSubmission.submissions.map(submission => 
+          submission.id === submissionId 
+            ? { ...submission, feedback: feedback.trim() }
+            : submission
+        );
+        
+        setTaskData(prev => prev ? {
+          ...prev,
+          taskWithSubmission: {
+            ...prev.taskWithSubmission,
+            submissions: updatedSubmissions
+          }
+        } : null);
+      }
+      
+      Alert.alert("Éxito", "Feedback guardado correctamente");
+    } catch (error) {
+      console.error("Error sending feedback:", error);
+      Alert.alert("Error", "No se pudo guardar el feedback");
+    } finally {
+      setFeedbackLoading(prev => ({ ...prev, [submissionId]: false }));
     }
   };
 
@@ -546,6 +613,68 @@ const TeacherTaskDetailModal = ({ visible, onDismiss, taskId, onTaskDeleted }: T
                             {errors[submission.id]?.message}
                           </Text>
                         )}
+
+                        {/* Sección de feedback */}
+                        <View style={styles.feedbackSection}>
+                          <Text style={styles.feedbackTitle}>Feedback para el estudiante</Text>
+                          
+                          {/* Mostrar feedback existente si existe */}
+                          {submission.feedback && (
+                            <View style={styles.existingFeedback}>
+                              <Text style={styles.existingFeedbackLabel}>Feedback actual:</Text>
+                              <Text style={styles.existingFeedbackText}>{submission.feedback}</Text>
+                            </View>
+                          )}
+
+                          <Controller
+                            control={feedbackControl}
+                            name={submission.id}
+                            defaultValue={submission.feedback || ''}
+                            rules={{
+                              minLength: {
+                                value: 10,
+                                message: 'El feedback debe tener al menos 10 caracteres'
+                              },
+                              maxLength: {
+                                value: 500,
+                                message: 'El feedback no puede exceder 500 caracteres'
+                              }
+                            }}
+                            render={({ field: { onChange, onBlur, value } }) => (
+                              <TextInput
+                                style={styles.feedbackInput}
+                                mode="outlined"
+                                label="Escribe tu feedback..."
+                                placeholder="Proporciona comentarios constructivos sobre la entrega del estudiante"
+                                onBlur={onBlur}
+                                onChangeText={onChange}
+                                value={value}
+                                multiline
+                                numberOfLines={4}
+                                disabled={feedbackLoading[submission.id]}
+                                error={!!feedbackErrors[submission.id]}
+                              />
+                            )}
+                          />
+
+                          {/* Error message para feedback */}
+                          {feedbackErrors[submission.id] && (
+                            <Text style={styles.errorText}>
+                              {feedbackErrors[submission.id]?.message}
+                            </Text>
+                          )}
+
+                          <Button
+                            mode="outlined"
+                            onPress={() => handleSendFeedback(submission.id)}
+                            style={styles.feedbackButton}
+                            loading={feedbackLoading[submission.id]}
+                            disabled={feedbackLoading[submission.id] || !!feedbackErrors[submission.id]}
+                            icon="comment-text"
+                          >
+                            {submission.feedback ? 'Actualizar Feedback' : 'Enviar Feedback'}
+                          </Button>
+                        </View>
                       </View>
                     </Card.Content>
                   </Card>
@@ -785,6 +914,46 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
     marginLeft: 4,
+  },
+  feedbackSection: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: '#f0f8ff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#b3d9ff',
+  },
+  feedbackTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#1976d2',
+    marginBottom: 12,
+  },
+  existingFeedback: {
+    marginBottom: 12,
+    padding: 8,
+    backgroundColor: '#e8f5e8',
+    borderRadius: 6,
+    borderLeftWidth: 4,
+    borderLeftColor: '#4caf50',
+  },
+  existingFeedbackLabel: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#2e7d32',
+    marginBottom: 4,
+  },
+  existingFeedbackText: {
+    fontSize: 13,
+    color: '#2e7d32',
+    lineHeight: 18,
+  },
+  feedbackInput: {
+    marginBottom: 8,
+    minHeight: 80,
+  },
+  feedbackButton: {
+    marginTop: 8,
   },
 });
 
