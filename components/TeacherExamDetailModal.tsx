@@ -84,6 +84,7 @@ const TeacherExamDetailModal = ({ visible, onDismiss, examId, onExamDeleted }: T
   const [studentsInfo, setStudentsInfo] = useState<{ [key: string]: StudentInfo }>({});
   const [gradingLoading, setGradingLoading] = useState<{ [key: string]: boolean }>({});
   const [feedbackLoading, setFeedbackLoading] = useState<{ [key: string]: boolean }>({});
+  const [aiLoading, setAiLoading] = useState<{ [key: string]: boolean }>({});
   
   const { control, handleSubmit, formState: { errors }, setValue, watch, reset } = useForm<GradingFormData>();
   const { 
@@ -321,6 +322,52 @@ const TeacherExamDetailModal = ({ visible, onDismiss, examId, onExamDeleted }: T
       Alert.alert("Error", "No se pudo guardar el feedback");
     } finally {
       setFeedbackLoading(prev => ({ ...prev, [submissionId]: false }));
+    }
+  };
+
+  // Función para generar feedback con IA
+  const handleGenerateAIFeedback = async (submissionId: string) => {
+    const currentFeedback = watchFeedback();
+    const currentText = currentFeedback[submissionId] || '';
+    
+    if (!currentText.trim()) {
+      Alert.alert("Error", "Por favor escribe un texto base para que la IA pueda mejorarlo");
+      return;
+    }
+
+    if (!session?.token) {
+      Alert.alert("Error", "No hay sesión activa");
+      return;
+    }
+
+    try {
+      setAiLoading(prev => ({ ...prev, [submissionId]: true }));
+      
+      const response = await axios.post(
+        'https://apigatewayis2-production.up.railway.app/ia/custom_inference',
+        {
+          system_message: "Destacar aspectos positivos y negativos conciso.",
+          user_message: currentText.trim()
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (response.data?.ia_response) {
+        // Actualizar el valor del feedback con la respuesta de la IA
+        setFeedbackValue(submissionId, response.data.ia_response);
+      } else {
+        Alert.alert("Error", "No se pudo generar el feedback con IA");
+      }
+    } catch (error) {
+      console.error("Error generating AI feedback:", error);
+      Alert.alert("Error", "No se pudo generar el feedback con IA");
+    } finally {
+      setAiLoading(prev => ({ ...prev, [submissionId]: false }));
     }
   };
 
@@ -665,16 +712,32 @@ const TeacherExamDetailModal = ({ visible, onDismiss, examId, onExamDeleted }: T
                             </Text>
                           )}
 
-                          <Button
-                            mode="outlined"
-                            onPress={() => handleSendFeedback(submission.id)}
-                            style={styles.feedbackButton}
-                            loading={feedbackLoading[submission.id]}
-                            disabled={feedbackLoading[submission.id] || !!feedbackErrors[submission.id]}
-                            icon="comment-text"
-                          >
-                            {submission.feedback ? 'Actualizar Feedback' : 'Enviar Feedback'}
-                          </Button>
+                          {/* Botones de feedback */}
+                          <View style={styles.feedbackButtonsContainer}>
+                            <Button
+                              mode="outlined"
+                              onPress={() => handleGenerateAIFeedback(submission.id)}
+                              style={[styles.feedbackButton, styles.aiButton]}
+                              loading={aiLoading[submission.id]}
+                              disabled={aiLoading[submission.id] || feedbackLoading[submission.id]}
+                              icon="robot"
+                              compact
+                            >
+                              Completar con IA
+                            </Button>
+
+                            <Button
+                              mode="outlined"
+                              onPress={() => handleSendFeedback(submission.id)}
+                              style={[styles.feedbackButton, styles.sendButton]}
+                              loading={feedbackLoading[submission.id]}
+                              disabled={feedbackLoading[submission.id] || !!feedbackErrors[submission.id] || aiLoading[submission.id]}
+                              icon="comment-text"
+                              compact
+                            >
+                              {submission.feedback ? 'Actualizar' : 'Enviar'}
+                            </Button>
+                          </View>
                         </View>
                       </View>
                     </Card.Content>
@@ -953,8 +1016,22 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     minHeight: 80,
   },
-  feedbackButton: {
+  feedbackButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
     marginTop: 8,
+  },
+  feedbackButton: {
+    flex: 1,
+  },
+  aiButton: {
+    borderColor: '#ff9800',
+    backgroundColor: '#fff3e0',
+  },
+  sendButton: {
+    borderColor: '#2196f3',
+    backgroundColor: '#e3f2fd',
   },
 });
 
