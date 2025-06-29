@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { StyleSheet, View, ScrollView, Alert } from "react-native";
-import { Modal, Portal, Text, Title, Button, Divider, ActivityIndicator, List, Chip, Card } from "react-native-paper";
+import { Modal, Portal, Text, Title, Button, Divider, ActivityIndicator, List, Chip, Card, TextInput } from "react-native-paper";
 import { courseClient } from "@/lib/http";
 import { useSession } from "@/contexts/session";
 import { format } from "date-fns";
@@ -18,6 +18,8 @@ type TaskSubmission = {
   is_late: boolean;
   file_urls: string[];
   is_active: boolean;
+  score?: number;
+  feedback?: string;
 };
 
 // Tipo para información del estudiante
@@ -70,6 +72,8 @@ const TeacherTaskDetailModal = ({ visible, onDismiss, taskId, onTaskDeleted }: T
   const [taskData, setTaskData] = useState<TaskDetailResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [studentsInfo, setStudentsInfo] = useState<{ [key: string]: StudentInfo }>({});
+  const [gradingScores, setGradingScores] = useState<{ [key: string]: string }>({});
+  const [gradingLoading, setGradingLoading] = useState<{ [key: string]: boolean }>({});
 
   // Fetch task details when modal opens
   useEffect(() => {
@@ -130,6 +134,15 @@ const TeacherTaskDetailModal = ({ visible, onDismiss, taskId, onTaskDeleted }: T
       if (studentIds.length > 0) {
         await fetchStudentsInfo(studentIds);
       }
+
+      // Inicializar scores existentes en el estado de calificación
+      const existingScores: { [key: string]: string } = {};
+      submissions.forEach((submission: TaskSubmission) => {
+        if (submission.score !== undefined) {
+          existingScores[submission.id] = submission.score.toString();
+        }
+      });
+      setGradingScores(existingScores);
     } catch (error) {
       console.error("Error fetching task details:", error);
       Alert.alert("Error", "No se pudieron cargar los detalles de la tarea");
@@ -175,6 +188,64 @@ const TeacherTaskDetailModal = ({ visible, onDismiss, taskId, onTaskDeleted }: T
         }
       ]
     );
+  };
+
+  // Función para calificar una entrega
+  const handleGradeSubmission = async (submissionId: string) => {
+    const score = gradingScores[submissionId];
+    
+    if (!score || !session?.token) {
+      Alert.alert("Error", "Por favor ingresa una calificación válida");
+      return;
+    }
+
+    const numericScore = parseInt(score);
+    if (isNaN(numericScore) || numericScore < 0 || numericScore > 100) {
+      Alert.alert("Error", "La calificación debe ser un número entre 0 y 100");
+      return;
+    }
+
+    try {
+      setGradingLoading(prev => ({ ...prev, [submissionId]: true }));
+      
+      const response = await axios.post(
+        `https://apigatewayis2-production.up.railway.app/courses/submissions/${submissionId}/score`,
+        { score: numericScore },
+        {
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      // Actualizar la tarea con la nueva calificación
+      if (taskData?.taskWithSubmission?.submissions) {
+        const updatedSubmissions = taskData.taskWithSubmission.submissions.map(submission => 
+          submission.id === submissionId 
+            ? { ...submission, score: numericScore }
+            : submission
+        );
+        
+        setTaskData(prev => prev ? {
+          ...prev,
+          taskWithSubmission: {
+            ...prev.taskWithSubmission,
+            submissions: updatedSubmissions
+          }
+        } : null);
+      }
+
+      // Limpiar el input de calificación
+      setGradingScores(prev => ({ ...prev, [submissionId]: '' }));
+      
+      Alert.alert("Éxito", "Calificación guardada correctamente");
+    } catch (error) {
+      console.error("Error grading submission:", error);
+      Alert.alert("Error", "No se pudo guardar la calificación");
+    } finally {
+      setGradingLoading(prev => ({ ...prev, [submissionId]: false }));
+    }
   };
 
   // Función para formatear fechas
@@ -390,6 +461,45 @@ const TeacherTaskDetailModal = ({ visible, onDismiss, taskId, onTaskDeleted }: T
                           ))}
                         </View>
                       )}
+
+                      {/* Sección de calificación */}
+                      <View style={styles.gradingContainer}>
+                        <View style={styles.gradingHeader}>
+                          <Text style={styles.gradingTitle}>Calificación</Text>
+                          {submission.score !== undefined && (
+                            <Chip 
+                              mode="flat" 
+                              style={[styles.scoreChip, { backgroundColor: submission.score >= 60 ? '#4caf50' : '#f44336' }]}
+                              textStyle={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}
+                            >
+                              {submission.score}/100
+                            </Chip>
+                          )}
+                        </View>
+                        
+                        <View style={styles.gradingInputContainer}>
+                          <TextInput
+                            style={styles.scoreInput}
+                            mode="outlined"
+                            label="Puntuación (0-100)"
+                            value={gradingScores[submission.id] || (submission.score?.toString() || '')}
+                            onChangeText={(text) => setGradingScores(prev => ({ ...prev, [submission.id]: text }))}
+                            keyboardType="numeric"
+                            maxLength={3}
+                            disabled={gradingLoading[submission.id]}
+                          />
+                          <Button
+                            mode="contained"
+                            onPress={() => handleGradeSubmission(submission.id)}
+                            style={styles.gradeButton}
+                            loading={gradingLoading[submission.id]}
+                            disabled={gradingLoading[submission.id] || !gradingScores[submission.id]?.trim()}
+                            icon="check"
+                          >
+                            {submission.score !== undefined ? 'Actualizar' : 'Calificar'}
+                          </Button>
+                        </View>
+                      </View>
                     </Card.Content>
                   </Card>
                 );
@@ -588,6 +698,40 @@ const styles = StyleSheet.create({
   deleteButton: {
     flex: 1,
     backgroundColor: '#f44336',
+  },
+  gradingContainer: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  gradingHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  gradingTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#2196f3',
+  },
+  scoreChip: {
+    marginLeft: 8,
+  },
+  gradingInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  scoreInput: {
+    flex: 1,
+    height: 45,
+  },
+  gradeButton: {
+    minWidth: 100,
   },
 });
 
