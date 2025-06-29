@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import CreateFeedbackModal from '../../components/CreateFeedbackModal';
 import { courseClient } from '@/lib/http';
+import { processMarkdownToPlainText } from '@/lib/chat';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { formatDate } from "date-fns";
@@ -492,7 +493,7 @@ export default function MisFeedbacksScreen() {
             ) : aiSummaryData ? (
               <ScrollView style={styles.modalScrollView}>
                 <Text style={styles.modalResumeText}>
-                  {aiSummaryData.summary || 'No hay resumen disponible'}
+                  {processMarkdownToPlainText(aiSummaryData.summary || 'No hay resumen disponible')}
                 </Text>
               </ScrollView>
             ) : (
