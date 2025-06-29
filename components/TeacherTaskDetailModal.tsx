@@ -698,7 +698,7 @@ const TeacherTaskDetailModal = ({ visible, onDismiss, taskId, onTaskDeleted }: T
                                 onChangeText={onChange}
                                 value={value}
                                 multiline
-                                numberOfLines={4}
+                                numberOfLines={8}
                                 disabled={feedbackLoading[submission.id]}
                                 error={!!feedbackErrors[submission.id]}
                               />
@@ -1018,7 +1018,7 @@ const styles = StyleSheet.create({
   },
   feedbackInput: {
     marginBottom: 8,
-    minHeight: 80,
+    minHeight: 160,
   },
   feedbackButtonsContainer: {
     flexDirection: 'column',
