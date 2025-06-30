@@ -89,19 +89,11 @@ export function useChat(): UseChatReturn {
       // Intentar cargar datos guardados primero
       await loadChatData();
 
-      // Si no hay chatId guardado después de cargar datos, crear uno nuevo
-      let currentChatId = chatId;
+      // Verificar si tenemos un chatId usando el servicio
+      let currentChatId = await chatService.getChatId(session.userId);
       
-      // Verificar si tenemos un chatId después de cargar datos
-      const chatStorageKey = getChatStorageKey(session.userId);
-      const savedData = await getItemAsync(chatStorageKey);
-      if (savedData) {
-        const { chatId: savedChatId } = JSON.parse(savedData);
-        currentChatId = savedChatId;
-        setChatId(savedChatId);
-      }
-
       if (currentChatId) {
+        setChatId(currentChatId);
         // Si hay chatId, cargar historial del servidor
         try {
           const serverHistory = await chatService.getChatHistory(currentChatId, session.token);
@@ -121,7 +113,7 @@ export function useChat(): UseChatReturn {
         }
       } else {
         // Si no hay chatId guardado, crear uno nuevo
-        const newChatId = await chatService.createChat(session.token);
+        const newChatId = await chatService.createChat(session.token, session.userId);
         setChatId(newChatId);
         
         // Agregar mensaje de bienvenida solo para chats nuevos
@@ -165,10 +157,7 @@ export function useChat(): UseChatReturn {
     setError(null);
 
     try {
-      const response = await chatService.sendMessage(chatId, textToSend, session.token);
-      // Procesar la respuesta para eliminar formato markdown
-      const processedResponse = processMarkdownToPlainText(response);
-      const assistantMessage = formatChatMessage(processedResponse, false);
+      const assistantMessage = await chatService.sendMessage(chatId, textToSend, session.token);
       const finalMessages = [...newMessages, assistantMessage];
       
       setMessages(finalMessages);
@@ -225,8 +214,8 @@ export function useChat(): UseChatReturn {
       setIsSyncing(false);
       
       // Crear nuevo chatId pero sin mensaje de bienvenida automático
-      if (session?.token) {
-        const newChatId = await chatService.createChat(session.token);
+      if (session?.token && session?.userId) {
+        const newChatId = await chatService.createChat(session.token, session.userId);
         setChatId(newChatId);
         
         // Guardar solo el chatId sin mensajes

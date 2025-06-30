@@ -106,6 +106,13 @@ export default function ChatAsistencia() {
           ]}>
             {item.text}
           </Text>
+          {/* Mostrar indicador de baja confianza si es una respuesta del asistente */}
+          {!isUser && item.low_confidence && (
+            <View style={styles.lowConfidenceIndicator}>
+              <Ionicons name="warning-outline" size={12} color="#ff9800" />
+              <Text style={styles.lowConfidenceText}>Respuesta incierta</Text>
+            </View>
+          )}
           <MessageStatus 
             isUser={isUser}
             timestamp={item.timestamp}
@@ -355,5 +362,20 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  lowConfidenceIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    backgroundColor: 'rgba(255, 152, 0, 0.1)',
+    borderRadius: 8,
+  },
+  lowConfidenceText: {
+    fontSize: 10,
+    color: '#ff9800',
+    marginLeft: 4,
+    fontStyle: 'italic',
   },
 });

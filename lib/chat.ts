@@ -1,4 +1,5 @@
 import { chatClient } from './http';
+import { getItemAsync, setItemAsync } from './storage';
 
 /**
  * Chat Service para el sistema de asistencia
@@ -16,17 +17,51 @@ export interface ChatMessage {
   text: string;
   isUser: boolean;
   timestamp: Date;
+  rated?: string; // 'not_rated', 'positive', 'negative'
+  low_confidence?: boolean;
 }
 
 export interface ChatService {
-  createChat: (token: string) => Promise<string>;
-  sendMessage: (chatId: string, message: string, token: string) => Promise<string>;
+  createChat: (token: string, userId: string) => Promise<string>;
+  sendMessage: (chatId: string, message: string, token: string) => Promise<ChatMessage>;
   getChatHistory: (chatId: string, token: string) => Promise<ChatMessage[]>;
   testConnection: (token: string) => Promise<boolean>;
+  getChatId: (userId: string) => Promise<string | null>;
+  setChatId: (userId: string, chatId: string) => Promise<void>;
 }
 
 class ChatServiceImpl implements ChatService {
-  async createChat(token: string): Promise<string> {
+  // Helper para obtener la clave de storage por usuario
+  private getChatStorageKey(userId: string): string {
+    return `chat_assistant_data_${userId}`;
+  }
+
+  async getChatId(userId: string): Promise<string | null> {
+    try {
+      const chatStorageKey = this.getChatStorageKey(userId);
+      const savedData = await getItemAsync(chatStorageKey);
+      if (savedData) {
+        const { chatId } = JSON.parse(savedData);
+        return chatId;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error obteniendo chatId:', error);
+      return null;
+    }
+  }
+
+  async setChatId(userId: string, chatId: string): Promise<void> {
+    try {
+      const chatStorageKey = this.getChatStorageKey(userId);
+      const chatData = { chatId, messages: [] };
+      await setItemAsync(chatStorageKey, JSON.stringify(chatData));
+    } catch (error) {
+      console.error('Error guardando chatId:', error);
+    }
+  }
+
+  async createChat(token: string, userId: string): Promise<string> {
     try {
       console.log('Creando nuevo chat...');
       
@@ -43,6 +78,9 @@ class ChatServiceImpl implements ChatService {
         throw new Error('No se recibió chat_id del servidor');
       }
 
+      // Guardar el chatId en storage asociado al usuario
+      await this.setChatId(userId, response.data.chat_id);
+
       return response.data.chat_id;
     } catch (error: any) {
       console.error('Error creando chat:', error);
@@ -54,7 +92,7 @@ class ChatServiceImpl implements ChatService {
     }
   }
 
-  async sendMessage(chatId: string, message: string, token: string): Promise<string> {
+  async sendMessage(chatId: string, message: string, token: string): Promise<ChatMessage> {
     try {
       console.log('Enviando mensaje al chat:', { chatId, message: message.trim() });
       
@@ -69,7 +107,17 @@ class ChatServiceImpl implements ChatService {
 
       console.log('Respuesta del servidor:', response.data);
       
-      return response.data.content || response.data.response || 'Lo siento, no pude procesar tu mensaje.';
+      // Crear un objeto ChatMessage con todos los campos de la respuesta
+      const responseMessage: ChatMessage = {
+        id: response.data.id || `assistant-${Date.now()}`,
+        text: processMarkdownToPlainText(response.data.content || response.data.response || 'Lo siento, no pude procesar tu mensaje.'),
+        isUser: false,
+        timestamp: new Date(response.data.timestamp || new Date().toISOString()),
+        rated: response.data.rated,
+        low_confidence: response.data.low_confidence,
+      };
+      
+      return responseMessage;
     } catch (error: any) {
       console.error('Error enviando mensaje:', error);
       if (error.response) {
@@ -92,10 +140,12 @@ class ChatServiceImpl implements ChatService {
 
       // Mapear la respuesta del servidor al formato de ChatMessage y procesar markdown
       return response.data.messages?.map((msg: any, index: number) => ({
-        id: `${msg.role}-${msg.timestamp}-${index}`,
+        id: msg.id || `${msg.role}-${msg.timestamp}-${index}`,
         text: msg.role === 'assistant' ? processMarkdownToPlainText(msg.content || '') : (msg.content || ''),
         isUser: msg.role === 'user',
         timestamp: new Date(msg.timestamp),
+        rated: msg.rated,
+        low_confidence: msg.low_confidence,
       })) || [];
     } catch (error) {
       //console.error('Error obteniendo historial:', error);
@@ -108,8 +158,9 @@ class ChatServiceImpl implements ChatService {
     try {
       console.log('Probando conectividad del chat...');
       
-      // Intentar crear un chat de prueba
-      const testChatId = await this.createChat(token);
+      // Para la prueba de conectividad, usar un userId temporal
+      const testUserId = 'test-connectivity';
+      const testChatId = await this.createChat(token, testUserId);
       console.log('Conectividad exitosa, chat de prueba creado:', testChatId);
       
       return true;
