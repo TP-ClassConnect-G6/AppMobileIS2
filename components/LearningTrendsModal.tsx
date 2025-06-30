@@ -108,6 +108,101 @@ type LearningTrendsModalProps = {
   courseName: string | null;
 };
 
+// Componente para mostrar una anomalía individual
+type AnomalyCardProps = {
+  anomaly: {
+    date: string;
+    delta: number;
+    type: string;
+  };
+  type: 'task' | 'exam';
+};
+
+const AnomalyCard = ({ anomaly, type }: AnomalyCardProps) => {
+  const getAnomalyIcon = (anomalyType: string) => {
+    switch (anomalyType) {
+      case 'spike':
+        return '📈';
+      case 'drop':
+        return '📉';
+      case 'unusual':
+        return '⚠️';
+      default:
+        return '🔍';
+    }
+  };
+
+  const getAnomalyTitle = (anomalyType: string) => {
+    switch (anomalyType) {
+      case 'spike':
+        return 'Pico inusual';
+      case 'drop':
+        return 'Caída significativa';
+      case 'unusual':
+        return 'Comportamiento atípico';
+      default:
+        return 'Anomalía detectada';
+    }
+  };
+
+  const getAnomalyDescription = (anomalyType: string, delta: number, type: 'task' | 'exam') => {
+    const itemType = type === 'task' ? 'tareas' : 'exámenes';
+    const deltaFormatted = Math.abs(delta);
+    
+    switch (anomalyType) {
+      case 'spike':
+        return `Incremento de ${deltaFormatted} en ${itemType} respecto al promedio`;
+      case 'drop':
+        return `Disminución de ${deltaFormatted} en ${itemType} respecto al promedio`;
+      case 'unusual':
+        return `Variación de ${deltaFormatted} fuera del rango normal en ${itemType}`;
+      default:
+        return `Cambio de ${deltaFormatted} detectado en ${itemType}`;
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    // Si es formato YYYY-MM, mostrar como "Junio 2025"
+    if (dateString.includes('-') && dateString.length === 7) {
+      const [year, month] = dateString.split('-');
+      const monthNames = [
+        'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+      ];
+      return `${monthNames[parseInt(month) - 1]} ${year}`;
+    }
+    return dateString;
+  };
+
+  const getAnomalyColor = (anomalyType: string) => {
+    switch (anomalyType) {
+      case 'spike':
+        return '#FF6B35';
+      case 'drop':
+        return '#D32F2F';
+      case 'unusual':
+        return '#FF9800';
+      default:
+        return '#9E9E9E';
+    }
+  };
+
+  return (
+    <View style={[styles.anomalyCard, { borderLeftColor: getAnomalyColor(anomaly.type) }]}>
+      <View style={styles.anomalyCardHeader}>
+        <Text style={styles.anomalyIcon}>{getAnomalyIcon(anomaly.type)}</Text>
+        <View style={styles.anomalyCardContent}>
+          <Text style={styles.anomalyCardTitle}>{getAnomalyTitle(anomaly.type)}</Text>
+          <Text style={styles.anomalyCardDate}>{formatDate(anomaly.date)}</Text>
+        </View>
+      </View>
+      <Text style={styles.anomalyCardDescription}>
+        {getAnomalyDescription(anomaly.type, anomaly.delta, type)}
+      </Text>
+    </View>
+  );
+};
+
 const LearningTrendsModal = ({ visible, onDismiss, courseId, courseName }: LearningTrendsModalProps) => {
   const { session } = useSession();
 
@@ -473,26 +568,35 @@ const LearningTrendsModal = ({ visible, onDismiss, courseId, courseName }: Learn
                 <Card.Content>
                   <Title style={styles.cardTitle}>Anomalías Detectadas</Title>
                   {trends.anomalies.tasks.length === 0 && trends.anomalies.exams.length === 0 ? (
-                    <Text style={styles.noAnomaliesText}>No se detectaron anomalías</Text>
+                    <View style={styles.noAnomaliesContainer}>
+                      <Text style={styles.noAnomaliesText}>✅ No se detectaron anomalías</Text>
+                      <Text style={styles.noAnomaliesSubtext}>Todo está funcionando según lo esperado</Text>
+                    </View>
                   ) : (
                     <View>
                       {trends.anomalies.tasks.length > 0 && (
-                        <View>
-                          <Text style={styles.anomalySubtitle}>Tareas:</Text>
+                        <View style={styles.anomalySection}>
+                          <View style={styles.anomalyHeader}>
+                            <Text style={styles.anomalySubtitle}>📋 Tareas</Text>
+                            <View style={styles.anomalyBadge}>
+                              <Text style={styles.anomalyBadgeText}>{trends.anomalies.tasks.length}</Text>
+                            </View>
+                          </View>
                           {trends.anomalies.tasks.map((anomaly, index) => (
-                            <Text key={index} style={styles.anomalyText}>
-                              • {JSON.stringify(anomaly)}
-                            </Text>
+                            <AnomalyCard key={index} anomaly={anomaly} type="task" />
                           ))}
                         </View>
                       )}
                       {trends.anomalies.exams.length > 0 && (
-                        <View>
-                          <Text style={styles.anomalySubtitle}>Exámenes:</Text>
+                        <View style={styles.anomalySection}>
+                          <View style={styles.anomalyHeader}>
+                            <Text style={styles.anomalySubtitle}>📝 Exámenes</Text>
+                            <View style={styles.anomalyBadge}>
+                              <Text style={styles.anomalyBadgeText}>{trends.anomalies.exams.length}</Text>
+                            </View>
+                          </View>
                           {trends.anomalies.exams.map((anomaly, index) => (
-                            <Text key={index} style={styles.anomalyText}>
-                              • {JSON.stringify(anomaly)}
-                            </Text>
+                            <AnomalyCard key={index} anomaly={anomaly} type="exam" />
                           ))}
                         </View>
                       )}
@@ -651,16 +755,96 @@ const styles = StyleSheet.create({
     marginVertical: 8,
     borderRadius: 16,
   },
+  noAnomaliesContainer: {
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#f0f8f0',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#4CAF50',
+  },
   noAnomaliesText: {
     textAlign: 'center',
-    color: '#666',
+    color: '#2E7D32',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  noAnomaliesSubtext: {
+    textAlign: 'center',
+    color: '#4CAF50',
+    fontSize: 12,
+    marginTop: 4,
     fontStyle: 'italic',
+  },
+  anomalySection: {
+    marginBottom: 20,
+  },
+  anomalyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
   },
   anomalySubtitle: {
     fontWeight: 'bold',
-    color: '#D32F2F',
-    marginTop: 5,
-    marginBottom: 5,
+    color: '#1976D2',
+    fontSize: 16,
+  },
+  anomalyBadge: {
+    backgroundColor: '#1976D2',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    minWidth: 24,
+    alignItems: 'center',
+  },
+  anomalyBadgeText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  anomalyCard: {
+    backgroundColor: '#fafafa',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    borderLeftWidth: 4,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  anomalyCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  anomalyIcon: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  anomalyCardContent: {
+    flex: 1,
+  },
+  anomalyCardTitle: {
+    fontWeight: '600',
+    fontSize: 14,
+    color: '#333',
+  },
+  anomalyCardDate: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
+  },
+  anomalyCardDescription: {
+    fontSize: 13,
+    color: '#555',
+    lineHeight: 18,
+    marginLeft: 36,
   },
   anomalyText: {
     color: '#D32F2F',
