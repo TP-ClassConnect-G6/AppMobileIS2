@@ -143,8 +143,13 @@ export default function ChatAsistencia() {
               <Text style={styles.resourceText}>Basado en: {item.resource}</Text>
             </View>
           )}
-          {/* Botones de calificación para mensajes del asistente */}
-          {!isUser && (
+          {/* Botones de calificación para mensajes del asistente (excepto el primer mensaje) */}
+          {!isUser && (() => {
+            // Contar cuántos mensajes del asistente hay antes de este mensaje
+            const assistantMessagesBefore = messages.slice(0, messages.indexOf(item)).filter(msg => !msg.isUser).length;
+            // Solo mostrar botones de calificación si no es el primer mensaje del asistente
+            return assistantMessagesBefore > 0;
+          })() && (
             <View style={styles.ratingContainer}>
               <Text style={[styles.ratingLabel, { color: Colors[colorScheme ?? 'light'].text }]}>
                 ¿Te fue útil esta respuesta?
