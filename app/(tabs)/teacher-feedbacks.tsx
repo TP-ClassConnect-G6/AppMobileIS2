@@ -10,6 +10,7 @@ import { processMarkdownToPlainText } from '@/lib/chat';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { formatDate } from "date-fns";
+import { useLocalSearchParams } from "expo-router";
 
 interface TeacherFeedback {
   id: string;
@@ -31,9 +32,13 @@ interface TeacherCourse {
 }
 
 export default function TeacherFeedbacksScreen() {
+  const { course_id } = useLocalSearchParams();
+  
   const { session } = useSession();
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
+  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(
+    Array.isArray(course_id) ? course_id[0] ?? null : course_id ?? null
+  );
   const [coursesDropdownVisible, setCoursesDropdownVisible] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const limit = 3;
