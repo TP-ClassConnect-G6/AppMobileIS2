@@ -10,6 +10,7 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/ThemedText';
@@ -28,6 +29,12 @@ import { useSyncToast } from '@/hooks/useSyncToast';
 
 export default function ChatAsistencia() {
   const [inputText, setInputText] = useState('');
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [ratingComment, setRatingComment] = useState('');
+  const [pendingRating, setPendingRating] = useState<{
+    messageId: string;
+    rating: 'positive' | 'negative';
+  } | null>(null);
   const { 
     messages, 
     isLoading, 
@@ -84,25 +91,48 @@ export default function ChatAsistencia() {
   };
 
   const handleRateMessage = async (messageId: string, rating: 'positive' | 'negative') => {
+    // Guardar la calificación pendiente y mostrar el modal
+    setPendingRating({ messageId, rating });
+    setRatingComment('');
+    setShowRatingModal(true);
+  };
+
+  const submitRating = async () => {
+    if (!pendingRating) return;
+
     try {
-      console.log('Intentando calificar mensaje:', { messageId, rating });
+      console.log('Intentando calificar mensaje:', { 
+        messageId: pendingRating.messageId, 
+        rating: pendingRating.rating,
+        comment: ratingComment.trim() || undefined
+      });
       
       // Buscar el mensaje para ver si ya tenía una calificación
-      const currentMessage = messages.find(msg => msg.id === messageId);
+      const currentMessage = messages.find(msg => msg.id === pendingRating.messageId);
       const wasAlreadyRated = currentMessage?.rated && currentMessage.rated !== 'not_rated';
       
-      await rateMessage(messageId, rating);
+      await rateMessage(pendingRating.messageId, pendingRating.rating, ratingComment.trim() || undefined);
       
       // Feedback visual opcional para mostrar que se cambió la calificación
       if (wasAlreadyRated) {
-        console.log(`Calificación cambiada a ${rating} para mensaje ${messageId}`);
-        // Podrías descomentar esto si quieres mostrar un mensaje al usuario
-        // Alert.alert('Calificación actualizada', `Has cambiado tu calificación a ${rating === 'positive' ? 'positiva' : 'negativa'}.`);
+        console.log(`Calificación cambiada a ${pendingRating.rating} para mensaje ${pendingRating.messageId}`);
       }
+
+      // Cerrar modal y limpiar estados
+      setShowRatingModal(false);
+      setPendingRating(null);
+      setRatingComment('');
+      
     } catch (error) {
-      console.error('Error en handleRateMessage:', error);
+      console.error('Error en submitRating:', error);
       Alert.alert('Error', 'No se pudo calificar el mensaje. Inténtalo de nuevo.');
     }
+  };
+
+  const cancelRating = () => {
+    setShowRatingModal(false);
+    setPendingRating(null);
+    setRatingComment('');
   };
 
   const renderMessage = ({ item }: { item: ChatMessage }) => {
@@ -163,8 +193,6 @@ export default function ChatAsistencia() {
                   ]}
                   onPress={() => {
                     console.log('Click en botón positivo para mensaje:', item.id);
-                    // Permitir recalificar: si ya está calificado como positivo, no hacer nada
-                    // Si está calificado como negativo o no calificado, calificar como positivo
                     if (item.rated !== 'positive') {
                       handleRateMessage(item.id, 'positive');
                     }
@@ -188,8 +216,6 @@ export default function ChatAsistencia() {
                   ]}
                   onPress={() => {
                     console.log('Click en botón negativo para mensaje:', item.id);
-                    // Permitir recalificar: si ya está calificado como negativo, no hacer nada
-                    // Si está calificado como positivo o no calificado, calificar como negativo
                     if (item.rated !== 'negative') {
                       handleRateMessage(item.id, 'negative');
                     }
@@ -226,6 +252,84 @@ export default function ChatAsistencia() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      {/* Modal de calificación con comentario */}
+      <Modal
+        visible={showRatingModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={cancelRating}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: Colors[colorScheme ?? 'light'].background }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: Colors[colorScheme ?? 'light'].text }]}>
+                Calificar Respuesta
+              </Text>
+              <TouchableOpacity onPress={cancelRating} style={styles.modalCloseButton}>
+                <Ionicons name="close" size={24} color={Colors[colorScheme ?? 'light'].text} />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.modalRatingInfo}>
+              <Ionicons 
+                name={pendingRating?.rating === 'positive' ? "thumbs-up" : "thumbs-down"} 
+                size={32} 
+                color={pendingRating?.rating === 'positive' ? '#4caf50' : '#f44336'} 
+              />
+              <Text style={[styles.modalRatingText, { color: Colors[colorScheme ?? 'light'].text }]}>
+                Calificación: {pendingRating?.rating === 'positive' ? 'Útil' : 'No útil'}
+              </Text>
+            </View>
+
+            <Text style={[styles.modalLabel, { color: Colors[colorScheme ?? 'light'].text }]}>
+              Comentario (opcional):
+            </Text>
+            <Text style={[styles.modalSubLabel, { color: Colors[colorScheme ?? 'light'].text + '70' }]}>
+              Ayúdanos a mejorar contándonos por qué esta respuesta fue {pendingRating?.rating === 'positive' ? 'útil' : 'no útil'}
+            </Text>
+            <TextInput
+              style={[
+                styles.modalTextInput,
+                { 
+                  color: Colors[colorScheme ?? 'light'].text,
+                  borderColor: Colors[colorScheme ?? 'light'].text + '30',
+                  backgroundColor: Colors[colorScheme ?? 'light'].background
+                }
+              ]}
+              value={ratingComment}
+              onChangeText={setRatingComment}
+              placeholder="Escribe un comentario sobre esta respuesta..."
+              placeholderTextColor={Colors[colorScheme ?? 'light'].text + '60'}
+              multiline
+              maxLength={300}
+              numberOfLines={4}
+            />
+            <Text style={[styles.modalCharCount, { color: Colors[colorScheme ?? 'light'].text + '60' }]}>
+              {ratingComment.length}/300
+            </Text>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalCancelButton]}
+                onPress={cancelRating}
+              >
+                <Text style={styles.modalCancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modalButton, 
+                  styles.modalSubmitButton,
+                  { backgroundColor: Colors[colorScheme ?? 'light'].tint }
+                ]}
+                onPress={submitRating}
+              >
+                <Text style={styles.modalSubmitButtonText}>Calificar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <ThemedView style={styles.headerWrapper}>
         <ChatHeader 
           onClearChat={handleClearChat}
@@ -546,5 +650,99 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textAlign: 'center',
     opacity: 0.7,
+  },
+  // Estilos del modal de calificación
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 16,
+    padding: 20,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  modalRatingInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    padding: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    borderRadius: 8,
+  },
+  modalRatingText: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginLeft: 12,
+  },
+  modalLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  modalSubLabel: {
+    fontSize: 12,
+    marginBottom: 8,
+    lineHeight: 16,
+  },
+  modalTextInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 14,
+    textAlignVertical: 'top',
+    minHeight: 80,
+  },
+  modalCharCount: {
+    fontSize: 12,
+    textAlign: 'right',
+    marginTop: 4,
+    marginBottom: 20,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modalCancelButton: {
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  modalCancelButtonText: {
+    color: '#666',
+    fontWeight: '500',
+  },
+  modalSubmitButton: {
+    // backgroundColor se define dinámicamente
+  },
+  modalSubmitButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
   },
 });
