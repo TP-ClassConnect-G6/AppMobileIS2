@@ -22,6 +22,7 @@ interface UseChatReturn {
   refreshHistory: () => Promise<void>;
   isInitialized: boolean;
   isSyncing: boolean;
+  rateMessage: (messageId: string, rating: 'positive' | 'negative', comment?: string) => Promise<void>;
 }
 
 export function useChat(): UseChatReturn {
@@ -197,6 +198,39 @@ export function useChat(): UseChatReturn {
     }
   }, [session?.token, chatId, saveChatData]);
 
+  // Calificar mensaje
+  const rateMessage = useCallback(async (messageId: string, rating: 'positive' | 'negative', comment?: string) => {
+    if (!session?.token || !chatId) {
+      setError(predefinedMessages.noSession);
+      return;
+    }
+
+    try {
+      await chatService.rateMessage(chatId, messageId, rating, comment, session.token);
+      
+      // Actualizar el mensaje en el estado local
+      setMessages(prevMessages => 
+        prevMessages.map(msg => 
+          msg.id === messageId 
+            ? { ...msg, rated: rating }
+            : msg
+        )
+      );
+      
+      // Guardar los mensajes actualizados
+      const updatedMessages = messages.map(msg => 
+        msg.id === messageId 
+          ? { ...msg, rated: rating }
+          : msg
+      );
+      await saveChatData(chatId, updatedMessages);
+      
+    } catch (error) {
+      console.error('Error calificando mensaje:', error);
+      setError('Error al calificar el mensaje');
+    }
+  }, [session?.token, chatId, messages, saveChatData]);
+
   // Limpiar chat
   const clearChat = useCallback(async () => {
     if (!session?.userId) return;
@@ -271,5 +305,6 @@ export function useChat(): UseChatReturn {
     refreshHistory,
     isInitialized,
     isSyncing,
+    rateMessage,
   };
 }

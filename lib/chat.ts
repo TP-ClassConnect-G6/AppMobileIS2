@@ -29,6 +29,7 @@ export interface ChatService {
   testConnection: (token: string) => Promise<boolean>;
   getChatId: (userId: string) => Promise<string | null>;
   setChatId: (userId: string, chatId: string) => Promise<void>;
+  rateMessage: (chatId: string, messageId: string, rating: 'positive' | 'negative', comment: string | undefined, token: string) => Promise<void>;
 }
 
 class ChatServiceImpl implements ChatService {
@@ -170,6 +171,33 @@ class ChatServiceImpl implements ChatService {
     } catch (error) {
       console.error('Error de conectividad:', error);
       return false;
+    }
+  }
+
+  async rateMessage(chatId: string, messageId: string, rating: 'positive' | 'negative', comment: string | undefined, token: string): Promise<void> {
+    try {
+      console.log('Calificando mensaje:', { chatId, messageId, rating, comment });
+      
+      const body: any = { rating };
+      if (comment && comment.trim()) {
+        body.comment = comment.trim();
+      }
+      
+      const response = await chatClient.post(`/chat/${chatId}/rate/${messageId}`, body, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log('Mensaje calificado exitosamente:', response.data);
+    } catch (error: any) {
+      console.error('Error calificando mensaje:', error);
+      if (error.response) {
+        console.error('Error response:', error.response.data);
+        console.error('Error status:', error.response.status);
+      }
+      throw new Error('No se pudo calificar el mensaje');
     }
   }
 }

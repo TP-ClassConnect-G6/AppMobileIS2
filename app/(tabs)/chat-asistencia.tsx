@@ -36,7 +36,8 @@ export default function ChatAsistencia() {
     clearChat, 
     refreshHistory,
     isInitialized,
-    isSyncing 
+    isSyncing,
+    rateMessage
   } = useChat();
   const { toast, hideToast, showSyncSuccess, showSyncError, showChatCleared } = useSyncToast();
   const colorScheme = useColorScheme();
@@ -82,6 +83,15 @@ export default function ChatAsistencia() {
     }
   };
 
+  const handleRateMessage = async (messageId: string, rating: 'positive' | 'negative') => {
+    try {
+      await rateMessage(messageId, rating);
+      // No mostrar toast para evitar saturar al usuario
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo calificar el mensaje. Inténtalo de nuevo.');
+    }
+  };
+
   const renderMessage = ({ item }: { item: ChatMessage }) => {
     const isUser = item.isUser;
     const messageBackgroundColor = isUser 
@@ -118,6 +128,42 @@ export default function ChatAsistencia() {
             <View style={styles.resourceIndicator}>
               <Ionicons name="library-outline" size={12} color="#2196f3" />
               <Text style={styles.resourceText}>Basado en: {item.resource}</Text>
+            </View>
+          )}
+          {/* Botones de calificación para mensajes del asistente */}
+          {!isUser && (
+            <View style={styles.ratingContainer}>
+              <Text style={styles.ratingLabel}>¿Te fue útil esta respuesta?</Text>
+              <View style={styles.ratingButtons}>
+                <TouchableOpacity
+                  style={[
+                    styles.ratingButton,
+                    item.rated === 'positive' && styles.ratingButtonActive
+                  ]}
+                  onPress={() => handleRateMessage(item.id, 'positive')}
+                  disabled={item.rated !== undefined}
+                >
+                  <Ionicons 
+                    name="thumbs-up" 
+                    size={16} 
+                    color={item.rated === 'positive' ? '#4caf50' : '#666'} 
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.ratingButton,
+                    item.rated === 'negative' && styles.ratingButtonActive
+                  ]}
+                  onPress={() => handleRateMessage(item.id, 'negative')}
+                  disabled={item.rated !== undefined}
+                >
+                  <Ionicons 
+                    name="thumbs-down" 
+                    size={16} 
+                    color={item.rated === 'negative' ? '#f44336' : '#666'} 
+                  />
+                </TouchableOpacity>
+              </View>
             </View>
           )}
           <MessageStatus 
@@ -399,5 +445,31 @@ const styles = StyleSheet.create({
     color: '#2196f3',
     marginLeft: 4,
     fontStyle: 'italic',
+  },
+  ratingContainer: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  ratingLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 6,
+  },
+  ratingButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  ratingButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+  },
+  ratingButtonActive: {
+    backgroundColor: 'rgba(76, 175, 80, 0.1)',
   },
 });
