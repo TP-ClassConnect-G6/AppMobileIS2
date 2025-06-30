@@ -86,10 +86,19 @@ export default function ChatAsistencia() {
   const handleRateMessage = async (messageId: string, rating: 'positive' | 'negative') => {
     try {
       console.log('Intentando calificar mensaje:', { messageId, rating });
+      
+      // Buscar el mensaje para ver si ya tenía una calificación
+      const currentMessage = messages.find(msg => msg.id === messageId);
+      const wasAlreadyRated = currentMessage?.rated && currentMessage.rated !== 'not_rated';
+      
       await rateMessage(messageId, rating);
       
-      // Feedback visual opcional - podrías agregar un toast si lo deseas
-      // Alert.alert('¡Gracias!', `Tu calificación ${rating === 'positive' ? 'positiva' : 'negativa'} ha sido registrada.`);
+      // Feedback visual opcional para mostrar que se cambió la calificación
+      if (wasAlreadyRated) {
+        console.log(`Calificación cambiada a ${rating} para mensaje ${messageId}`);
+        // Podrías descomentar esto si quieres mostrar un mensaje al usuario
+        // Alert.alert('Calificación actualizada', `Has cambiado tu calificación a ${rating === 'positive' ? 'positiva' : 'negativa'}.`);
+      }
     } catch (error) {
       console.error('Error en handleRateMessage:', error);
       Alert.alert('Error', 'No se pudo calificar el mensaje. Inténtalo de nuevo.');
@@ -149,9 +158,12 @@ export default function ChatAsistencia() {
                   ]}
                   onPress={() => {
                     console.log('Click en botón positivo para mensaje:', item.id);
-                    handleRateMessage(item.id, 'positive');
+                    // Permitir recalificar: si ya está calificado como positivo, no hacer nada
+                    // Si está calificado como negativo o no calificado, calificar como positivo
+                    if (item.rated !== 'positive') {
+                      handleRateMessage(item.id, 'positive');
+                    }
                   }}
-                  disabled={item.rated !== undefined && item.rated !== 'not_rated'}
                   activeOpacity={0.7}
                 >
                   <Ionicons 
@@ -160,7 +172,7 @@ export default function ChatAsistencia() {
                     color={item.rated === 'positive' ? '#4caf50' : Colors[colorScheme ?? 'light'].text + '80'} 
                   />
                   {item.rated === 'positive' && (
-                    <Text style={styles.ratingButtonText}>Útil</Text>
+                    <Text style={[styles.ratingButtonText, { color: '#4caf50' }]}>Útil</Text>
                   )}
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -171,9 +183,12 @@ export default function ChatAsistencia() {
                   ]}
                   onPress={() => {
                     console.log('Click en botón negativo para mensaje:', item.id);
-                    handleRateMessage(item.id, 'negative');
+                    // Permitir recalificar: si ya está calificado como negativo, no hacer nada
+                    // Si está calificado como positivo o no calificado, calificar como negativo
+                    if (item.rated !== 'negative') {
+                      handleRateMessage(item.id, 'negative');
+                    }
                   }}
-                  disabled={item.rated !== undefined && item.rated !== 'not_rated'}
                   activeOpacity={0.7}
                 >
                   <Ionicons 
@@ -182,10 +197,16 @@ export default function ChatAsistencia() {
                     color={item.rated === 'negative' ? '#f44336' : Colors[colorScheme ?? 'light'].text + '80'} 
                   />
                   {item.rated === 'negative' && (
-                    <Text style={styles.ratingButtonText}>No útil</Text>
+                    <Text style={[styles.ratingButtonText, { color: '#f44336' }]}>No útil</Text>
                   )}
                 </TouchableOpacity>
               </View>
+              {/* Mostrar mensaje informativo si ya ha sido calificado */}
+              {item.rated && (
+                <Text style={[styles.ratingHelpText, { color: Colors[colorScheme ?? 'light'].text + '60' }]}>
+                  Puedes cambiar tu calificación tocando el otro botón
+                </Text>
+              )}
             </View>
           )}
           <MessageStatus 
@@ -493,22 +514,32 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     minWidth: 50,
     justifyContent: 'center',
+    marginHorizontal: 2,
   },
   ratingButtonActive: {
     backgroundColor: 'rgba(76, 175, 80, 0.1)',
   },
   ratingButtonPositive: {
-    backgroundColor: 'rgba(76, 175, 80, 0.15)',
+    backgroundColor: 'rgba(76, 175, 80, 0.2)',
     borderColor: '#4caf50',
+    borderWidth: 2,
   },
   ratingButtonNegative: {
-    backgroundColor: 'rgba(244, 67, 54, 0.15)',
+    backgroundColor: 'rgba(244, 67, 54, 0.2)',
     borderColor: '#f44336',
+    borderWidth: 2,
   },
   ratingButtonText: {
     fontSize: 10,
     fontWeight: '500',
     marginLeft: 4,
     color: '#666',
+  },
+  ratingHelpText: {
+    fontSize: 10,
+    fontStyle: 'italic',
+    marginTop: 4,
+    textAlign: 'center',
+    opacity: 0.7,
   },
 });
