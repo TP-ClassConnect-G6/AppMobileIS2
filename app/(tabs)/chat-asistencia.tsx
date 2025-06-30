@@ -113,6 +113,13 @@ export default function ChatAsistencia() {
               <Text style={styles.lowConfidenceText}>Respuesta incierta</Text>
             </View>
           )}
+          {/* Mostrar indicador de recurso si es una respuesta del asistente con recurso */}
+          {!isUser && item.resource && (
+            <View style={styles.resourceIndicator}>
+              <Ionicons name="library-outline" size={12} color="#2196f3" />
+              <Text style={styles.resourceText}>Basado en: {item.resource}</Text>
+            </View>
+          )}
           <MessageStatus 
             isUser={isUser}
             timestamp={item.timestamp}
@@ -375,6 +382,21 @@ const styles = StyleSheet.create({
   lowConfidenceText: {
     fontSize: 10,
     color: '#ff9800',
+    marginLeft: 4,
+    fontStyle: 'italic',
+  },
+  resourceIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    backgroundColor: 'rgba(33, 150, 243, 0.1)',
+    borderRadius: 8,
+  },
+  resourceText: {
+    fontSize: 10,
+    color: '#2196f3',
     marginLeft: 4,
     fontStyle: 'italic',
   },

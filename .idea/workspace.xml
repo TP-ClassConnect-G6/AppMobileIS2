@@ -7,7 +7,6 @@
     <list default="true" id="25738c90-8bba-4cd3-8613-a2541fcd564d" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/(tabs)/chat-asistencia.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/(tabs)/chat-asistencia.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/hooks/useChat.ts" beforeDir="false" afterPath="$PROJECT_DIR$/hooks/useChat.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/chat.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/chat.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />

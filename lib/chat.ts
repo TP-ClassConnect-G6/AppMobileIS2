@@ -19,6 +19,7 @@ export interface ChatMessage {
   timestamp: Date;
   rated?: string; // 'not_rated', 'positive', 'negative'
   low_confidence?: boolean;
+  resource?: string; // nuevo campo para recursos de referencia
 }
 
 export interface ChatService {
@@ -115,6 +116,7 @@ class ChatServiceImpl implements ChatService {
         timestamp: new Date(response.data.timestamp || new Date().toISOString()),
         rated: response.data.rated,
         low_confidence: response.data.low_confidence,
+        resource: response.data.resource,
       };
       
       return responseMessage;
@@ -146,6 +148,7 @@ class ChatServiceImpl implements ChatService {
         timestamp: new Date(msg.timestamp),
         rated: msg.rated,
         low_confidence: msg.low_confidence,
+        resource: msg.resource,
       })) || [];
     } catch (error) {
       //console.error('Error obteniendo historial:', error);
