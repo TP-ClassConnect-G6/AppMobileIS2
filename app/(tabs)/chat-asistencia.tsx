@@ -85,9 +85,13 @@ export default function ChatAsistencia() {
 
   const handleRateMessage = async (messageId: string, rating: 'positive' | 'negative') => {
     try {
+      console.log('Intentando calificar mensaje:', { messageId, rating });
       await rateMessage(messageId, rating);
-      // No mostrar toast para evitar saturar al usuario
+      
+      // Feedback visual opcional - podrías agregar un toast si lo deseas
+      // Alert.alert('¡Gracias!', `Tu calificación ${rating === 'positive' ? 'positiva' : 'negativa'} ha sido registrada.`);
     } catch (error) {
+      console.error('Error en handleRateMessage:', error);
       Alert.alert('Error', 'No se pudo calificar el mensaje. Inténtalo de nuevo.');
     }
   };
@@ -133,35 +137,53 @@ export default function ChatAsistencia() {
           {/* Botones de calificación para mensajes del asistente */}
           {!isUser && (
             <View style={styles.ratingContainer}>
-              <Text style={styles.ratingLabel}>¿Te fue útil esta respuesta?</Text>
+              <Text style={[styles.ratingLabel, { color: Colors[colorScheme ?? 'light'].text }]}>
+                ¿Te fue útil esta respuesta?
+              </Text>
               <View style={styles.ratingButtons}>
                 <TouchableOpacity
                   style={[
                     styles.ratingButton,
-                    item.rated === 'positive' && styles.ratingButtonActive
+                    item.rated === 'positive' && styles.ratingButtonPositive,
+                    { borderColor: Colors[colorScheme ?? 'light'].text + '20' }
                   ]}
-                  onPress={() => handleRateMessage(item.id, 'positive')}
-                  disabled={item.rated !== undefined}
+                  onPress={() => {
+                    console.log('Click en botón positivo para mensaje:', item.id);
+                    handleRateMessage(item.id, 'positive');
+                  }}
+                  disabled={item.rated !== undefined && item.rated !== 'not_rated'}
+                  activeOpacity={0.7}
                 >
                   <Ionicons 
-                    name="thumbs-up" 
-                    size={16} 
-                    color={item.rated === 'positive' ? '#4caf50' : '#666'} 
+                    name={item.rated === 'positive' ? "thumbs-up" : "thumbs-up-outline"} 
+                    size={18} 
+                    color={item.rated === 'positive' ? '#4caf50' : Colors[colorScheme ?? 'light'].text + '80'} 
                   />
+                  {item.rated === 'positive' && (
+                    <Text style={styles.ratingButtonText}>Útil</Text>
+                  )}
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[
                     styles.ratingButton,
-                    item.rated === 'negative' && styles.ratingButtonActive
+                    item.rated === 'negative' && styles.ratingButtonNegative,
+                    { borderColor: Colors[colorScheme ?? 'light'].text + '20' }
                   ]}
-                  onPress={() => handleRateMessage(item.id, 'negative')}
-                  disabled={item.rated !== undefined}
+                  onPress={() => {
+                    console.log('Click en botón negativo para mensaje:', item.id);
+                    handleRateMessage(item.id, 'negative');
+                  }}
+                  disabled={item.rated !== undefined && item.rated !== 'not_rated'}
+                  activeOpacity={0.7}
                 >
                   <Ionicons 
-                    name="thumbs-down" 
-                    size={16} 
-                    color={item.rated === 'negative' ? '#f44336' : '#666'} 
+                    name={item.rated === 'negative' ? "thumbs-down" : "thumbs-down-outline"} 
+                    size={18} 
+                    color={item.rated === 'negative' ? '#f44336' : Colors[colorScheme ?? 'light'].text + '80'} 
                   />
+                  {item.rated === 'negative' && (
+                    <Text style={styles.ratingButtonText}>No útil</Text>
+                  )}
                 </TouchableOpacity>
               </View>
             </View>
@@ -464,12 +486,29 @@ const styles = StyleSheet.create({
   ratingButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
     backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    borderWidth: 1,
+    minWidth: 50,
+    justifyContent: 'center',
   },
   ratingButtonActive: {
     backgroundColor: 'rgba(76, 175, 80, 0.1)',
+  },
+  ratingButtonPositive: {
+    backgroundColor: 'rgba(76, 175, 80, 0.15)',
+    borderColor: '#4caf50',
+  },
+  ratingButtonNegative: {
+    backgroundColor: 'rgba(244, 67, 54, 0.15)',
+    borderColor: '#f44336',
+  },
+  ratingButtonText: {
+    fontSize: 10,
+    fontWeight: '500',
+    marginLeft: 4,
+    color: '#666',
   },
 });
